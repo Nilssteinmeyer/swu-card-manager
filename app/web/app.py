@@ -375,6 +375,49 @@ def _register_routes(app: Flask) -> None:
             return jsonify({"error": str(e)}), 500
 
     # -- Scan confirm ------------------------------------------------------
+    @app.route("/api/scan/undo", methods=["POST"])
+    def api_scan_undo():
+        """Undo the last confirmed scan action.
+
+        Restores the collection (count or removes the entry), deletes the
+        training photo taken for that scan, removes the correction learning
+        record and the dataset sample - keeping the training data clean.
+        """
+        conn = connect()
+        try:
+            preview = repo.get_last_undoable(conn)
+            if preview is None:
+                return jsonify({"undone": False, "error": "Nichts zum Rückgängigmachen"}), 404
+            result = repo.undo_last_scan_action(conn)
+            if result.get("undone"):
+                log.info(
+                    f"Undid scan action: {result['card_id']}",
+                    extra={"event": "scan_undo", "card_id": result["card_id"]},
+                )
+            return jsonify(result)
+        except Exception as e:
+            log.error(f"Scan undo failed: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
+
+    @app.route("/api/scan/undo/preview")
+    def api_scan_undo_preview():
+        """What would be undone next (for the undo button state)."""
+        conn = connect()
+        try:
+            row = repo.get_last_undoable(conn)
+            if row is None:
+                return jsonify({"available": False})
+            return jsonify({
+                "available": True,
+                "card_id": row["card_id"],
+                "count": row["count_added"],
+                "created_at": row["created_at"],
+            })
+        finally:
+            conn.close()
+
     @app.route("/api/scan/confirm", methods=["POST"])
     def api_scan_confirm():
         body = request.get_json(silent=True) or {}
@@ -401,12 +444,13 @@ def _register_routes(app: Flask) -> None:
                 # If a different card than originally recognised was chosen,
                 # record the correction for ML learning.
                 repo.correct_scan(conn, scan_id, card_id)
+                learn_info = None
                 if original_card_id and original_card_id != card_id and engine:
-                    engine.learn_from_correction(conn, scan_id, original_card_id, card_id, image_path)
+                    learn_info = engine.learn_from_correction(conn, scan_id, original_card_id, card_id, image_path)
 
                 if add_to_collection:
                     variant = "Foil" if is_foil else "Normal"
-                    repo.add_to_collection(
+                    add_info = repo.add_to_collection(
                         conn,
                         card_id=card_id,
                         count=quantity,
@@ -414,20 +458,15 @@ def _register_routes(app: Flask) -> None:
                         language=language,
                         variant=variant,
                         source="scan",
+                        return_details=True,
                     )
                     # Set is_foil flag on the newly added entry
                     if is_foil:
-                        cur = conn.execute(
-                            "SELECT MAX(collection_id) FROM collection WHERE card_id=?",
-                            (card_id,),
+                        conn.execute(
+                            "UPDATE collection SET is_foil=1 WHERE collection_id=?",
+                            (add_info["collection_id"],),
                         )
-                        last_id = cur.fetchone()[0]
-                        if last_id:
-                            conn.execute(
-                                "UPDATE collection SET is_foil=1 WHERE collection_id=?",
-                                (last_id,),
-                            )
-                            conn.commit()
+                        conn.commit()
 
                 # Save the photo for training ONLY on confirm
                 saved_photo_path = ""
@@ -450,6 +489,23 @@ def _register_routes(app: Flask) -> None:
                     except Exception as e:
                         log.warning(f"Failed to save photo: {e}")
 
+                # Journal the action so it can be undone (last-action undo)
+                undo_id = None
+                if add_to_collection and add_info:
+                    undo_id = repo.record_scan_undo(
+                        conn,
+                        scan_id=scan_id,
+                        collection_id=add_info["collection_id"],
+                        card_id=card_id,
+                        count_added=quantity,
+                        previous_count=add_info["previous_count"],
+                        entry_created=bool(add_info["entry_created"]),
+                        is_foil=is_foil,
+                        photo_path=saved_photo_path or None,
+                        correction_id=(learn_info or {}).get("correction_id"),
+                        dataset_path=(learn_info or {}).get("dataset_path"),
+                    )
+
                 return jsonify({
                     "confirmed": True,
                     "card_id": card_id,
@@ -458,6 +514,7 @@ def _register_routes(app: Flask) -> None:
                     "is_foil": is_foil,
                     "photo_saved": bool(saved_photo_path),
                     "learned": original_card_id != card_id,
+                    "undo_id": undo_id,
                 })
             else:
                 # Rejection — delete scan photo, mark as rejected

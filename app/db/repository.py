@@ -5,6 +5,7 @@ All operations are transactional and use parameterised queries.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import sqlite3
 from datetime import datetime
 from typing import Any
@@ -211,8 +212,13 @@ def add_to_collection(
     variant: str = "Normal",
     location: str | None = None,
     source: str = "scan",
-) -> int:
-    """Add a card to the collection. If an identical entry exists, increment count."""
+    return_details: bool = False,
+) -> int | dict[str, Any]:
+    """Add a card to the collection. If an identical entry exists, increment count.
+
+    With return_details=True, returns a dict with undo information:
+    {collection_id, previous_count, entry_created}.
+    """
     cur = conn.execute(
         """SELECT collection_id, count FROM collection
            WHERE card_id=? AND condition=? AND language=? AND variant=?""",
@@ -220,12 +226,19 @@ def add_to_collection(
     )
     row = cur.fetchone()
     if row:
-        new_count = row["count"] + count
+        previous_count = row["count"]
+        new_count = previous_count + count
         conn.execute(
             "UPDATE collection SET count=?, acquired_at=? WHERE collection_id=?",
             (new_count, datetime.now().isoformat(timespec="seconds"), row["collection_id"]),
         )
         conn.commit()
+        if return_details:
+            return {
+                "collection_id": row["collection_id"],
+                "previous_count": previous_count,
+                "entry_created": 0,
+            }
         return row["collection_id"]
     cur = conn.execute(
         """INSERT INTO collection (card_id, count, condition, language, variant, location, source)
@@ -233,7 +246,113 @@ def add_to_collection(
         (card_id, count, condition, language, variant, location, source),
     )
     conn.commit()
+    if return_details:
+        return {
+            "collection_id": cur.lastrowid,
+            "previous_count": 0,
+            "entry_created": 1,
+        }
     return cur.lastrowid
+
+
+def record_scan_undo(
+    conn: sqlite3.Connection,
+    scan_id: int,
+    collection_id: int,
+    card_id: str,
+    count_added: int,
+    previous_count: int,
+    entry_created: bool,
+    is_foil: bool,
+    photo_path: str | None,
+    correction_id: int | None,
+    dataset_path: str | None,
+) -> int:
+    """Journal a scan-confirm action so it can be undone."""
+    cur = conn.execute(
+        """INSERT INTO scan_undo (scan_id, collection_id, card_id, count_added,
+               previous_count, entry_created, is_foil, photo_path, correction_id, dataset_path)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (scan_id, collection_id, card_id, count_added, previous_count,
+         1 if entry_created else 0, 1 if is_foil else 0,
+         photo_path, correction_id, dataset_path),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_last_undoable(conn: sqlite3.Connection) -> dict[str, Any] | None:
+    """Most recent confirm action that has not been undone yet."""
+    cur = conn.execute(
+        "SELECT * FROM scan_undo WHERE undone = 0 ORDER BY undo_id DESC LIMIT 1"
+    )
+    row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def undo_last_scan_action(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Undo the most recent not-yet-undone confirm action.
+
+    - restores the collection count (or removes the entry if it was newly created)
+    - deletes the training photo taken for this scan
+    - removes the correction learning record (scan_corrections row + dataset sample)
+    Returns a result dict describing what was undone.
+    """
+    row = get_last_undoable(conn)
+    if row is None:
+        return {"undone": False, "error": "Keine rückgängig zu machende Aktion"}
+
+    undo_id = row["undo_id"]
+    collection_id = row["collection_id"]
+    details: list[str] = []
+
+    # 1) Collection rollback
+    cur = conn.execute("SELECT 1 FROM collection WHERE collection_id=?", (collection_id,))
+    if cur.fetchone():
+        if row["entry_created"]:
+            conn.execute("DELETE FROM collection WHERE collection_id=?", (collection_id,))
+            details.append("Sammlungseintrag entfernt")
+        else:
+            conn.execute(
+                "UPDATE collection SET count=? WHERE collection_id=?",
+                (row["previous_count"], collection_id),
+            )
+            details.append(f"Anzahl zurück auf {row['previous_count']} gesetzt")
+
+    # 2) Delete the training photo (data quality!)
+    if row["photo_path"]:
+        try:
+            Path(row["photo_path"]).unlink(missing_ok=True)
+            details.append("Trainingsfoto gelöscht")
+        except Exception as e:
+            log.warning(f"Could not delete training photo {row['photo_path']}: {e}")
+
+    # 3) Remove the correction learning record
+    if row["correction_id"]:
+        conn.execute("DELETE FROM scan_corrections WHERE correction_id=?", (row["correction_id"],))
+        details.append("Korrektur-Lerneintrag entfernt")
+
+    # 4) Delete dataset sample
+    if row["dataset_path"]:
+        try:
+            Path(row["dataset_path"]).unlink(missing_ok=True)
+            details.append("Dataset-Sample gelöscht")
+        except Exception as e:
+            log.warning(f"Could not delete dataset sample {row['dataset_path']}: {e}")
+
+    # 5) Mark the scan as undone
+    conn.execute("UPDATE scans SET error_status='undone' WHERE scan_id=?", (row["scan_id"],))
+    conn.execute(
+        "UPDATE scan_undo SET undone=1, undone_at=datetime('now') WHERE undo_id=?",
+        (undo_id,),
+    )
+    conn.commit()
+    return {
+        "undone": True,
+        "card_id": row["card_id"],
+        "details": details,
+        "undone_at": row["created_at"],
+    }
 
 
 def get_collection(conn: sqlite3.Connection) -> list[dict[str, Any]]:

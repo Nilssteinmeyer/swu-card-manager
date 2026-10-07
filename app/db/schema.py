@@ -256,6 +256,25 @@ DDL_STATEMENTS = [
         idProduct       INTEGER NOT NULL
     )
     """,
+    # --- Undo journal (one row per confirmable scan action) -------------------
+    """
+    CREATE TABLE IF NOT EXISTS scan_undo (
+        undo_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        scan_id         INTEGER,
+        collection_id   INTEGER,
+        card_id         TEXT,
+        count_added     INTEGER DEFAULT 1,
+        previous_count  INTEGER,
+        entry_created   INTEGER DEFAULT 0,
+        is_foil         INTEGER DEFAULT 0,
+        photo_path      TEXT,
+        correction_id   INTEGER,
+        dataset_path    TEXT,
+        created_at      TEXT DEFAULT (datetime('now')),
+        undone          INTEGER DEFAULT 0,
+        undone_at       TEXT
+    )
+    """,
     # --- Local wishlist (cards the user wants to acquire) --------------------
     """
     CREATE TABLE IF NOT EXISTS wishlist (

@@ -38,6 +38,14 @@
         ⏳ Noch keine Karte in dieser Session...
       </div>
 
+      <!-- Undo last scan action -->
+      <div id="undo-bar" class="hidden" style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+        <button class="btn btn-secondary" id="btn-undo-last" onclick="undoLastScan()" title="Letzte Aktion rückgängig machen">
+          ↩️ Letzten Scan rückgängig machen
+        </button>
+        <span class="text-muted" id="undo-info" style="font-size:13px;"></span>
+      </div>
+
       <div class="scanner-container">
         <!-- Camera -->
         <div class="camera-wrap" id="camera-wrap">
@@ -97,7 +105,7 @@
   </div>
 
   <script src="/static/common.js"></script>
-  <script src="/static/scanner.js?v=11"></script>
+  <script src="/static/scanner.js?v=12"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

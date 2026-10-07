@@ -520,15 +520,22 @@ class RecognitionEngine:
         corrected_card_id: str,
         image_path: str | None = None,
     ) -> None:
-        """Learn from a user correction."""
-        repo.record_scan_correction(conn, scan_id, original_card_id, corrected_card_id, image_path)
+        """Learn from a user correction. Returns undo info (correction_id, dataset_path)."""
+        correction_id = None
+        sample_path = None
+        correction_id = repo.record_scan_correction(conn, scan_id, original_card_id, corrected_card_id, image_path)
         if image_path and Path(image_path).exists():
             from app.ml.dataset import DatasetManager
             img = cv2.imread(str(image_path))
             if img is not None:
                 ds = DatasetManager(self.cfg)
-                ds.add_scan_sample(img, corrected_card_id, 1.0, source="correction")
+                sample_path = ds.add_scan_sample(img, corrected_card_id, 1.0, source="correction")
                 log.info(f"Learned from correction: {original_card_id} → {corrected_card_id}",
                          extra={"event": "learn_correction", "card_id": corrected_card_id})
         count = repo.get_correction_count(conn)
         log.info(f"Total corrections: {count}", extra={"event": "correction_count"})
+        # Return undo information for the journal
+        return {
+            "correction_id": correction_id,
+            "dataset_path": sample_path,
+        }

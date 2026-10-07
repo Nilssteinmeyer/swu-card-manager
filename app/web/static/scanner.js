@@ -105,6 +105,9 @@ async function initScanner() {
 
   // Load user settings before first scan
   await loadUserSettings();
+
+  // Restore undo availability (survives page reloads)
+  refreshUndoBar();
 }
 
 let scanQuantity = 1;
@@ -452,6 +455,8 @@ async function confirmScan(confirmed) {
       const foilText = isFoil ? " (Foil)" : "";
       showToast(`"${lastScanResult.card_name}"${foilText} hinzugefügt ✓`, "success");
       if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
+      // Show the undo bar with the confirmed card
+      showUndoBar(lastScanResult.card_name || cardId, result.undo_id);
     } else {
       showToast("Verworfen — Foto gelöscht", "info");
       if (USER_SETTINGS.haptic_on_reject && navigator.vibrate) navigator.vibrate(200);
@@ -474,6 +479,55 @@ async function confirmScan(confirmed) {
   } catch (err) {
     showToast(`Fehler: ${err.message}`, "error");
   }
+}
+
+// ---- Undo last scan action ---------------------------------------------------
+function showUndoBar(cardName, undoId) {
+  const bar = document.getElementById("undo-bar");
+  const info = document.getElementById("undo-info");
+  if (!bar) return;
+  if (info) info.textContent = cardName ? `"${cardName}"` : "";
+  bar.classList.remove("hidden");
+  bar.dataset.undoId = undoId || "";
+}
+
+function hideUndoBar() {
+  const bar = document.getElementById("undo-bar");
+  if (bar) bar.classList.add("hidden");
+}
+
+async function undoLastScan() {
+  const btn = document.getElementById("btn-undo-last");
+  if (btn) btn.disabled = true;
+  try {
+    const result = await api("/api/scan/undo", { method: "POST", body: {} });
+    if (result.undone) {
+      const details = (result.details || []).join(", ");
+      showToast(`Rückgängig gemacht ✓${details ? " (" + details + ")" : ""}`, "success");
+      if (USER_SETTINGS.haptic_on_reject && navigator.vibrate) navigator.vibrate(200);
+      hideUndoBar();
+      // refresh bulk counter if visible
+      const bulkEl = document.getElementById("bulk-session-counter");
+      if (bulkEl && !bulkEl.classList.contains("hidden") && bulkSessionCount > 0) {
+        bulkSessionCount -= 1;
+        bulkEl.textContent = `⚡ ${bulkSessionCount} Karten in dieser Session`;
+      }
+    } else {
+      showToast(result.error || "Nichts zum Rückgängigmachen", "info");
+    }
+  } catch (err) {
+    showToast(`Undo fehlgeschlagen: ${err.message}`, "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Restore undo bar state on page load (undo survives a page reload)
+async function refreshUndoBar() {
+  try {
+    const p = await api("/api/scan/undo/preview");
+    if (p.available) showUndoBar(p.card_id, null);
+  } catch (e) { /* silent */ }
 }
 
 window.addEventListener("beforeunload", () => {
