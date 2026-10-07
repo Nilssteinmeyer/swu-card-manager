@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>System — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <span class="logo">🃏</span>
+        <span>SWU Manager</span>
+      </div>
+            <ul class="navbar-nav">
+        <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
+        <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
+        <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
+        <li><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
+        <li><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <h1 class="mb-2">System</h1>
+
+      <!-- System status -->
+      <div class="card">
+        <div class="card-title">System-Status</div>
+        <div id="system-status" class="table-wrap">
+          <table>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-1 mb-2">
+        <button class="btn btn-primary" onclick="runDoctor()">🩺 Diagnose ausführen</button>
+        <button class="btn btn-success" onclick="createBackup()">💾 Backup erstellen</button>
+        <button class="btn" onclick="loadLogs()">📜 Logs aktualisieren</button>
+      </div>
+
+      <!-- Doctor results -->
+      <div class="card" id="doctor-card" style="display:none;">
+        <div class="card-title">Diagnose-Ergebnisse</div>
+        <div id="doctor-results" class="doctor-results"></div>
+      </div>
+
+      <!-- Backups -->
+      <div class="card">
+        <div class="card-title">Backups</div>
+        <div id="backups-list" class="table-wrap">
+          <p class="text-muted">Lade...</p>
+        </div>
+      </div>
+
+      <!-- Logs -->
+      <div class="card">
+        <div class="card-title">Logs</div>
+        <div id="logs" class="log-viewer">Lade Logs...</div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/common.js"></script>
+  <script>
+    async function loadSystem() {
+      try {
+        const data = await api("/api/system");
+        const tbody = document.querySelector("#system-status table tbody");
+        const rows = [
+          ["Status", '<span class="badge badge-imported">● ONLINE</span>'],
+          ["App", `${escapeHtml(data.app_name)} v${escapeHtml(data.app_version)}`],
+          ["Python", escapeHtml(data.python_version)],
+          ["Datenbank", `${data.db_size_mb} MB (${escapeHtml(data.db_path)})`],
+          ["Karten in DB", data.cards_in_db.toLocaleString()],
+          ["Sammlung", data.collection_count.toLocaleString()],
+          ["Scans heute", data.scans_today.toLocaleString()],
+          ["Auto-Accept Threshold", data.config.auto_accept_threshold],
+          ["Candidate Threshold", data.config.candidate_threshold],
+          ["OCR Sprache", escapeHtml(data.config.ocr_language)],
+          ["Capture Interval", `${data.config.capture_interval_ms}ms`],
+        ];
+        tbody.innerHTML = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join("");
+      } catch (err) {
+        showToast(`System load failed: ${err.message}`, "error");
+      }
+    }
+
+    async function loadBackups() {
+      try {
+        const data = await api("/api/system/backups");
+        const el = document.getElementById("backups-list");
+        if (data.backups && data.backups.length > 0) {
+          el.innerHTML = '<table><thead><tr><th>Name</th><th>Größe</th><th>Erstellt</th></tr></thead><tbody>' +
+            data.backups.map(b => `<tr><td>${escapeHtml(b.name)}</td><td>${formatBytes(b.size_bytes)}</td><td>${escapeHtml(b.created)}</td></tr>`).join("") +
+            '</tbody></table>';
+        } else {
+          el.innerHTML = '<p class="text-muted">Keine Backups vorhanden.</p>';
+        }
+      } catch (e) {
+        console.error("Backups load failed:", e);
+      }
+    }
+
+    async function loadLogs() {
+      const el = document.getElementById("logs");
+      el.textContent = "Lade Logs...";
+      try {
+        const data = await api("/api/system/logs");
+        el.textContent = data.logs || "Keine Logs verfügbar.";
+      } catch (err) {
+        el.textContent = `Fehler: ${err.message}`;
+      }
+    }
+
+    async function runDoctor() {
+      const card = document.getElementById("doctor-card");
+      const results = document.getElementById("doctor-results");
+      card.style.display = "block";
+      results.innerHTML = '<div class="spinner"></div><p>Diagnose läuft...</p>';
+      try {
+        const data = await api("/api/system/doctor", { method: "POST" });
+        const summary = `<div class="doctor-check ${data.all_ok ? "ok" : "fail"}">
+          <span class="icon">${data.all_ok ? "✓" : "⚠"}</span>
+          <span class="name">Zusammenfassung</span>
+          <span class="message">${data.passed}/${data.total} Checks bestanden</span>
+        </div>`;
+        const checks = data.results.map(r => `
+          <div class="doctor-check ${r.status === "OK" ? "ok" : "fail"}">
+            <span class="icon">${r.status === "OK" ? "✓" : "✗"}</span>
+            <span class="name">${escapeHtml(r.name)}</span>
+            <span class="message">${escapeHtml(r.message)}</span>
+          </div>
+        `).join("");
+        results.innerHTML = summary + checks;
+        showToast(`Diagnose: ${data.passed}/${data.total} bestanden`, data.all_ok ? "success" : "info");
+      } catch (err) {
+        results.innerHTML = `<p class="text-muted">Fehler: ${escapeHtml(err.message)}</p>`;
+        showToast(`Doctor failed: ${err.message}`, "error");
+      }
+    }
+
+    async function createBackup() {
+      showLoading("Backup wird erstellt...");
+      try {
+        const data = await api("/api/system/backup", { method: "POST" });
+        if (data.ok) {
+          showToast(`Backup erstellt: ${data.name}`, "success");
+          loadBackups();
+        } else {
+          showToast(`Fehler: ${data.error}`, "error");
+        }
+      } catch (err) {
+        showToast(`Backup failed: ${err.message}`, "error");
+      } finally {
+        hideLoading();
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadSystem();
+      loadBackups();
+      loadLogs();
+    });
+  </script>
+</body>
+</html>

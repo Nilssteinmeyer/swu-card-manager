@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Scanner — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <span class="logo">🃏</span>
+        <span>SWU Manager</span>
+      </div>
+            <ul class="navbar-nav">
+        <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
+        <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
+        <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
+        <li><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
+        <li><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <h1 class="mb-2">Scanner</h1>
+
+      <div class="scanner-container">
+        <!-- Camera -->
+        <div class="camera-wrap" id="camera-wrap">
+          <video id="camera-video" autoplay playsinline muted></video>
+          <div class="camera-overlay">
+            <div class="frame" id="scan-frame"></div>
+          </div>
+          <!-- Scan status overlay on camera -->
+          <div id="scan-overlay" class="scan-overlay">
+            <div id="scan-overlay-icon" class="scan-overlay-icon">📷</div>
+            <div id="scan-overlay-text" class="scan-overlay-text">Kamera gestoppt</div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex gap-1">
+          <button id="start-camera-btn" class="btn btn-primary">📷 Kamera starten</button>
+          <button id="stop-camera-btn" class="btn btn-danger hidden">⏹ Stop</button>
+        </div>
+
+        <!-- Scan result — full-screen mobile popup -->
+        <div id="scan-result-overlay" class="scan-result-overlay" style="display:none;">
+          <div class="scan-result-card">
+            <div class="scan-result-image" id="result-image-area">🃏</div>
+            <div class="scan-result-info">
+              <div class="scan-result-name" id="result-name">—</div>
+              <div class="scan-result-sub" id="result-sub"></div>
+              <div class="scan-result-meta" id="result-meta"></div>
+              <div class="scan-result-confidence" id="result-confidence"></div>
+            </div>
+            <div class="scan-result-foil">
+              <div class="quantity-control">
+                <button class="btn btn-qty" id="btn-qty-minus">−</button>
+                <span class="qty-display" id="qty-display">1</span>
+                <button class="btn btn-qty" id="btn-qty-plus">+</button>
+              </div>
+              <label><input type="checkbox" id="is-foil-checkbox"> Foil-Version</label>
+            </div>
+            <div class="scan-result-actions">
+              <button class="btn btn-success btn-large" id="btn-confirm">✓ Ja, richtige Karte</button>
+              <button class="btn btn-danger btn-large" id="btn-reject">✗ Nein, falsche Karte</button>
+              <button class="btn btn-secondary btn-large" id="btn-cancel">↩ Abbrechen</button>
+            </div>
+          </div>
+          <!-- Alternative candidates -->
+          <div id="candidate-list" class="candidate-list-overlay"></div>
+        </div>
+
+        <!-- Candidate list (inline, when no overlay) -->
+        <div id="candidate-list-inline" class="candidate-list"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/common.js"></script>
+  <script src="/static/scanner.js?v=9"></script>
+</body>
+</html>

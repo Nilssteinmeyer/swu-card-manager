@@ -1,0 +1,20 @@
+{
+  "os": "Windows 11 Pro 64-Bit (10.0.26200)",
+  "cpu": "12th Gen Intel Core i9-12900H, 14 cores / 20 threads",
+  "ram_gb": 64,
+  "gpu": "NVIDIA RTX A2000 8GB Laptop GPU (CUDA 12.0 capable, driver 528.79)",
+  "gpu_secondary": "Intel Iris Xe Graphics",
+  "disk_free_gb": 808,
+  "python_version": "3.11.15 (via uv)",
+  "venv_path": "C:/Users/LLM/Desktop/TCG-Cardscannprojekt/swu_card_manager/.venv",
+  "tesseract_path": "C:/Program Files/Tesseract-OCR/tesseract.exe",
+  "tesseract_version": "5.4.0.20240606",
+  "opencv_version": "5.0.0",
+  "numpy_version": "2.4.6",
+  "torch_version": "2.14.1+cpu (CUDA not available in torch build)",
+  "camera": "Integrated Webcam",
+  "git_version": "2.53.0",
+  "project_root": "C:/Users/LLM/Desktop/TCG-Cardscannprojekt/swu_card_manager",
+  "data_provider": "api.swu-db.com (public REST API, no auth required)",
+  "analysis_date": "2026-10-06T21:36:32"
+}

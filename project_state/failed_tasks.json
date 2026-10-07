@@ -1,0 +1,13 @@
+[
+  {
+    "id": "import_set_SOR_20261006_213538",
+    "name": "Import set SOR",
+    "state": "FAILED",
+    "created": "2026-10-06T21:35:38",
+    "started": "2026-10-06T21:35:38",
+    "completed": "2026-10-06T21:35:40",
+    "meta": {},
+    "error": "string indices must be integers, not 'str'",
+    "traceback": ""
+  }
+]

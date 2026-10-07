@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dashboard — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <span class="logo">🃏</span>
+        <span>SWU Manager</span>
+      </div>
+            <ul class="navbar-nav">
+        <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
+        <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
+        <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
+        <li><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
+        <li><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <h1 class="mb-2">Dashboard</h1>
+
+      <div class="stat-grid" id="stat-grid">
+        <div class="stat-card green">
+          <div class="stat-value" id="stat-collection-total">—</div>
+          <div class="stat-label">Sammlung (gesamt)</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-value" id="stat-collection-unique">—</div>
+          <div class="stat-label">Verschiedene Karten</div>
+        </div>
+        <div class="stat-card orange">
+          <div class="stat-value" id="stat-foil">—</div>
+          <div class="stat-label">Foil-Karten</div>
+        </div>
+        <div class="stat-card yellow">
+          <div class="stat-value" id="stat-scans">—</div>
+          <div class="stat-label">Scans heute</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-value" id="stat-recognition">—</div>
+          <div class="stat-label">Erkennungsrate</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Meine Sammlung nach Seltenheit</div>
+        <div class="table-wrap">
+          <table id="rarity-table">
+            <thead><tr><th>Seltenheit</th><th>Anzahl</th><th>Anteil</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Meine Sammlung nach Typ</div>
+        <div class="table-wrap">
+          <table id="type-table">
+            <thead><tr><th>Typ</th><th>Anzahl</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Meine Sammlung nach Set</div>
+        <div class="table-wrap">
+          <table id="set-table">
+            <thead><tr><th>Set</th><th>Karten</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/common.js"></script>
+  <script>
+    async function loadDashboard() {
+      try {
+        const data = await api("/api/dashboard");
+
+        // Collection stats ONLY — no reference/training data
+        document.getElementById("stat-collection-total").textContent = data.collection_total.toLocaleString();
+        document.getElementById("stat-collection-unique").textContent = data.collection_unique.toLocaleString();
+        document.getElementById("stat-foil").textContent = (data.foil_count || 0).toLocaleString();
+        document.getElementById("stat-scans").textContent = data.scans_today.toLocaleString();
+        document.getElementById("stat-recognition").textContent = `${(data.recognition_rate * 100).toFixed(1)}%`;
+
+        // Rarity breakdown — from collection only
+        const rarityBody = document.querySelector("#rarity-table tbody");
+        if (data.rarity_breakdown && data.rarity_breakdown.length > 0) {
+          const total = data.rarity_breakdown.reduce((s, r) => s + r.count, 0);
+          rarityBody.innerHTML = data.rarity_breakdown.map(r => `
+            <tr>
+              <td><span class="badge ${rarityBadgeClass(r.rarity)}">${escapeHtml(r.rarity)}</span></td>
+              <td>${r.count.toLocaleString()}</td>
+              <td>${((r.count / total) * 100).toFixed(1)}%</td>
+            </tr>`).join("");
+        } else {
+          rarityBody.innerHTML = '<tr><td colspan="3" class="text-muted text-center">Noch keine Karten in der Sammlung</td></tr>';
+        }
+
+        // Type breakdown
+        const typeBody = document.querySelector("#type-table tbody");
+        if (data.type_breakdown && data.type_breakdown.length > 0) {
+          typeBody.innerHTML = data.type_breakdown.map(t => `
+            <tr><td>${escapeHtml(t.type)}</td><td>${t.count.toLocaleString()}</td></tr>`).join("");
+        } else {
+          typeBody.innerHTML = '<tr><td colspan="2" class="text-muted text-center">Keine Daten</td></tr>';
+        }
+
+        // Set breakdown
+        const setBody = document.querySelector("#set-table tbody");
+        if (data.set_breakdown && data.set_breakdown.length > 0) {
+          setBody.innerHTML = data.set_breakdown.map(s => `
+            <tr><td><code>${escapeHtml(s.set_id)}</code></td><td>${s.count.toLocaleString()}</td></tr>`).join("");
+        } else {
+          setBody.innerHTML = '<tr><td colspan="2" class="text-muted text-center">Keine Daten</td></tr>';
+        }
+      } catch (err) {
+        showToast(`Dashboard load failed: ${err.message}`, "error");
+      }
+    }
+    document.addEventListener("DOMContentLoaded", loadDashboard);
+  </script>
+</body>
+</html>

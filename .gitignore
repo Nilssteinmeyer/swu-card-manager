@@ -1,0 +1,40 @@
+# Virtual environment
+.venv/
+venv/
+
+# Data — large binary data, not for git
+data/
+!data/.gitkeep
+
+# Card images, scans, training photos
+data/images/
+data/scans/
+data/dataset/
+data/models/
+
+# SSL certs (local only)
+ssl/
+
+# Logs
+logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# Backups & state
+project_state/backups/
+project_state/errors/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,743 @@
+[
+  {
+    "id": "sync_sets_20261006_213533",
+    "name": "Sync sets from provider",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:35:33",
+    "started": "2026-10-06T21:35:33",
+    "completed": "2026-10-06T21:35:34",
+    "meta": {},
+    "result": {
+      "new": 51,
+      "updated": 0
+    }
+  },
+  {
+    "id": "import_set_SOR_20261006_213557",
+    "name": "Import set SOR",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:35:57",
+    "started": "2026-10-06T21:35:57",
+    "completed": "2026-10-06T21:36:00",
+    "meta": {},
+    "result": {
+      "cards": 950,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SHD_20261006_213608",
+    "name": "Import set SHD",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:08",
+    "started": "2026-10-06T21:36:08",
+    "completed": "2026-10-06T21:36:10",
+    "meta": {},
+    "result": {
+      "cards": 962,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_TWI_20261006_213610",
+    "name": "Import set TWI",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:10",
+    "started": "2026-10-06T21:36:10",
+    "completed": "2026-10-06T21:36:13",
+    "meta": {},
+    "result": {
+      "cards": 957,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_JTL_20261006_213613",
+    "name": "Import set JTL",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:13",
+    "started": "2026-10-06T21:36:13",
+    "completed": "2026-10-06T21:36:16",
+    "meta": {},
+    "result": {
+      "cards": 1130,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_LOF_20261006_213616",
+    "name": "Import set LOF",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:16",
+    "started": "2026-10-06T21:36:16",
+    "completed": "2026-10-06T21:36:19",
+    "meta": {},
+    "result": {
+      "cards": 1166,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SEC_20261006_213619",
+    "name": "Import set SEC",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:19",
+    "started": "2026-10-06T21:36:19",
+    "completed": "2026-10-06T21:36:22",
+    "meta": {},
+    "result": {
+      "cards": 1155,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_LAW_20261006_213622",
+    "name": "Import set LAW",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:22",
+    "started": "2026-10-06T21:36:22",
+    "completed": "2026-10-06T21:36:23",
+    "meta": {},
+    "result": {
+      "cards": 907,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_ASH_20261006_213623",
+    "name": "Import set ASH",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:23",
+    "started": "2026-10-06T21:36:23",
+    "completed": "2026-10-06T21:36:25",
+    "meta": {},
+    "result": {
+      "cards": 931,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_IBH_20261006_213625",
+    "name": "Import set IBH",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:25",
+    "started": "2026-10-06T21:36:25",
+    "completed": "2026-10-06T21:36:26",
+    "meta": {},
+    "result": {
+      "cards": 104,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_ASHOP_20261006_214107",
+    "name": "Import set ASHOP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:07",
+    "started": "2026-10-06T21:41:07",
+    "completed": "2026-10-06T21:41:28",
+    "meta": {},
+    "result": {
+      "cards": 40,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_C24_20261006_214128",
+    "name": "Import set C24",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:28",
+    "started": "2026-10-06T21:41:28",
+    "completed": "2026-10-06T21:41:29",
+    "meta": {},
+    "result": {
+      "cards": 6,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_C25_20261006_214129",
+    "name": "Import set C25",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:29",
+    "started": "2026-10-06T21:41:29",
+    "completed": "2026-10-06T21:41:30",
+    "meta": {},
+    "result": {
+      "cards": 6,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_C26_20261006_214130",
+    "name": "Import set C26",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:30",
+    "started": "2026-10-06T21:41:30",
+    "completed": "2026-10-06T21:41:30",
+    "meta": {},
+    "result": {
+      "cards": 6,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_CST_20261006_214131",
+    "name": "Import set CST",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:31",
+    "started": "2026-10-06T21:41:31",
+    "completed": "2026-10-06T21:41:31",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_ESHD_20261006_214131",
+    "name": "Import set ESHD",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:31",
+    "started": "2026-10-06T21:41:31",
+    "completed": "2026-10-06T21:41:32",
+    "meta": {},
+    "result": {
+      "cards": 1,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_ESOR_20261006_214132",
+    "name": "Import set ESOR",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:32",
+    "started": "2026-10-06T21:41:32",
+    "completed": "2026-10-06T21:41:33",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_G25_20261006_214133",
+    "name": "Import set G25",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:33",
+    "started": "2026-10-06T21:41:33",
+    "completed": "2026-10-06T21:41:34",
+    "meta": {},
+    "result": {
+      "cards": 3,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_GG_20261006_214134",
+    "name": "Import set GG",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:34",
+    "started": "2026-10-06T21:41:34",
+    "completed": "2026-10-06T21:41:35",
+    "meta": {},
+    "result": {
+      "cards": 6,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_HMW_20261006_214135",
+    "name": "Import set HMW",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:35",
+    "started": "2026-10-06T21:41:35",
+    "completed": "2026-10-06T21:41:41",
+    "meta": {},
+    "result": {
+      "cards": 954,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_HMWP_20261006_214141",
+    "name": "Import set HMWP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:41",
+    "started": "2026-10-06T21:41:41",
+    "completed": "2026-10-06T21:41:41",
+    "meta": {},
+    "result": {
+      "cards": 40,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_IC27_20261006_214142",
+    "name": "Import set IC27",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:42",
+    "started": "2026-10-06T21:41:42",
+    "completed": "2026-10-06T21:41:42",
+    "meta": {},
+    "result": {
+      "cards": 9,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_J24_20261006_214142",
+    "name": "Import set J24",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:42",
+    "started": "2026-10-06T21:41:42",
+    "completed": "2026-10-06T21:41:43",
+    "meta": {},
+    "result": {
+      "cards": 6,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_J25_20261006_214143",
+    "name": "Import set J25",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:43",
+    "started": "2026-10-06T21:41:43",
+    "completed": "2026-10-06T21:41:44",
+    "meta": {},
+    "result": {
+      "cards": 19,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_JTLOP_20261006_214144",
+    "name": "Import set JTLOP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:44",
+    "started": "2026-10-06T21:41:44",
+    "completed": "2026-10-06T21:41:45",
+    "meta": {},
+    "result": {
+      "cards": 40,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_LAWP_20261006_214145",
+    "name": "Import set LAWP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:45",
+    "started": "2026-10-06T21:41:45",
+    "completed": "2026-10-06T21:41:46",
+    "meta": {},
+    "result": {
+      "cards": 40,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_LOFOP_20261006_214146",
+    "name": "Import set LOFOP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:46",
+    "started": "2026-10-06T21:41:46",
+    "completed": "2026-10-06T21:41:47",
+    "meta": {},
+    "result": {
+      "cards": 40,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_MV26_20261006_214147",
+    "name": "Import set MV26",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:47",
+    "started": "2026-10-06T21:41:47",
+    "completed": "2026-10-06T21:41:47",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_P25_20261006_214148",
+    "name": "Import set P25",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:48",
+    "started": "2026-10-06T21:41:48",
+    "completed": "2026-10-06T21:41:49",
+    "meta": {},
+    "result": {
+      "cards": 178,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_P26_20261006_214149",
+    "name": "Import set P26",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:49",
+    "started": "2026-10-06T21:41:49",
+    "completed": "2026-10-06T21:41:50",
+    "meta": {},
+    "result": {
+      "cards": 236,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_PSHD_20261006_214150",
+    "name": "Import set PSHD",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:50",
+    "started": "2026-10-06T21:41:50",
+    "completed": "2026-10-06T21:41:51",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_PSHDJ_20261006_214151",
+    "name": "Import set PSHDJ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:51",
+    "started": "2026-10-06T21:41:51",
+    "completed": "2026-10-06T21:41:52",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_PSOR_20261006_214152",
+    "name": "Import set PSOR",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:52",
+    "started": "2026-10-06T21:41:52",
+    "completed": "2026-10-06T21:41:53",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_PSORJ_20261006_214153",
+    "name": "Import set PSORJ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:53",
+    "started": "2026-10-06T21:41:53",
+    "completed": "2026-10-06T21:41:54",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_PTWI_20261006_214154",
+    "name": "Import set PTWI",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:54",
+    "started": "2026-10-06T21:41:54",
+    "completed": "2026-10-06T21:41:54",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_PTWIJ_20261006_214155",
+    "name": "Import set PTWIJ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:55",
+    "started": "2026-10-06T21:41:55",
+    "completed": "2026-10-06T21:41:55",
+    "meta": {},
+    "result": {
+      "cards": 2,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SECOP_20261006_214155",
+    "name": "Import set SECOP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:55",
+    "started": "2026-10-06T21:41:55",
+    "completed": "2026-10-06T21:41:56",
+    "meta": {},
+    "result": {
+      "cards": 40,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SHDOP_20261006_214156",
+    "name": "Import set SHDOP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:56",
+    "started": "2026-10-06T21:41:56",
+    "completed": "2026-10-06T21:41:57",
+    "meta": {},
+    "result": {
+      "cards": 28,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SHDPQ_20261006_214157",
+    "name": "Import set SHDPQ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:57",
+    "started": "2026-10-06T21:41:57",
+    "completed": "2026-10-06T21:41:58",
+    "meta": {},
+    "result": {
+      "cards": 6,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SHDPQJ_20261006_214158",
+    "name": "Import set SHDPQJ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:58",
+    "started": "2026-10-06T21:41:58",
+    "completed": "2026-10-06T21:41:59",
+    "meta": {},
+    "result": {
+      "cards": 1,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SOROP_20261006_214159",
+    "name": "Import set SOROP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:41:59",
+    "started": "2026-10-06T21:41:59",
+    "completed": "2026-10-06T21:42:00",
+    "meta": {},
+    "result": {
+      "cards": 29,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SOROPJ_20261006_214200",
+    "name": "Import set SOROPJ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:00",
+    "started": "2026-10-06T21:42:00",
+    "completed": "2026-10-06T21:42:00",
+    "meta": {},
+    "result": {
+      "cards": 0,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SS1_20261006_214200",
+    "name": "Import set SS1",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:01",
+    "started": "2026-10-06T21:42:01",
+    "completed": "2026-10-06T21:42:01",
+    "meta": {},
+    "result": {
+      "cards": 5,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SS1J_20261006_214201",
+    "name": "Import set SS1J",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:01",
+    "started": "2026-10-06T21:42:01",
+    "completed": "2026-10-06T21:42:02",
+    "meta": {},
+    "result": {
+      "cards": 1,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SS2_20261006_214202",
+    "name": "Import set SS2",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:02",
+    "started": "2026-10-06T21:42:02",
+    "completed": "2026-10-06T21:42:03",
+    "meta": {},
+    "result": {
+      "cards": 5,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SS2J_20261006_214203",
+    "name": "Import set SS2J",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:03",
+    "started": "2026-10-06T21:42:03",
+    "completed": "2026-10-06T21:42:04",
+    "meta": {},
+    "result": {
+      "cards": 1,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_TS26_20261006_214204",
+    "name": "Import set TS26",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:04",
+    "started": "2026-10-06T21:42:04",
+    "completed": "2026-10-06T21:42:05",
+    "meta": {},
+    "result": {
+      "cards": 88,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_TWIOP_20261006_214205",
+    "name": "Import set TWIOP",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:05",
+    "started": "2026-10-06T21:42:05",
+    "completed": "2026-10-06T21:42:06",
+    "meta": {},
+    "result": {
+      "cards": 30,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_TWIPQ_20261006_214206",
+    "name": "Import set TWIPQ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:06",
+    "started": "2026-10-06T21:42:06",
+    "completed": "2026-10-06T21:42:06",
+    "meta": {},
+    "result": {
+      "cards": 6,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_TWIPQJ_20261006_214206",
+    "name": "Import set TWIPQJ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:06",
+    "started": "2026-10-06T21:42:07",
+    "completed": "2026-10-06T21:42:07",
+    "meta": {},
+    "result": {
+      "cards": 1,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_TWISS_20261006_214207",
+    "name": "Import set TWISS",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:07",
+    "started": "2026-10-06T21:42:07",
+    "completed": "2026-10-06T21:42:08",
+    "meta": {},
+    "result": {
+      "cards": 5,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_TWISSJ_20261006_214208",
+    "name": "Import set TWISSJ",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:42:08",
+    "started": "2026-10-06T21:42:08",
+    "completed": "2026-10-06T21:42:09",
+    "meta": {},
+    "result": {
+      "cards": 1,
+      "images": 0,
+      "image_failures": 0
+    }
+  },
+  {
+    "id": "import_set_SOR_20261006_213631",
+    "name": "Import set SOR",
+    "state": "COMPLETED",
+    "created": "2026-10-06T21:36:31",
+    "started": "2026-10-06T21:36:31",
+    "completed": "2026-10-06T21:49:31",
+    "meta": {},
+    "result": {
+      "cards": 950,
+      "images": 514,
+      "image_failures": 436
+    }
+  }
+]

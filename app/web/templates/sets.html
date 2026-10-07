@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sets — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <span class="logo">🃏</span>
+        <span>SWU Manager</span>
+      </div>
+            <ul class="navbar-nav">
+        <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
+        <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
+        <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
+        <li><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
+        <li><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <h1 class="mb-2">Sets</h1>
+
+      <div class="flex gap-1 mb-2">
+        <button class="btn btn-primary" onclick="syncSets()">🔄 Sets synchronisieren</button>
+      </div>
+
+      <div id="import-status" class="card hidden">
+        <div class="card-title">Import-Status</div>
+        <div id="import-status-content"></div>
+      </div>
+
+      <div id="sets-grid" class="sets-grid">
+        <div class="spinner"></div>
+        <p class="text-muted">Lade Sets...</p>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/common.js"></script>
+  <script>
+    async function loadSets() {
+      const grid = document.getElementById("sets-grid");
+      try {
+        const data = await api("/api/sets");
+        if (data.sets.length === 0) {
+          grid.innerHTML = '<p class="text-muted text-center">Keine Sets gefunden. Synchronisiere mit der API.</p>';
+          return;
+        }
+        grid.innerHTML = data.sets.map(s => `
+          <div class="set-card">
+            <div class="set-header">
+              <div>
+                <div class="set-name">${escapeHtml(s.full_name || s.set_id)}</div>
+                <div class="set-id">${escapeHtml(s.set_id)}</div>
+              </div>
+              ${s.imported
+                ? '<span class="badge badge-imported">✓ Importiert</span>'
+                : '<span class="badge badge-pending">Nicht importiert</span>'}
+            </div>
+            <div class="set-stats">
+              <span>📦 ${s.cards_in_db}/${s.number_cards} Karten</span>
+              ${s.release_date ? `<span>📅 ${escapeHtml(s.release_date)}</span>` : ""}
+              ${s.max_element ? `<span>🎯 ${escapeHtml(s.max_element)}</span>` : ""}
+            </div>
+            <div class="set-actions">
+              <button class="btn btn-sm btn-primary" onclick="importSet('${escapeHtml(s.set_id)}')">
+                📥 Importieren
+              </button>
+            </div>
+          </div>
+        `).join("");
+      } catch (err) {
+        showToast(`Load failed: ${err.message}`, "error");
+        grid.innerHTML = '<p class="text-muted">Fehler beim Laden.</p>';
+      }
+    }
+
+    async function syncSets() {
+      const status = document.getElementById("import-status");
+      const content = document.getElementById("import-status-content");
+      status.classList.remove("hidden");
+      content.innerHTML = '<div class="spinner"></div><p>Synchronisiere Sets mit API...</p>';
+      try {
+        const result = await api("/api/sets/sync", { method: "POST" });
+        content.innerHTML = `<p>✓ ${result.new_sets?.length || 0} neue Sets, ${result.updated_sets?.length || 0} aktualisiert (Total: ${result.total})</p>`;
+        showToast("Sets synchronisiert", "success");
+        loadSets();
+      } catch (err) {
+        content.innerHTML = `<p class="text-muted">Fehler: ${escapeHtml(err.message)}</p>`;
+        showToast(`Sync failed: ${err.message}`, "error");
+      }
+    }
+
+    async function importSet(setId) {
+      const status = document.getElementById("import-status");
+      const content = document.getElementById("import-status-content");
+      status.classList.remove("hidden");
+      content.innerHTML = `<div class="spinner"></div><p>Importiere Set ${escapeHtml(setId)} (inkl. Bilder und Metadaten)...</p>`;
+      try {
+        const result = await api("/api/sets/import", {
+          method: "POST",
+          body: { set_id: setId, download_images: true },
+        });
+        content.innerHTML = `<p>✓ Set ${escapeHtml(setId)}: ${result.cards_imported} Karten, ${result.images_downloaded} Bilder herunterladen</p>`;
+        showToast(`Set ${setId} importiert`, "success");
+        loadSets();
+      } catch (err) {
+        content.innerHTML = `<p class="text-muted">Fehler: ${escapeHtml(err.message)}</p>`;
+        showToast(`Import failed: ${err.message}`, "error");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadSets);
+  </script>
+</body>
+</html>

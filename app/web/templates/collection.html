@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sammlung — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <span class="logo">🃏</span>
+        <span>SWU Manager</span>
+      </div>
+            <ul class="navbar-nav">
+        <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
+        <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
+        <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
+        <li><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
+        <li><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <h1 class="mb-2">Sammlung</h1>
+
+      <div class="card">
+        <div class="card-title">Filter</div>
+        <div class="filter-bar">
+          <div class="search-input full-width">
+            <input type="search" id="f-search" placeholder="Kartenname suchen...">
+          </div>
+          <div class="form-group">
+            <label>Set</label>
+            <select id="f-set"><option value="">Alle</option></select>
+          </div>
+          <div class="form-group">
+            <label>Seltenheit</label>
+            <select id="f-rarity"><option value="">Alle</option></select>
+          </div>
+          <div class="form-group">
+            <label>Typ</label>
+            <select id="f-type"><option value="">Alle</option></select>
+          </div>
+          <div class="form-group">
+            <label>Aspekt</label>
+            <select id="f-aspect"><option value="">Alle</option></select>
+          </div>
+          <div class="form-group">
+            <label>Trait</label>
+            <select id="f-trait"><option value="">Alle</option></select>
+          </div>
+          <div class="form-group">
+            <label>Min. Kosten</label>
+            <input type="number" id="f-min-cost" min="0" max="20" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Max. Kosten</label>
+            <input type="number" id="f-max-cost" min="0" max="20" placeholder="20">
+          </div>
+          <div class="form-group">
+            <label>Min. Stärke</label>
+            <input type="number" id="f-min-power" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Min. HP</label>
+            <input type="number" id="f-min-hp" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Sortieren nach</label>
+            <select id="f-sort">
+              <option value="name">Name</option>
+              <option value="set">Set</option>
+              <option value="number">Kartennummer</option>
+              <option value="rarity">Seltenheit</option>
+              <option value="cost">Kosten</option>
+              <option value="power">Stärke</option>
+              <option value="hp">HP</option>
+              <option value="count">Anzahl</option>
+              <option value="acquired">Erworben am</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Richtung</label>
+            <select id="f-dir">
+              <option value="asc">Aufsteigend</option>
+              <option value="desc">Absteigend</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-1 mt-1">
+          <button class="btn btn-primary" onclick="loadCollection()">🔍 Filter anwenden</button>
+          <button class="btn" onclick="resetFilters()">↺ Zurücksetzen</button>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="coll-total">—</div>
+          <div class="stat-label">Karten gesamt</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-value" id="coll-unique">—</div>
+          <div class="stat-label">Unique Karten</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ergebnisse (<span id="coll-count">0</span>)</div>
+        <div id="collection-grid" class="collection-grid">
+          <p class="text-muted">Filter anwenden oder Sammlung laden...</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/common.js"></script>
+  <script>
+    async function loadFilters() {
+      try {
+        const data = await api("/api/cards/filters");
+        populateSelect("f-set", data.sets);
+        populateSelect("f-rarity", data.rarities);
+        populateSelect("f-type", data.types);
+        populateSelect("f-aspect", data.aspects);
+        populateSelect("f-trait", data.traits);
+      } catch (e) { console.error("Filter load failed:", e); }
+    }
+
+    function populateSelect(id, values) {
+      const sel = document.getElementById(id);
+      values.forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v; opt.textContent = v;
+        sel.appendChild(opt);
+      });
+    }
+
+    function buildQuery() {
+      const params = new URLSearchParams();
+      const search = document.getElementById("f-search").value.trim();
+      const set = document.getElementById("f-set").value;
+      const rarity = document.getElementById("f-rarity").value;
+      const type = document.getElementById("f-type").value;
+      const aspect = document.getElementById("f-aspect").value;
+      const trait = document.getElementById("f-trait").value;
+      const minCost = document.getElementById("f-min-cost").value;
+      const maxCost = document.getElementById("f-max-cost").value;
+      const minPower = document.getElementById("f-min-power").value;
+      const minHp = document.getElementById("f-min-hp").value;
+      const sort = document.getElementById("f-sort").value;
+      const dir = document.getElementById("f-dir").value;
+      if (search) params.set("search", search);
+      if (set) params.set("set", set);
+      if (rarity) params.set("rarity", rarity);
+      if (type) params.set("type", type);
+      if (aspect) params.set("aspect", aspect);
+      if (trait) params.set("trait", trait);
+      if (minCost) params.set("min_cost", minCost);
+      if (maxCost) params.set("max_cost", maxCost);
+      if (minPower) params.set("min_power", minPower);
+      if (minHp) params.set("min_hp", minHp);
+      if (sort) params.set("sort", sort);
+      if (dir) params.set("dir", dir);
+      return params.toString();
+    }
+
+    async function loadCollection() {
+      const grid = document.getElementById("collection-grid");
+      grid.innerHTML = '<div class="spinner"></div>';
+      try {
+        const qs = buildQuery();
+        const data = await api(`/api/collection?${qs}`);
+        document.getElementById("coll-count").textContent = data.count;
+        if (data.items.length === 0) {
+          grid.innerHTML = '<p class="text-muted text-center">Keine Karten gefunden.</p>';
+          return;
+        }
+        grid.innerHTML = data.items.map(item => `
+          <div class="collection-item">
+            ${item.front_art_path
+              ? `<img class="ci-image" src="${cardImageUrl(item.card_id)}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\'placeholder-image\\'>🃏</div>'">`
+              : '<div class="placeholder-image">🃏</div>'}
+            <div class="ci-name">${escapeHtml(item.name)}</div>
+            <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}</div>
+            <div class="ci-count">×${item.count}</div>
+          </div>`).join("");
+      } catch (err) {
+        showToast(`Load failed: ${err.message}`, "error");
+        grid.innerHTML = '<p class="text-muted">Fehler beim Laden.</p>';
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const stats = await api("/api/collection/stats");
+        document.getElementById("coll-total").textContent = stats.total.toLocaleString();
+        document.getElementById("coll-unique").textContent = stats.unique.toLocaleString();
+      } catch (e) { console.error("Stats load failed:", e); }
+    }
+
+    function resetFilters() {
+      ["f-search","f-set","f-rarity","f-type","f-aspect","f-trait","f-min-cost","f-max-cost","f-min-power","f-min-hp"].forEach(id => {
+        document.getElementById(id).value = "";
+      });
+      document.getElementById("f-sort").value = "name";
+      document.getElementById("f-dir").value = "asc";
+      loadCollection();
+    }
+
+    document.getElementById("f-search").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") loadCollection();
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadFilters();
+      loadStats();
+      loadCollection();
+    });
+  </script>
+</body>
+</html>
