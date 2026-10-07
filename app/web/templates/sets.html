@@ -17,20 +17,20 @@
         <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
         <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
         <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
-        <li><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li data-admin-only><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
         <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
-        <li><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+        <li data-admin-only><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
       </ul>
     </nav>
 
     <main class="main-content">
       <h1 class="mb-2">Sets</h1>
 
-      <div class="flex gap-1 mb-2">
+      <div class="flex gap-1 mb-2" data-admin-only>
         <button class="btn btn-primary" onclick="syncSets()">🔄 Sets synchronisieren</button>
       </div>
 
-      <div id="import-status" class="card hidden">
+      <div id="import-status" class="card hidden" data-admin-only>
         <div class="card-title">Import-Status</div>
         <div id="import-status-content"></div>
       </div>
@@ -69,9 +69,9 @@
               ${s.max_element ? `<span>🎯 ${escapeHtml(s.max_element)}</span>` : ""}
             </div>
             <div class="set-actions">
-              <button class="btn btn-sm btn-primary" onclick="importSet('${escapeHtml(s.set_id)}')">
+              ${IS_ADMIN ? `<button class="btn btn-sm btn-primary" onclick="importSet('${escapeHtml(s.set_id)}')">
                 📥 Importieren
-              </button>
+              </button>` : ""}
             </div>
           </div>
         `).join("");
@@ -116,7 +116,10 @@
       }
     }
 
-    document.addEventListener("DOMContentLoaded", loadSets);
+    document.addEventListener("DOMContentLoaded", async () => {
+      await loadAdminState();   // ensure IS_ADMIN is set before rendering buttons
+      loadSets();
+    });
   </script>
 </body>
 </html>

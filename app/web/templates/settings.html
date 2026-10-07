@@ -14,14 +14,27 @@
         <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
         <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
         <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
-        <li><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li data-admin-only><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
         <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
-        <li><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+        <li data-admin-only><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
       </ul>
     </nav>
 
     <main class="main-content">
       <h1 class="mb-2">⚙️ Einstellungen</h1>
+
+      <!-- Rolle -->
+      <div class="settings-section">
+        <h2 class="settings-title">👤 Rolle</h2>
+
+        <div class="setting-row">
+          <label>Admin-Modus</label>
+          <label class="switch"><input type="checkbox" id="admin_mode"><span class="slider"></span></label>
+        </div>
+        <div class="setting-desc" style="margin-top:-6px;">
+          Admin: zeigt Sets-Import, System-Diagnose, Logs und Training-Funktionen. Aus = reine Sammlungs-Ansicht.
+        </div>
+      </div>
 
       <!-- Scan-Prozess -->
       <div class="settings-section">
@@ -163,8 +176,12 @@
       Object.keys(data).forEach(key => {
         const el = document.getElementById(key);
         if (!el) return;
-        if (el.type === "checkbox") el.checked = data[key] === "true";
-        else el.value = data[key];
+        if (el.type === "checkbox") {
+          el.checked = data[key] === "true";
+          el.dataset.loaded = data[key];
+        } else {
+          el.value = data[key];
+        }
       });
       // Update range labels
       updateRangeLabels();
@@ -196,8 +213,15 @@
         if (el.type === "checkbox") settings[el.id] = el.checked ? "true" : "false";
         else settings[el.id] = el.value;
       });
+      const adminChanged = document.getElementById("admin_mode") &&
+        settings.admin_mode !== null &&
+        (document.getElementById("admin_mode").dataset.loaded || "") !== settings.admin_mode;
       await api("/api/settings", { method: "POST", body: settings });
       showToast("Einstellungen gespeichert ✓", "success");
+      // Admin toggle changes visibility across all pages — reload so navbar updates everywhere
+      if (adminChanged) {
+        setTimeout(() => window.location.reload(), 800);
+      }
     }
 
     async function resetSettings() {

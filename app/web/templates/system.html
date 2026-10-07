@@ -17,9 +17,9 @@
         <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
         <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
         <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
-        <li><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li data-admin-only><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
         <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
-        <li><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+        <li data-admin-only><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
       </ul>
     </nav>
 
@@ -36,29 +36,35 @@
         </div>
       </div>
 
-      <!-- Actions -->
-      <div class="flex gap-1 mb-2">
+      <!-- Non-admin notice -->
+      <div id="non-admin-notice" class="card hidden">
+        <div class="card-title">Nur für Admins</div>
+        <p class="text-muted">Diagnose, Backups und Logs sind nur im Admin-Modus sichtbar. Aktiviere den Admin-Modus in den <a href="/settings">Einstellungen</a>.</p>
+      </div>
+
+      <!-- Actions (admin only) -->
+      <div class="flex gap-1 mb-2" data-admin-only>
         <button class="btn btn-primary" onclick="runDoctor()">🩺 Diagnose ausführen</button>
         <button class="btn btn-success" onclick="createBackup()">💾 Backup erstellen</button>
         <button class="btn" onclick="loadLogs()">📜 Logs aktualisieren</button>
       </div>
 
-      <!-- Doctor results -->
-      <div class="card" id="doctor-card" style="display:none;">
+      <!-- Doctor results (admin only) -->
+      <div class="card" id="doctor-card" style="display:none;" data-admin-only>
         <div class="card-title">Diagnose-Ergebnisse</div>
         <div id="doctor-results" class="doctor-results"></div>
       </div>
 
-      <!-- Backups -->
-      <div class="card">
+      <!-- Backups (admin only) -->
+      <div class="card" data-admin-only>
         <div class="card-title">Backups</div>
         <div id="backups-list" class="table-wrap">
           <p class="text-muted">Lade...</p>
         </div>
       </div>
 
-      <!-- Logs -->
-      <div class="card">
+      <!-- Logs (admin only) -->
+      <div class="card" data-admin-only>
         <div class="card-title">Logs</div>
         <div id="logs" class="log-viewer">Lade Logs...</div>
       </div>
@@ -161,10 +167,17 @@
       }
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
-      loadSystem();
-      loadBackups();
-      loadLogs();
+    document.addEventListener("DOMContentLoaded", async () => {
+      await loadAdminState();
+      if (IS_ADMIN) {
+        document.getElementById("non-admin-notice").classList.add("hidden");
+        loadSystem();
+        loadBackups();
+        loadLogs();
+      } else {
+        document.getElementById("non-admin-notice").classList.remove("hidden");
+        // Admin data not loaded for non-admins
+      }
     });
   </script>
 </body>

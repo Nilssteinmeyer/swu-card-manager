@@ -635,6 +635,8 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/sets/import", methods=["POST"])
     def api_sets_import():
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
         body = request.get_json(silent=True) or {}
         set_id = body.get("set_id", "").strip()
         download_images = body.get("download_images", True)
@@ -654,6 +656,8 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/sets/sync", methods=["POST"])
     def api_sets_sync():
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
         mgr = _get_update_manager(app)
         if not mgr:
             return jsonify({"error": "Update manager unavailable"}), 503
@@ -762,6 +766,8 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/system/backup", methods=["POST"])
     def api_system_backup():
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
         try:
             from app.core.backup import BackupManager
 
@@ -774,6 +780,8 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/system/backups")
     def api_system_backups():
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
         try:
             from app.core.backup import BackupManager
 
@@ -785,6 +793,8 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/system/doctor", methods=["POST"])
     def api_system_doctor():
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
         try:
             from app.core.doctor import Doctor
 
@@ -797,6 +807,8 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/system/logs")
     def api_system_logs():
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
         try:
             logs_dir = app.config["_SWU_CFG"].path("logs_dir")
             lines: list[str] = []
@@ -847,7 +859,24 @@ def _register_routes(app: Flask) -> None:
         "haptic_pattern_confirm": "50,30,80",
         "card_image_size": "40", "theme": "dark", "language": "de",
         "save_photos_on_confirm": "true", "auto_retrain_threshold": "50",
+        "admin_mode": "true",
     }
+
+    def _is_admin() -> bool:
+        """Check whether admin mode is enabled in settings."""
+        conn = connect()
+        try:
+            cur = conn.execute("SELECT value FROM settings WHERE key='admin_mode'")
+            row = cur.fetchone()
+            if row is None:
+                return True  # default: admin on
+            return row["value"] == "true"
+        finally:
+            conn.close()
+
+    @app.route("/api/admin/status")
+    def api_admin_status():
+        return jsonify({"admin": _is_admin()})
 
     @app.route("/api/settings")
     def api_get_settings():

@@ -739,5 +739,18 @@
       "images": 514,
       "image_failures": 436
     }
+  },
+  {
+    "id": "sync_sets_20261007_194347",
+    "name": "Sync sets from provider",
+    "state": "COMPLETED",
+    "created": "2026-10-07T19:43:47",
+    "started": "2026-10-07T19:43:47",
+    "completed": "2026-10-07T19:43:49",
+    "meta": {},
+    "result": {
+      "new": 0,
+      "updated": 51
+    }
   }
 ]

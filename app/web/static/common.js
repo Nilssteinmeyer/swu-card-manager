@@ -114,7 +114,35 @@ function cardImageUrl(cardId) {
   return `${API_BASE}/api/card/image/${encodeURIComponent(cardId)}`;
 }
 
+// ---- Admin gate ----------------------------------------------------------
+// Hides elements marked with data-admin-only when admin mode is off.
+let IS_ADMIN = true;
+
+async function loadAdminState() {
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/status`);
+    if (!res.ok) return;
+    const data = await res.json();
+    IS_ADMIN = !!data.admin;
+    applyAdminVisibility();
+  } catch (e) {
+    console.warn("admin status unavailable, keeping admin elements visible:", e);
+  }
+}
+
+function applyAdminVisibility() {
+  const adminEls = document.querySelectorAll("[data-admin-only]");
+  adminEls.forEach((el) => {
+    if (IS_ADMIN) {
+      el.classList.remove("admin-hidden");
+    } else {
+      el.classList.add("admin-hidden");
+    }
+  });
+}
+
 // ---- Init on page load ---------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   setActiveNav();
+  loadAdminState();
 });
