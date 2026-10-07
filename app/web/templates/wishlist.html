@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Wishlist — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=10">
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <span class="logo">🃏</span>
+        <span>SWU Manager</span>
+      </div>
+      <ul class="navbar-nav">
+        <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
+        <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
+        <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
+        <li><a href="/wishlist"><span class="icon">⭐</span><span class="label">Wishlist</span></a></li>
+        <li data-admin-only><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
+        <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
+        <li data-admin-only><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <h1 class="mb-2">⭐ Wishlist</h1>
+
+      <div class="flex gap-1 mb-2" style="flex-wrap:wrap;">
+        <input type="text" id="wl-search" class="setting-input" style="width:200px; text-align:left;" placeholder="Karte suchen...">
+        <button class="btn btn-primary" id="btn-wl-search">🔍 Suchen</button>
+      </div>
+      <div id="wl-search-results" class="mb-2"></div>
+
+      <div class="flex gap-1 mb-2" data-admin-only>
+        <button class="btn btn-success" id="btn-wl-export-mkm" onclick="exportWantslist()">📤 Zur MKM-Wantslist exportieren</button>
+      </div>
+      <div id="wl-export-status" class="setting-desc mb-2"></div>
+
+      <div id="wishlist-grid" class="collection-grid">
+        <div class="spinner"></div>
+        <p class="text-muted">Lade Wishlist...</p>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/common.js?v=10"></script>
+  <script>
+    async function loadWishlist() {
+      const grid = document.getElementById("wishlist-grid");
+      try {
+        const data = await api("/api/wishlist");
+        if (data.items.length === 0) {
+          grid.innerHTML = '<p class="text-muted text-center">Noch keine Karten auf der Wishlist. Suche oben nach Karten, die du kaufen möchtest.</p>';
+          return;
+        }
+        grid.innerHTML = data.items.map(item => `
+          <div class="collection-item">
+            ${item.front_art_path
+              ? `<img class="ci-image" src="${cardImageUrl(item.card_id)}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\'placeholder-image\\'>🃏</div>'">`
+              : '<div class="placeholder-image">🃏</div>'}
+            <div class="ci-name">${escapeHtml(item.name)}</div>
+            <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}</div>
+            ${item.price_trend != null ? `<div class="ci-price">${item.price_trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</div>` : ""}
+            <div class="ci-count">×${item.count}</div>
+            <button class="btn btn-sm btn-secondary" onclick="removeFromWishlist(${item.wishlist_id})">✕</button>
+          </div>`).join("");
+      } catch (err) {
+        grid.innerHTML = '<p class="text-muted">Fehler beim Laden.</p>';
+        showToast(`Load failed: ${err.message}`, "error");
+      }
+    }
+
+    async function searchCards() {
+      const q = document.getElementById("wl-search").value.trim();
+      const resultsEl = document.getElementById("wl-search-results");
+      if (!q) { resultsEl.innerHTML = ""; return; }
+      try {
+        const data = await api(`/api/cards/search?q=${encodeURIComponent(q)}&limit=12`);
+        if (!data.items || data.items.length === 0) {
+          resultsEl.innerHTML = '<p class="text-muted">Keine Karten gefunden.</p>';
+          return;
+        }
+        resultsEl.innerHTML = data.items.map(c => `
+          <div class="search-result-row">
+            <span class="sr-name">${escapeHtml(c.name)} ${c.subtitle ? `<span class="text-muted">${escapeHtml(c.subtitle)}</span>` : ""}</span>
+            <span class="sr-meta">${escapeHtml(c.set_id)} #${escapeHtml(c.card_number)}</span>
+            <button class="btn btn-sm btn-success" onclick="addToWishlist('${escapeHtml(c.card_id)}')">+ Wishlist</button>
+          </div>`).join("");
+      } catch (err) {
+        resultsEl.innerHTML = `<p class="text-muted">Suche fehlgeschlagen: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    async function addToWishlist(cardId) {
+      try {
+        await api("/api/wishlist/add", { method: "POST", body: { card_id: cardId, count: 1 } });
+        showToast("Zur Wishlist hinzugefügt ✓", "success");
+        document.getElementById("wl-search-results").innerHTML = "";
+        document.getElementById("wl-search").value = "";
+        loadWishlist();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function removeFromWishlist(wishlistId) {
+      try {
+        await api("/api/wishlist/remove", { method: "POST", body: { wishlist_id: wishlistId } });
+        showToast("Von Wishlist entfernt", "info");
+        loadWishlist();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function exportWantslist() {
+      const statusEl = document.getElementById("wl-export-status");
+      statusEl.textContent = "Exportiere zu Cardmarket...";
+      try {
+        const result = await api("/api/mkm/wantslist/export", {
+          method: "POST",
+          body: { name: "SWU Wishlist " + new Date().toLocaleDateString("de-DE") },
+        });
+        let msg = `✓ Wantslist erstellt: ${result.added} Karten exportiert`;
+        if (result.failed && result.failed.length) msg += `, ${result.failed.length} fehlgeschlagen`;
+        if (result.skipped_unmapped > 0) msg += `, ${result.skipped_unmapped} übersprungen (kein MKM-Produkt gemappt)`;
+        statusEl.textContent = msg;
+        showToast("MKM-Wantslist exportiert ✓", "success");
+      } catch (err) {
+        statusEl.textContent = `✗ ${err.message}`;
+        showToast(`Export fehlgeschlagen: ${err.message}`, "error");
+      }
+    }
+
+    document.getElementById("btn-wl-search").addEventListener("click", searchCards);
+    document.getElementById("wl-search").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") searchCards();
+    });
+    document.addEventListener("DOMContentLoaded", async () => {
+      await loadAdminState();
+      loadWishlist();
+    });
+  </script>
+</body>
+</html>

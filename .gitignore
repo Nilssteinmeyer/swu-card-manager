@@ -15,6 +15,9 @@ data/models/
 # SSL certs (local only)
 ssl/
 
+# Cardmarket credentials (DPAPI-encrypted, but never leave the machine)
+config/mkm_credentials.bin
+
 # Logs
 logs/
 *.log

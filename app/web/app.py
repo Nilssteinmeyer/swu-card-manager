@@ -220,6 +220,10 @@ def _register_routes(app: Flask) -> None:
     def collection_page():
         return render_template("collection.html")
 
+    @app.route("/wishlist")
+    def wishlist_page():
+        return render_template("wishlist.html")
+
     @app.route("/sets")
     def sets_page():
         return render_template("sets.html")
@@ -703,6 +707,63 @@ def _register_routes(app: Flask) -> None:
             return jsonify({"error": str(e)}), 500
 
     # -- Cards (for filter dropdowns) --------------------------------------
+    @app.route("/api/cards/search")
+    def api_cards_search():
+        """Search the full card catalogue (all 11k cards, not just the collection).
+
+        Query: q (fuzzy name match), limit (default 20).
+        Returns cards with basic info + owned flag.
+        """
+        import rapidfuzz
+
+        q = request.args.get("q", "").strip()
+        try:
+            limit = min(int(request.args.get("limit", "20")), 100)
+        except ValueError:
+            limit = 20
+        if not q:
+            return jsonify({"items": [], "count": 0})
+        conn = connect()
+        try:
+            # Candidate set via SQL LIKE (fast pre-filter), then fuzzy re-rank
+            like = f"%{q}%"
+            cur = conn.execute(
+                """SELECT card_id, name, subtitle, name_de, set_id, card_number,
+                          rarity, type, front_art_path
+                   FROM cards
+                   WHERE name LIKE ? OR name_de LIKE ? OR subtitle LIKE ?
+                   LIMIT 400""",
+                (like, like, like),
+            )
+            candidates = [dict(r) for r in cur.fetchall()]
+
+            # Fuzzy score against name and name_de; keep the best matches
+            scored = []
+            for c in candidates:
+                display_name = c.get("name_de") or c.get("name") or ""
+                score = max(
+                    rapidfuzz.fuzz.partial_ratio(q.lower(), (c.get("name") or "").lower()),
+                    rapidfuzz.fuzz.partial_ratio(q.lower(), (c.get("name_de") or "").lower()),
+                    rapidfuzz.fuzz.partial_ratio(q.lower(), (c.get("subtitle") or "").lower()),
+                )
+                scored.append((score, display_name, c))
+            scored.sort(key=lambda t: t[0], reverse=True)
+
+            # Mark owned cards
+            owned_ids = {
+                r["card_id"]
+                for r in conn.execute("SELECT DISTINCT card_id FROM collection").fetchall()
+            }
+            items = []
+            for score, display, c in scored[:limit]:
+                c.pop("name_de", None)
+                c["display_name"] = display
+                c["owned"] = c["card_id"] in owned_ids
+                items.append(c)
+            return jsonify({"items": items, "count": len(items)})
+        finally:
+            conn.close()
+
     @app.route("/api/cards/filters")
     def api_cards_filters():
         conn = connect()
@@ -1023,6 +1084,257 @@ def _register_routes(app: Flask) -> None:
             return jsonify(value)
         finally:
             conn.close()
+
+    # -- Cardmarket account (OAuth) --------------------------------------------
+    @app.route("/api/mkm/account/status")
+    def api_mkm_account_status():
+        from app.integrations import mkm_api
+
+        return jsonify({"configured": mkm_api.credentials_exist()})
+
+    @app.route("/api/mkm/account", methods=["POST"])
+    def api_mkm_account_save():
+        """Save MKM API credentials (DPAPI-encrypted on disk)."""
+        from app.integrations import mkm_api
+
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
+        body = request.get_json(silent=True) or {}
+        required = ["app_token", "app_secret", "access_token", "access_secret"]
+        missing = [f for f in required if not (body.get(f) or "").strip()]
+        if missing:
+            return jsonify({"error": f"Fehlende Felder: {', '.join(missing)}"}), 400
+        try:
+            mkm_api.save_credentials(
+                body["app_token"].strip(),
+                body["app_secret"].strip(),
+                body["access_token"].strip(),
+                body["access_secret"].strip(),
+            )
+            return jsonify({"saved": True})
+        except Exception as e:
+            log.error(f"MKM credential save failed: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/mkm/account/delete", methods=["POST"])
+    def api_mkm_account_delete():
+        from app.integrations import mkm_api
+
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
+        mkm_api.delete_credentials()
+        return jsonify({"deleted": True})
+
+    @app.route("/api/mkm/account/test", methods=["POST"])
+    def api_mkm_account_test():
+        """Test credentials against GET /account."""
+        from app.integrations import mkm_api
+
+        creds = mkm_api.load_credentials()
+        if not creds:
+            return jsonify({"ok": False, "error": "Keine Credentials gespeichert"}), 400
+        try:
+            result = mkm_api.test_account(creds)
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    # -- Wishlist ----------------------------------------------------------------
+    @app.route("/api/wishlist")
+    def api_wishlist():
+        conn = connect()
+        try:
+            items = repo.get_wishlist(conn)
+            return jsonify({"items": items, "count": len(items)})
+        finally:
+            conn.close()
+
+    @app.route("/api/wishlist/add", methods=["POST"])
+    def api_wishlist_add():
+        body = request.get_json(silent=True) or {}
+        card_id = (body.get("card_id") or "").strip()
+        if not card_id:
+            return jsonify({"error": "card_id erforderlich"}), 400
+        count = int(body.get("count", 1) or 1)
+        target_price = body.get("target_price")
+        if target_price is not None:
+            try:
+                target_price = float(target_price)
+            except (TypeError, ValueError):
+                target_price = None
+        conn = connect()
+        try:
+            cur = conn.execute("SELECT 1 FROM cards WHERE card_id = ?", (card_id,))
+            if cur.fetchone() is None:
+                return jsonify({"error": f"Karte {card_id} nicht gefunden"}), 404
+            wl_id = repo.add_to_wishlist(conn, card_id, count, target_price, body.get("notes"))
+            conn.commit()
+            return jsonify({"wishlist_id": wl_id, "added": True})
+        finally:
+            conn.close()
+
+    @app.route("/api/wishlist/remove", methods=["POST"])
+    def api_wishlist_remove():
+        body = request.get_json(silent=True) or {}
+        wl_id = body.get("wishlist_id")
+        if not wl_id:
+            return jsonify({"error": "wishlist_id erforderlich"}), 400
+        conn = connect()
+        try:
+            ok = repo.remove_from_wishlist(conn, int(wl_id))
+            conn.commit()
+            return jsonify({"removed": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/mkm/wantslist/export", methods=["POST"])
+    def api_mkm_wantslist_export():
+        """Export the local wishlist as a MKM wantslist.
+
+        Body: {name: "SWU Wishlist", replace: false}
+        Creates a new wantslist in the user's MKM account and adds every
+        wishlist item that has an idProduct mapping.
+        """
+        from app.integrations import mkm_api
+
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
+        creds = mkm_api.load_credentials()
+        if not creds:
+            return jsonify({"error": "Kein Cardmarket-Konto hinterlegt (Einstellungen → Cardmarket)"}), 400
+
+        body = request.get_json(silent=True) or {}
+        list_name = (body.get("name") or "SWU Wishlist").strip()
+
+        conn = connect()
+        try:
+            items = repo.get_wishlist(conn)
+            # only items with MKM product mapping can be exported
+            exportable = [i for i in items if i.get("idProduct")]
+        finally:
+            conn.close()
+
+        if not exportable:
+            return jsonify({"error": "Keine Wishlist-Einträge mit MKM-Produkt-Zuordnung (erst Preis-Import ausführen)"}), 400
+
+        try:
+            created = mkm_api.create_wantslist(creds, list_name)
+            if created["status"] not in (200, 201):
+                return jsonify({
+                    "error": f"Wantslist konnte nicht erstellt werden (HTTP {created['status']})",
+                    "details": created["data"],
+                }), 502
+            wl_data = created["data"] if isinstance(created["data"], dict) else {}
+            wl = wl_data.get("wantslist") or wl_data
+            wantslist_id = wl.get("idWantslist") or wl.get("id")
+            if not wantslist_id:
+                return jsonify({"error": "Wantslist erstellt, aber ID nicht erhalten", "details": wl_data}), 502
+
+            added, failed = 0, []
+            for item in exportable:
+                res = mkm_api.add_item_to_wantslist(
+                    creds,
+                    int(wantslist_id),
+                    int(item["idProduct"]),
+                    count=int(item.get("count", 1)),
+                )
+                if res["status"] in (200, 201):
+                    added += 1
+                else:
+                    failed.append({"card_id": item["card_id"], "status": res["status"]})
+
+            return jsonify({
+                "created": True,
+                "wantslist_id": wantslist_id,
+                "added": added,
+                "failed": failed,
+                "skipped_unmapped": len(items) - len(exportable),
+            })
+        except Exception as e:
+            log.error(f"Wantslist export failed: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
+    # -- MKM stock (sell cards) ---------------------------------------------------
+    @app.route("/api/mkm/stock/list", methods=["POST"])
+    def api_mkm_stock_list():
+        """List a collection card for sale on MKM.
+
+        Body: {card_id, price, condition?, language?, count?, is_foil?}
+        Requires an MKM account + idProduct mapping for the card.
+        """
+        from app.integrations import mkm_api
+
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
+        creds = mkm_api.load_credentials()
+        if not creds:
+            return jsonify({"error": "Kein Cardmarket-Konto hinterlegt (Einstellungen → Cardmarket)"}), 400
+
+        body = request.get_json(silent=True) or {}
+        card_id = (body.get("card_id") or "").strip()
+        price = body.get("price")
+        if not card_id or price is None:
+            return jsonify({"error": "card_id und price erforderlich"}), 400
+        try:
+            price = float(price)
+        except (TypeError, ValueError):
+            return jsonify({"error": "price muss eine Zahl sein"}), 400
+        if price <= 0:
+            return jsonify({"error": "price muss > 0 sein"}), 400
+
+        condition = (body.get("condition") or "NM").strip()
+        language = (body.get("language") or "en").strip().lower()
+        lang_id = 3 if language.startswith("de") else 1
+        is_foil = bool(body.get("is_foil", False))
+        count = int(body.get("count", 1) or 1)
+
+        conn = connect()
+        try:
+            cur = conn.execute(
+                "SELECT idProduct FROM card_mkm_map WHERE card_id = ?", (card_id,)
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            return jsonify({"error": "Kein MKM-Produkt für diese Karte gemappt (erst Preis-Import ausführen)"}), 404
+
+        try:
+            result = mkm_api.add_article_to_stock(
+                creds,
+                product_id=int(row["idProduct"]),
+                count=count,
+                price=price,
+                condition=condition,
+                language_id=lang_id,
+                is_foil=is_foil,
+            )
+            status = result["status"]
+            if status in (200, 201):
+                return jsonify({"listed": True, "details": result["data"]})
+            return jsonify({
+                "error": f"MKM lehnte ab (HTTP {status})",
+                "details": result["data"],
+            }), 502
+        except Exception as e:
+            log.error(f"MKM stock list failed: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/mkm/stock", methods=["GET"])
+    def api_mkm_stock_get():
+        """Read the user's MKM stock (first page, 100 articles)."""
+        from app.integrations import mkm_api
+
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
+        creds = mkm_api.load_credentials()
+        if not creds:
+            return jsonify({"error": "Kein Cardmarket-Konto hinterlegt"}), 400
+        try:
+            result = mkm_api.get_stock(creds, start=0)
+            return jsonify({"status": result["status"], "data": result["data"]})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     @app.route("/api/settings")
     def api_get_settings():

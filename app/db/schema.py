@@ -256,6 +256,18 @@ DDL_STATEMENTS = [
         idProduct       INTEGER NOT NULL
     )
     """,
+    # --- Local wishlist (cards the user wants to acquire) --------------------
+    """
+    CREATE TABLE IF NOT EXISTS wishlist (
+        wishlist_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+        card_id         TEXT NOT NULL,
+        count           INTEGER DEFAULT 1,
+        target_price    REAL,
+        notes           TEXT,
+        created_at      TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (card_id) REFERENCES cards(card_id)
+    )
+    """,
     # --- Schema migrations --------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS schema_migrations (

@@ -14,6 +14,7 @@
         <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
         <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
         <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
+        <li><a href="/wishlist"><span class="icon">⭐</span><span class="label">Wishlist</span></a></li>
         <li data-admin-only><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
         <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
         <li data-admin-only><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
@@ -34,6 +35,41 @@
         <div class="setting-desc" style="margin-top:-6px;">
           Admin: zeigt Sets-Import, System-Diagnose, Logs und Training-Funktionen. Aus = reine Sammlungs-Ansicht.
         </div>
+      </div>
+
+      <!-- Cardmarket-Konto (admin only) -->
+      <div class="settings-section" data-admin-only id="mkm-account-section">
+        <h2 class="settings-title">💳 Cardmarket-Konto <span id="mkm-account-badge" class="badge">nicht verbunden</span></h2>
+        <div class="setting-desc" style="margin-bottom:8px;">
+          Verbinde deinen Cardmarket-Account (API-Zugang, nur für professionelle Verkäufer mit freigegebener App — siehe
+          <a href="https://apiv2.cardmarket.com/ws/documentation/API:Auth_Overview" target="_blank" rel="noopener">MKM API-Doku</a>).
+          Ermöglicht: Wishlist → MKM-Wantslist exportieren, Karten im MKM-Stock zum Verkauf anbieten.
+          Zugangsdaten werden Windows-verschlüsselt (DPAPI) gespeichert.
+        </div>
+
+        <div class="setting-row">
+          <label>App Token</label>
+          <input type="text" id="mkm_app_token" class="setting-input" style="width:220px; text-align:left;" autocomplete="off">
+        </div>
+        <div class="setting-row">
+          <label>App Secret</label>
+          <input type="password" id="mkm_app_secret" class="setting-input" style="width:220px; text-align:left;" autocomplete="off">
+        </div>
+        <div class="setting-row">
+          <label>Access Token</label>
+          <input type="text" id="mkm_access_token" class="setting-input" style="width:220px; text-align:left;" autocomplete="off">
+        </div>
+        <div class="setting-row">
+          <label>Access Token Secret</label>
+          <input type="password" id="mkm_access_secret" class="setting-input" style="width:220px; text-align:left;" autocomplete="off">
+        </div>
+
+        <div class="flex gap-1 mt-2" style="flex-wrap:wrap;">
+          <button class="btn btn-success" id="btn-mkm-save">💾 Speichern</button>
+          <button class="btn btn-primary" id="btn-mkm-test">🔌 Verbindung testen</button>
+          <button class="btn btn-secondary" id="btn-mkm-delete">🗑 Konto entfernen</button>
+        </div>
+        <div id="mkm-account-status" class="setting-desc"></div>
       </div>
 
       <!-- Scan-Prozess -->
@@ -232,6 +268,74 @@
 
     document.getElementById("btn-save-settings").addEventListener("click", saveSettings);
     document.getElementById("btn-reset-settings").addEventListener("click", resetSettings);
+
+    // ---- Cardmarket account -------------------------------------------------
+    async function loadMkmAccountStatus() {
+      try {
+        const st = await api("/api/mkm/account/status");
+        const badge = document.getElementById("mkm-account-badge");
+        if (st.configured) {
+          badge.textContent = "verbunden";
+          badge.className = "badge badge-imported";
+          document.getElementById("mkm-account-status").textContent = "Zugangsdaten gespeichert. Nutze „Verbindung testen“.";
+        } else {
+          badge.textContent = "nicht verbunden";
+          badge.className = "badge badge-pending";
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    document.getElementById("btn-mkm-save").addEventListener("click", async () => {
+      const body = {
+        app_token: document.getElementById("mkm_app_token").value,
+        app_secret: document.getElementById("mkm_app_secret").value,
+        access_token: document.getElementById("mkm_access_token").value,
+        access_secret: document.getElementById("mkm_access_secret").value,
+      };
+      if (!body.app_token || !body.app_secret || !body.access_token || !body.access_secret) {
+        showToast("Bitte alle 4 Felder ausfüllen", "error");
+        return;
+      }
+      try {
+        await api("/api/mkm/account", { method: "POST", body });
+        showToast("Cardmarket-Konto gespeichert ✓", "success");
+        ["mkm_app_token","mkm_app_secret","mkm_access_token","mkm_access_secret"].forEach(id => document.getElementById(id).value = "");
+        loadMkmAccountStatus();
+      } catch (err) {
+        showToast(`Speichern fehlgeschlagen: ${err.message}`, "error");
+      }
+    });
+
+    document.getElementById("btn-mkm-test").addEventListener("click", async () => {
+      const statusEl = document.getElementById("mkm-account-status");
+      statusEl.textContent = "Teste Verbindung...";
+      try {
+        const res = await api("/api/mkm/account/test", { method: "POST", body: {} });
+        if (res.ok) {
+          statusEl.textContent = `✓ Verbunden als ${res.username || "Unbekannt"} (${res.user_type || "—"})`;
+          showToast("MKM-Verbindung OK ✓", "success");
+        } else {
+          statusEl.textContent = `✗ ${res.error || "Verbindung fehlgeschlagen"}`;
+          showToast("MKM-Test fehlgeschlagen", "error");
+        }
+      } catch (err) {
+        statusEl.textContent = `✗ ${err.message}`;
+        showToast(`MKM-Test fehlgeschlagen: ${err.message}`, "error");
+      }
+    });
+
+    document.getElementById("btn-mkm-delete").addEventListener("click", async () => {
+      if (!confirm("Cardmarket-Zugangsdaten wirklich entfernen?")) return;
+      try {
+        await api("/api/mkm/account/delete", { method: "POST", body: {} });
+        showToast("Konto entfernt", "info");
+        loadMkmAccountStatus();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    });
+
+    loadMkmAccountStatus();
     loadSettings();
   </script>
 </body>

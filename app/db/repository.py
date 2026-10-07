@@ -478,3 +478,40 @@ def get_collection_value(conn: sqlite3.Connection) -> dict[str, Any]:
         "entry_count": row["entry_count"] or 0,
         "currency": "EUR",
     }
+
+
+# --- Wishlist -----------------------------------------------------------------
+
+
+def add_to_wishlist(
+    conn: sqlite3.Connection,
+    card_id: str,
+    count: int = 1,
+    target_price: float | None = None,
+    notes: str | None = None,
+) -> int:
+    cur = conn.execute(
+        """INSERT INTO wishlist (card_id, count, target_price, notes)
+           VALUES (?, ?, ?, ?)""",
+        (card_id, count, target_price, notes),
+    )
+    return cur.lastrowid
+
+
+def remove_from_wishlist(conn: sqlite3.Connection, wishlist_id: int) -> bool:
+    cur = conn.execute("DELETE FROM wishlist WHERE wishlist_id = ?", (wishlist_id,))
+    return cur.rowcount > 0
+
+
+def get_wishlist(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    cur = conn.execute(
+        """SELECT w.*, cards.name, cards.subtitle, cards.set_id, cards.card_number,
+                  cards.rarity, cards.front_art_path,
+                  m.idProduct, p.trend AS price_trend
+           FROM wishlist w
+           JOIN cards ON w.card_id = cards.card_id
+           LEFT JOIN card_mkm_map m ON m.card_id = w.card_id
+           LEFT JOIN card_prices p ON p.idProduct = m.idProduct
+           ORDER BY w.created_at DESC"""
+    )
+    return [dict(r) for r in cur.fetchall()]
