@@ -1172,7 +1172,7 @@ def _register_routes(app: Flask) -> None:
     # -- Settings -----------------------------------------------------------
     _DEFAULT_SETTINGS = {
         "scan_interval_ms": "800", "capture_resolution": "1200", "jpeg_quality": "90",
-        "auto_scan": "true", "camera_facing": "environment", "freeze_camera_during_scan": "true",
+        "auto_scan": "false", "camera_facing": "environment", "freeze_camera_during_scan": "true",
         "stabilization_delay_ms": "1000",
         "auto_accept_threshold": "0.70", "candidate_threshold": "0.25", "max_candidates": "5",
         "show_confidence_bar": "true", "show_processing_time": "false",

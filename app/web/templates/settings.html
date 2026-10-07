@@ -83,8 +83,14 @@
         <h2 class="settings-title">📷 Scan-Prozess</h2>
 
         <div class="setting-row">
-          <label>Automatisches Scannen</label>
-          <label class="switch"><input type="checkbox" id="auto_scan"><span class="slider"></span></label>
+          <label>Scan auslösen</label>
+          <select id="auto_scan" class="setting-select">
+            <option value="false">🖐️ Manuell (Button im Scanner)</option>
+            <option value="true">⚡ Automatisch (Karte wird erkannt)</option>
+          </select>
+        </div>
+        <div class="setting-desc">
+          Manuell: Kamera starten → Karte hinlegen → „Jetzt scannen" tippen. Automatisch: Der Scan startet von selbst, sobald eine Karte erkannt wird.
         </div>
 
         <div class="setting-row">

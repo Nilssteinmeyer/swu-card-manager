@@ -21,7 +21,7 @@ let lastScanPhoto = null;
 
 // User settings (loaded from /api/settings)
 let USER_SETTINGS = {
-  auto_scan: true,
+  auto_scan: false,
   scan_interval_ms: 800,
   freeze_camera_during_scan: true,
   stabilization_delay_ms: 1000,
@@ -94,6 +94,8 @@ async function initScanner() {
 
   if (startBtn) startBtn.addEventListener("click", startCamera);
   if (stopBtn) stopBtn.addEventListener("click", stopCamera);
+  const manualBtn = document.getElementById("manual-scan-btn");
+  if (manualBtn) manualBtn.addEventListener("click", triggerManualScan);
   if (confirmBtn) confirmBtn.addEventListener("click", () => confirmScan(true));
   if (rejectBtn) rejectBtn.addEventListener("click", () => confirmScan(false));
   const cancelBtn = document.getElementById("btn-cancel");
@@ -155,8 +157,16 @@ async function startCamera() {
     isScanning = true;
     prevFrame = null;
     motionBaseline = null;
-    updateOverlay("searching", "Suche nach Karte...");
-    // Use the user-configured scan interval
+    // Mode-specific UI: manual shows the scan button, auto scans on its own
+    const manualBtn = document.getElementById("manual-scan-btn");
+    if (USER_SETTINGS.auto_scan) {
+      if (manualBtn) manualBtn.classList.add("hidden");
+      updateOverlay("searching", "Suche nach Karte...");
+    } else {
+      if (manualBtn) manualBtn.classList.remove("hidden");
+      updateOverlay("searching", "Karte hinlegen und scannen");
+    }
+    // Timer only drives the scan in auto mode (manual triggers via button)
     scanTimer = setInterval(autoScan, Math.max(200, USER_SETTINGS.scan_interval_ms));
   } catch (err) {
     let msg = "Kamera nicht verfügbar";
@@ -175,6 +185,7 @@ function stopCamera() {
   if (video) video.srcObject = null;
   document.getElementById("start-camera-btn")?.classList.remove("hidden");
   document.getElementById("stop-camera-btn")?.classList.add("hidden");
+  document.getElementById("manual-scan-btn")?.classList.add("hidden");
   updateOverlay("idle", "Kamera gestoppt");
   hideResultOverlay();
 }
@@ -225,12 +236,11 @@ function detectMotion(video) {
 let bulkSessionCount = 0;
 
 async function autoScan() {
+  // Timer path: only active when auto_scan is enabled.
   if (!isScanning || scanInProgress) return;
+  if (!USER_SETTINGS.auto_scan) return;
   const video = document.getElementById("camera-video");
   if (!video || !video.videoWidth) return;
-
-  // Respect auto_scan setting: if disabled, wait for manual trigger
-  if (!USER_SETTINGS.auto_scan) return;
 
   // If we already scanned and user hasn't confirmed yet, wait
   if (motionBaseline === "scanned") return;
@@ -241,6 +251,25 @@ async function autoScan() {
     await new Promise(r => setTimeout(r, USER_SETTINGS.stabilization_delay_ms));
     return;
   }
+
+  await performScan();
+}
+
+// Manual trigger (button) — same pipeline, no auto-scan settings required.
+async function triggerManualScan() {
+  if (!isScanning || scanInProgress) return;
+  const video = document.getElementById("camera-video");
+  if (!video || !video.videoWidth) {
+    showToast("Kamera ist noch nicht bereit", "error");
+    return;
+  }
+  if (motionBaseline === null) motionBaseline = "ready";
+  await performScan();
+}
+
+async function performScan() {
+  const video = document.getElementById("camera-video");
+  if (!video || !video.videoWidth) return;
 
   // Capture frame BEFORE scan starts
   scanInProgress = true;

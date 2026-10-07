@@ -61,9 +61,10 @@
         </div>
 
         <!-- Controls -->
-        <div class="flex gap-1">
+        <div class="flex gap-1" style="flex-wrap:wrap;">
           <button id="start-camera-btn" class="btn btn-primary">📷 Kamera starten</button>
           <button id="stop-camera-btn" class="btn btn-danger hidden">⏹ Stop</button>
+          <button id="manual-scan-btn" class="btn btn-success btn-large hidden" style="min-width:170px; min-height:54px; font-size:17px;">🔍 Jetzt scannen</button>
         </div>
 
         <!-- Scan result — full-screen mobile popup -->
@@ -105,7 +106,7 @@
   </div>
 
   <script src="/static/common.js"></script>
-  <script src="/static/scanner.js?v=12"></script>
+  <script src="/static/scanner.js?v=13"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
