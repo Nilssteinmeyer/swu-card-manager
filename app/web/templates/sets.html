@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Sets — SWU Card Manager</title>
   <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="manifest" href="/static/manifest.json?v=1">
+  <meta name="theme-color" content="#0a0e14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SWU Manager">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
 </head>
 <body>
   <div class="app-shell">
@@ -270,6 +276,13 @@
         if (closeBtn) closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
       }
     });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+      });
+    }
   </script>
 </body>
 </html>
