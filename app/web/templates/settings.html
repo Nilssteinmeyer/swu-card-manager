@@ -103,6 +103,19 @@
         </div>
 
         <div class="setting-row">
+          <label>Stapel-Scan (Bulk-Modus)</label>
+          <label class="switch"><input type="checkbox" id="bulk_scan_mode"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <label>Bulk: Mindest-Konfidenz (%)</label>
+          <input type="range" id="bulk_min_confidence" class="setting-range" min="50" max="99" step="1">
+          <span class="range-val" id="bulk_min_confidence_val">85</span>
+        </div>
+        <div class="setting-desc">
+          Bulk-Modus: Karte hinlegen → ab der Mindest-Konfidenz wird automatisch zur Sammlung hinzugefügt (kein Popup) → Kamera läuft weiter für die nächste Karte. Ideal zum Einsortieren ganzer Boxen. Darunter: normales Bestätigungs-Popup.
+        </div>
+
+        <div class="setting-row">
           <label>Auflösung der Aufnahme (px Breite)</label>
           <select id="capture_resolution" class="setting-select">
             <option value="640">640px (schnell)</option>
@@ -230,11 +243,11 @@
     }
 
     function updateRangeLabels() {
-      ["jpeg_quality", "auto_accept_threshold", "candidate_threshold", "card_image_size"].forEach(id => {
+      ["jpeg_quality", "auto_accept_threshold", "candidate_threshold", "card_image_size", "bulk_min_confidence"].forEach(id => {
         const el = document.getElementById(id);
         const valEl = document.getElementById(id + "_val");
         if (el && valEl) {
-          if (id === "auto_accept_threshold" || id === "candidate_threshold") {
+          if (id === "auto_accept_threshold" || id === "candidate_threshold" || id === "bulk_min_confidence") {
             valEl.textContent = (parseFloat(el.value)).toFixed(0);
           } else {
             valEl.textContent = el.value;

@@ -35,6 +35,8 @@ let USER_SETTINGS = {
   show_confidence_bar: true,
   show_processing_time: false,
   max_candidates: 5,
+  bulk_scan_mode: false,
+  bulk_min_confidence: 0.85,
 };
 
 function parseBool(v) { return v === "true" || v === true; }
@@ -58,6 +60,12 @@ async function loadUserSettings() {
     USER_SETTINGS.show_confidence_bar = parseBool(s.show_confidence_bar);
     USER_SETTINGS.show_processing_time = parseBool(s.show_processing_time);
     USER_SETTINGS.max_candidates = parseInt_(s.max_candidates, 5);
+    USER_SETTINGS.bulk_scan_mode = parseBool(s.bulk_scan_mode);
+    USER_SETTINGS.bulk_min_confidence = (parseInt_(s.bulk_min_confidence, 85) || 85) / 100;
+    // Bulk session counter
+    if (typeof bulkSessionCount === "number") {
+      document.getElementById("bulk-session-counter")?.classList.toggle("hidden", !USER_SETTINGS.bulk_scan_mode);
+    }
   } catch (e) {
     console.warn("Could not load settings, using defaults:", e);
   }
@@ -206,6 +214,8 @@ function detectMotion(video) {
   return diff;
 }
 
+let bulkSessionCount = 0;
+
 async function autoScan() {
   if (!isScanning || scanInProgress) return;
   const video = document.getElementById("camera-video");
@@ -228,8 +238,9 @@ async function autoScan() {
   scanInProgress = true;
   updateOverlay("scanning", "Scan läuft...");
 
-  // Freeze camera preview if enabled in settings
-  if (USER_SETTINGS.freeze_camera_during_scan && video) video.pause();
+  // Freeze camera preview if enabled in settings (not in bulk mode — camera keeps running)
+  const freeze = USER_SETTINGS.freeze_camera_during_scan && !USER_SETTINGS.bulk_scan_mode;
+  if (freeze && video) video.pause();
 
   const canvas = document.createElement("canvas");
   const scale = Math.min(1, USER_SETTINGS.capture_resolution / video.videoWidth);
@@ -245,6 +256,42 @@ async function autoScan() {
   try {
     const result = await api("/api/scan", { method: "POST", body: { image: dataUrl } });
     lastScanResult = result;
+
+    // ---- Bulk mode: auto-accept above threshold, keep scanning -------------
+    if (USER_SETTINGS.bulk_scan_mode && result.confidence >= USER_SETTINGS.bulk_min_confidence && result.card_id) {
+      bulkSessionCount += 1;
+      const bulkEl = document.getElementById("bulk-session-counter");
+      if (bulkEl) {
+        bulkEl.classList.remove("hidden");
+        bulkEl.textContent = `⚡ ${bulkSessionCount} Karten in dieser Session — ${result.card_name} (${(result.confidence * 100).toFixed(1)}%)`;
+      }
+      if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
+      updateOverlay("found", "Karte erkannt!");
+      // auto-confirm in the background (no popup)
+      api("/api/scan/confirm", {
+        method: "POST",
+        body: {
+          scan_id: result.scan_id,
+          confirmed: true,
+          card_id: result.card_id,
+          original_card_id: result.card_id,
+          quantity: 1,
+          is_foil: false,
+          photo: lastScanPhoto,
+        },
+      }).then(() => {
+        bulkSessionCount = bulkSessionCount; // session continues
+      }).catch(err => {
+        showToast(`Auto-Bestätigung fehlgeschlagen: ${err.message}`, "error");
+      });
+      scanInProgress = false;
+      // shorter cooldown in bulk mode, then continue scanning
+      await new Promise(r => setTimeout(r, 1500));
+      motionBaseline = "ready";
+      return;
+    }
+
+    // ---- Normal mode: show popup --------------------------------------------
     if (USER_SETTINGS.haptic_on_scan && navigator.vibrate) navigator.vibrate(150);
     updateOverlay("found", "Karte erkannt!");
     showResultOverlay(result);

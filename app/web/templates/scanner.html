@@ -33,6 +33,11 @@
     <main class="main-content">
       <h1 class="mb-2">Scanner</h1>
 
+      <!-- Bulk session counter (visible in bulk mode) -->
+      <div id="bulk-session-counter" class="card hidden" style="padding:10px 16px; font-size:14px;">
+        ⏳ Noch keine Karte in dieser Session...
+      </div>
+
       <div class="scanner-container">
         <!-- Camera -->
         <div class="camera-wrap" id="camera-wrap">
@@ -88,7 +93,7 @@
   </div>
 
   <script src="/static/common.js"></script>
-  <script src="/static/scanner.js?v=9"></script>
+  <script src="/static/scanner.js?v=10"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

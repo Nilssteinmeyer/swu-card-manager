@@ -1094,6 +1094,7 @@ def _register_routes(app: Flask) -> None:
         "haptic_on_scan": "true", "haptic_on_confirm": "true", "haptic_on_reject": "true",
         "haptic_pattern_confirm": "50,30,80",
         "card_image_size": "40", "theme": "dark", "language": "de",
+        "bulk_scan_mode": "false", "bulk_min_confidence": "0.85",
         "save_photos_on_confirm": "true", "auto_retrain_threshold": "50",
         "admin_mode": "true",
     }
