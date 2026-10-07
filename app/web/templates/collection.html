@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Sammlung — SWU Card Manager</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="/static/style.css?v=11">
   <link rel="manifest" href="/static/manifest.json?v=1">
   <meta name="theme-color" content="#0a0e14">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -34,8 +34,11 @@
       <h1 class="mb-2">Sammlung</h1>
 
       <div class="card">
-        <div class="card-title">Filter</div>
-        <div class="filter-bar">
+        <div class="card-title flex-center-between" style="cursor:pointer;" id="filter-toggle" onclick="toggleSection('filter-body', 'filter-arrow')">
+          <span>🔍 Filter</span>
+          <span id="filter-arrow" class="collapse-arrow">▼</span>
+        </div>
+        <div id="filter-body" class="collapsible-body">
           <div class="search-input full-width">
             <input type="search" id="f-search" placeholder="Kartenname suchen...">
           </div>
@@ -97,9 +100,10 @@
             </select>
           </div>
         </div>
-        <div class="flex gap-1 mt-1">
-          <button class="btn btn-primary" onclick="loadCollection()">🔍 Filter anwenden</button>
-          <button class="btn" onclick="resetFilters()">↺ Zurücksetzen</button>
+          <div class="flex gap-1 mt-1">
+            <button class="btn btn-primary" onclick="loadCollection()">🔍 Filter anwenden</button>
+            <button class="btn" onclick="resetFilters()">↺ Zurücksetzen</button>
+          </div>
         </div>
       </div>
 
@@ -115,21 +119,37 @@
       </div>
 
       <div class="card">
-        <div class="card-title flex-center-between">
-          <span>Ergebnisse (<span id="coll-count">0</span>)</span>
-          <span class="flex gap-1">
+        <div class="card-title flex-center-between" style="cursor:pointer;" id="export-toggle" onclick="toggleSection('export-body', 'export-arrow')">
+          <span>📤 Export / Import</span>
+          <span id="export-arrow" class="collapse-arrow">▶</span>
+        </div>
+        <div id="export-body" class="collapsible-body hidden">
+          <div class="setting-desc" style="margin-bottom:8px;">
+            Exportiere deine Sammlung als CSV (für Tabellen) oder JSON (vollständiger Restore).
+            Import fügt Karten hinzu (merge) — für einen Restore der exportierten Datei nutze den Backend-Modus "replace".
+          </div>
+          <div class="flex gap-1 mb-2" style="flex-wrap:wrap;">
             <a class="btn btn-sm btn-secondary" href="/api/collection/export?format=csv">📥 CSV Export</a>
             <a class="btn btn-sm btn-secondary" href="/api/collection/export?format=json">📥 JSON Export</a>
             <label class="btn btn-sm btn-primary" style="margin:0;">📤 Import
               <input type="file" id="import-file" accept=".csv,.json" style="display:none;">
             </label>
-          </span>
+          </div>
         </div>
+        <div class="card-title" style="margin-top:8px;">Ergebnisse (<span id="coll-count">0</span>)</div>
         <div id="collection-grid" class="collection-grid">
           <p class="text-muted">Filter anwenden oder Sammlung laden...</p>
         </div>
       </div>
     </main>
+
+    <!-- Card detail modal -->
+    <div id="card-modal" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this) closeCardModal()">
+      <div class="card" id="card-modal-content" style="max-width:700px; width:100%; max-height:88vh; overflow-y:auto; position:relative; padding:20px;">
+        <button class="btn btn-sm" style="position:absolute; top:10px; right:10px; z-index:2;" onclick="closeCardModal()">✕</button>
+        <div id="card-modal-body"></div>
+      </div>
+    </div>
   </div>
 
   <script src="/static/common.js"></script>
@@ -204,7 +224,7 @@
             priceHtml = `<div class="${cls}">${trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</div>`;
           }
           return `
-          <div class="collection-item">
+          <div class="collection-item clickable" onclick="showCardDetail('${escapeHtml(item.card_id)}')">
             ${item.front_art_path
               ? `<img class="ci-image" src="${cardImageUrl(item.card_id)}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\'placeholder-image\\'>🃏</div>'">`
               : '<div class="placeholder-image">🃏</div>'}
@@ -262,6 +282,88 @@
       } finally {
         e.target.value = "";
       }
+    });
+
+    // ---- Collapsible sections ------------------------------------------------
+    function toggleSection(bodyId, arrowId) {
+      const body = document.getElementById(bodyId);
+      const arrow = document.getElementById(arrowId);
+      body.classList.toggle("hidden");
+      if (arrow) arrow.textContent = body.classList.contains("hidden") ? "\u25B6" : "\u25BC";
+    }
+
+    // ---- Card detail modal ------------------------------------------------------
+    async function showCardDetail(cardId) {
+      const modal = document.getElementById("card-modal");
+      const body = document.getElementById("card-modal-body");
+      modal.classList.remove("hidden");
+      body.innerHTML = '<div class="spinner"></div><p class="text-muted">Lade Kartendetails...</p>';
+      try {
+        const card = await api(`/api/card/${encodeURIComponent(cardId)}`);
+        const eur = v => v != null ? v.toLocaleString("de-DE", { style: "currency", currency: "EUR" }) : "\u2014";
+        const list = arr => {
+          try { const a = JSON.parse(arr || "[]"); return a.filter(Boolean).join(", ") || "\u2014"; } catch { return arr || "\u2014"; }
+        };
+        let langDe = true;
+        try { const s = await api("/api/settings"); langDe = (s.card_language || "de") === "de"; } catch (e) {}
+        const imgUrl = `/api/card/image/${encodeURIComponent(cardId)}`;
+
+        const rows = [
+          ["Set", `${escapeHtml(card.set_name || "")} (${escapeHtml(card.set_id || "")})`],
+          ["Kartennummer", escapeHtml(card.card_number || "")],
+          ["Seltenheit", escapeHtml(card.rarity_de || card.rarity || "")],
+          ["Typ", escapeHtml(card.type_de || card.type || "")],
+          ["Aspekte", escapeHtml(card.aspects_de || card.aspects || "\u2014")],
+          ["Traits", escapeHtml(list(card.traits_de || card.traits))],
+          ["Arena", escapeHtml(list(card.arenas_de || card.arenas))],
+          ["Kosten", card.cost != null ? escapeHtml(String(card.cost)) : "\u2014"],
+          ["St\u00e4rke", card.power != null ? escapeHtml(String(card.power)) : "\u2014"],
+          ["HP", card.hp != null ? escapeHtml(String(card.hp)) : "\u2014"],
+          ["K\u00fcnstler", escapeHtml(card.artist || "\u2014")],
+          ["Im Besitz", `${card.owned_count}\u00d7 (davon ${card.owned_foil_count}\u00d7 Foil)`],
+        ];
+        const price = card.price;
+        if (price) {
+          rows.push(["Cardmarket Trend", eur(price.trend)]);
+          rows.push(["Cardmarket Foil-Trend", eur(price.foil_trend)]);
+          rows.push(["Preis-Stand", price.updated_at ? escapeHtml(price.updated_at) : "\u2014"]);
+        }
+
+        const textBlock = (label, content) => content ? `
+          <div style="margin-top:10px;">
+            <div class="text-muted" style="font-size:12px; margin-bottom:2px;">${label}</div>
+            <div style="font-size:13px; line-height:1.45;">${escapeHtml(content)}</div>
+          </div>` : "";
+
+        body.innerHTML = `
+          <div style="display:flex; gap:16px; flex-wrap:wrap;">
+            <div style="flex:0 0 220px; max-width:220px;">
+              <img src="${imgUrl}" alt="${escapeHtml(card.name)}" style="width:100%; border-radius:8px; border:1px solid var(--border);" onerror="this.style.display='none'">
+              <div class="text-muted" style="font-size:11px; margin-top:4px;">${langDe ? "Deutsches Kartenbild (falls verf\u00fcgbar)" : "Englisches Kartenbild"} \u00b7 <a href="${imgUrl}?lang=de" target="_blank" rel="noopener" style="text-decoration:underline;">DE</a> \u00b7 <a href="${imgUrl}?lang=en" target="_blank" rel="noopener" style="text-decoration:underline;">EN</a></div>
+            </div>
+            <div style="flex:1; min-width:260px;">
+              <h2 style="margin:0 0 2px 0;">${escapeHtml(card.name_de || card.name)}</h2>
+              ${card.subtitle ? `<div class="text-muted" style="margin-bottom:8px;">${escapeHtml(card.subtitle_de || card.subtitle)}</div>` : '<div style="margin-bottom:8px;"></div>'}
+              <div class="table-wrap">
+                <table><tbody>
+                  ${rows.map(r => `<tr><td class="text-muted" style="white-space:nowrap; padding:4px 12px 4px 0;">${r[0]}</td><td style="padding:4px 0;">${r[1]}</td></tr>`).join("")}
+                </tbody></table>
+              </div>
+              ${textBlock("Kartentext", card.front_text_de || card.front_text)}
+              ${textBlock("Epic Action", card.epic_action_de || card.epic_action)}
+            </div>
+          </div>`;
+      } catch (err) {
+        body.innerHTML = `<p class="text-muted">\u2717 ${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    function closeCardModal() {
+      document.getElementById("card-modal").classList.add("hidden");
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeCardModal();
     });
 
     document.addEventListener("DOMContentLoaded", () => {

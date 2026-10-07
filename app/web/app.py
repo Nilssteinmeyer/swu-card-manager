@@ -939,20 +939,44 @@ def _register_routes(app: Flask) -> None:
     # -- Card image --------------------------------------------------------
     @app.route("/api/card/image/<card_id>")
     def api_card_image(card_id: str):
+        """Serve card art honouring the user's language preference.
+
+        Preference order for 'de': German art URL (official CDN) first,
+        else local image / English URL fallback.
+        Query ?lang=en forces English art.
+        """
+        lang = request.args.get("lang", "").strip().lower()
+        if lang not in ("de", "en"):
+            lang = _get_setting("card_language", "de")
+
         conn = connect()
         try:
             card = repo.get_card(conn, card_id)
             if not card:
                 return jsonify({"error": "card not found"}), 404
-            # Prefer local path, fall back to URL
+
+            de_url = (card.get("front_art_url_de") or "").strip()
+
+            # German preference: DE URL if available, else fall through to EN
+            if lang == "de" and de_url:
+                from flask import redirect
+
+                return redirect(de_url)
+
+            # Default: local path first, then EN URL
             front_path = card.get("front_art_path", "")
             if front_path and Path(front_path).exists():
                 return send_file(front_path, mimetype="image/png")
-            # No local image — redirect to URL
             url = card.get("front_art_url", "")
             if url:
                 from flask import redirect
+
                 return redirect(url)
+            # last resort: DE URL even when 'en' was requested
+            if de_url:
+                from flask import redirect
+
+                return redirect(de_url)
             return jsonify({"error": "no image available"}), 404
         finally:
             conn.close()
@@ -1093,11 +1117,21 @@ def _register_routes(app: Flask) -> None:
         "show_confidence_bar": "true", "show_processing_time": "false",
         "haptic_on_scan": "true", "haptic_on_confirm": "true", "haptic_on_reject": "true",
         "haptic_pattern_confirm": "50,30,80",
-        "card_image_size": "40", "theme": "dark", "language": "de",
+        "card_image_size": "40", "theme": "dark", "language": "de", "card_language": "de",
         "bulk_scan_mode": "false", "bulk_min_confidence": "0.85",
         "save_photos_on_confirm": "true", "auto_retrain_threshold": "50",
         "admin_mode": "true",
     }
+
+    def _get_setting(key: str, default: str = "") -> str:
+        """Read one settings value from the DB (with default fallback)."""
+        conn = connect()
+        try:
+            cur = conn.execute("SELECT value FROM settings WHERE key = ?", (key,))
+            row = cur.fetchone()
+            return row["value"] if row and row["value"] is not None else default
+        finally:
+            conn.close()
 
     def _is_admin() -> bool:
         """Check whether admin mode is enabled in settings."""
@@ -1203,6 +1237,33 @@ def _register_routes(app: Flask) -> None:
         except Exception as e:
             log.error(f"MKM import failed: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
+
+    @app.route("/api/card/<card_id>")
+    def api_card_detail(card_id: str):
+        """Full details for one card (for the card detail modal)."""
+        conn = connect()
+        try:
+            card = repo.get_card(conn, card_id)
+            if not card:
+                return jsonify({"error": "card not found"}), 404
+            # owned count in collection
+            cur = conn.execute(
+                "SELECT COALESCE(SUM(count),0) AS c, COALESCE(SUM(CASE WHEN is_foil=1 THEN count ELSE 0 END),0) AS f FROM collection WHERE card_id = ?",
+                (card_id,),
+            )
+            owned = cur.fetchone()
+            card["owned_count"] = owned["c"]
+            card["owned_foil_count"] = owned["f"]
+            # price
+            price = repo.get_price_for_card(conn, card_id)
+            card["price"] = price
+            # set name
+            cur = conn.execute("SELECT full_name FROM sets WHERE set_id = ?", (card.get("set_id"),))
+            row = cur.fetchone()
+            card["set_name"] = row["full_name"] if row else card.get("set_id")
+            return jsonify(card)
         finally:
             conn.close()
 

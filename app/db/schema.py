@@ -328,6 +328,13 @@ def _migrate(cur: sqlite3.Cursor) -> None:
         cur.execute("ALTER TABLE collection ADD COLUMN is_foil INTEGER DEFAULT 0")
         log.info("Migration: added collection.is_foil", extra={"event": "db_migration"})
 
+    # cards.front_art_url_de (German card art from the official API CDN)
+    cur.execute("PRAGMA table_info(cards)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "front_art_url_de" not in cols:
+        cur.execute("ALTER TABLE cards ADD COLUMN front_art_url_de TEXT")
+        log.info("Migration: added cards.front_art_url_de", extra={"event": "db_migration"})
+
 
 def check_integrity(conn: sqlite3.Connection | None = None) -> bool:
     """Run PRAGMA integrity_check."""
