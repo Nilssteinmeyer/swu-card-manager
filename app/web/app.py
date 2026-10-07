@@ -57,7 +57,16 @@ def create_app(config: AppConfig | None = None) -> Flask:
         static_folder=static_dir,
     )
     app.config["JSON_SORT_KEYS"] = False
-    CORS(app)
+    # -- Hardening ------------------------------------------------------------
+    app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024  # 12 MB upload cap (base64 images)
+    # CORS: same-origin for the UI; LAN hosts are allowed explicitly (scanner
+    # runs on the phone in the same network). No wildcard in production.
+    _cors_origins = [
+        "https://localhost:8765",
+        "https://127.0.0.1:8765",
+        f"https://{cfg.get('lan_ip', '192.168.178.74')}:8765",
+    ]
+    CORS(app, resources={r"/api/*": {"origins": _cors_origins}})
 
     # Lazily-initialised singletons (heavy objects)
     app.config["_SWU_CFG"] = cfg
@@ -65,6 +74,21 @@ def create_app(config: AppConfig | None = None) -> Flask:
     app.config["_UPDATE_MGR"] = None
 
     _register_routes(app)
+
+    # -- Global error handlers -------------------------------------------------
+    @app.errorhandler(413)
+    def _too_large(e):
+        return jsonify({"error": "Payload zu groß (max 12 MB)"}), 413
+
+    @app.errorhandler(404)
+    def _not_found(e):
+        return jsonify({"error": "Nicht gefunden"}), 404
+
+    @app.errorhandler(500)
+    def _server_error(e):
+        log.error(f"Unhandled server error: {e}", exc_info=True)
+        return jsonify({"error": "Interner Serverfehler"}), 500
+
     return app
 
 
@@ -955,11 +979,24 @@ def main() -> None:
     print(f"{'=' * 60}\n")
 
     if use_ssl:
-        ssl_context = (str(cert_path), str(key_path))
-        app.run(host=args.host, port=args.port, debug=args.debug, threaded=True,
-                ssl_context=ssl_context)
+        # gevent pywsgi: production WSGI server with native TLS support.
+        # (monkey-patching already happened in __main__.py before all imports)
+        from gevent.pywsgi import WSGIServer
+
+        import ssl as _ssl
+
+        _ctx = _ssl.SSLContext(_ssl.PROTOCOL_TLS_SERVER)
+        _ctx.load_cert_chain(str(cert_path), str(key_path))
+        server = WSGIServer((args.host, args.port), app, ssl_context=_ctx)
+        print(f"  Serving via gevent/pywsgi (HTTPS, production WSGI)")
+        server.serve_forever()
     else:
-        app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)
+        from gevent.pywsgi import WSGIServer
+
+        print(f"  Serving via gevent/pywsgi (HTTP, production WSGI)")
+        server = WSGIServer((args.host, args.port), app)
+        server.serve_forever()
+    print("Server beendet.")
 
 
 if __name__ == "__main__":

@@ -69,15 +69,20 @@ def _load_clip_model():
     log.info(f"Loading CLIP model on {_clip_device}...", extra={"event": "clip_load"})
 
     # Use ViT-B/32 — good balance of accuracy and speed (512-dim embeddings)
-    model, _, preprocess = open_clip.create_model_and_transforms(
-        "ViT-B-32", pretrained="openai"
-    )
-
-    # Load fine-tuned weights if available
     cfg = AppConfig.load()
     models_dir = cfg.path("models_dir")
     finetuned_path = models_dir / "clip_finetuned.pt"
-    if finetuned_path.exists():
+    has_finetuned = finetuned_path.exists()
+
+    # If we have fine-tuned weights, create the model WITHOUT downloading
+    # pretrained weights (pretrained=False → random init, immediately
+    # overwritten by our state dict). Avoids any network dependency.
+    model, _, preprocess = open_clip.create_model_and_transforms(
+        "ViT-B-32", pretrained=(None if has_finetuned else "openai")
+    )
+
+    # Load fine-tuned weights if available
+    if has_finetuned:
         log.info(f"Loading fine-tuned weights from {finetuned_path}", extra={"event": "clip_finetune_load"})
         state_dict = torch.load(str(finetuned_path), map_location=_clip_device, weights_only=True)
         model.load_state_dict(state_dict)
