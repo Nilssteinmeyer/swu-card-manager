@@ -109,7 +109,16 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Ergebnisse (<span id="coll-count">0</span>)</div>
+        <div class="card-title flex-center-between">
+          <span>Ergebnisse (<span id="coll-count">0</span>)</span>
+          <span class="flex gap-1">
+            <a class="btn btn-sm btn-secondary" href="/api/collection/export?format=csv">📥 CSV Export</a>
+            <a class="btn btn-sm btn-secondary" href="/api/collection/export?format=json">📥 JSON Export</a>
+            <label class="btn btn-sm btn-primary" style="margin:0;">📤 Import
+              <input type="file" id="import-file" accept=".csv,.json" style="display:none;">
+            </label>
+          </span>
+        </div>
         <div id="collection-grid" class="collection-grid">
           <p class="text-muted">Filter anwenden oder Sammlung laden...</p>
         </div>
@@ -224,6 +233,29 @@
 
     document.getElementById("f-search").addEventListener("keydown", (e) => {
       if (e.key === "Enter") loadCollection();
+    });
+
+    // Import handler
+    document.getElementById("import-file").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append("file", file);
+      try {
+        const resp = await fetch("/api/collection/import", { method: "POST", body: fd });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || `HTTP ${resp.status}`);
+        let msg = `${result.imported} Karten importiert`;
+        if (result.skipped) msg += `, ${result.skipped} übersprungen`;
+        if (result.errors && result.errors.length) msg += `, ${result.errors.length} Fehler`;
+        showToast(msg, result.errors && result.errors.length ? "info" : "success");
+        loadCollection();
+        loadStats();
+      } catch (err) {
+        showToast(`Import fehlgeschlagen: ${err.message}`, "error");
+      } finally {
+        e.target.value = "";
+      }
     });
 
     document.addEventListener("DOMContentLoaded", () => {

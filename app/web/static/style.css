@@ -983,3 +983,5 @@ td .badge {
 .completion-bar { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
 .completion-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 4px; transition: width 0.3s; }
 .completion-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.flex-center-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }

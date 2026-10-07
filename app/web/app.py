@@ -162,6 +162,12 @@ def _card_to_dict(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _collection_to_dict(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "collection_id": row.get("collection_id"),
@@ -615,6 +621,141 @@ def _register_routes(app: Flask) -> None:
             rows = [dict(r) for r in cur.fetchall()]
             items = [_collection_to_dict(r) for r in rows]
             return jsonify({"items": items, "count": len(items)})
+        finally:
+            conn.close()
+
+    # -- Collection export/import ----------------------------------------------
+    @app.route("/api/collection/export")
+    def api_collection_export():
+        """Export the collection as CSV or JSON (query: format=csv|json)."""
+        import csv as _csv
+        import io as _io
+
+        fmt = request.args.get("format", "json").lower()
+        conn = connect()
+        try:
+            cur = conn.execute(
+                """SELECT col.card_id, cards.name, cards.name_de, cards.subtitle,
+                          cards.set_id, cards.card_number, cards.rarity, cards.type,
+                          col.count, col.condition, col.language, col.variant,
+                          col.is_foil, col.acquired_at, col.source,
+                          m.idProduct, pr.trend, pr.foil_trend
+                   FROM collection col
+                   JOIN cards ON col.card_id = cards.card_id
+                   LEFT JOIN card_mkm_map m ON m.card_id = col.card_id
+                   LEFT JOIN card_prices pr ON pr.idProduct = m.idProduct
+                   ORDER BY cards.set_id, cards.card_number"""
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+        if fmt == "csv":
+            out = _io.StringIO()
+            writer = _csv.writer(out, delimiter=";")
+            headers = ["card_id", "name", "name_de", "subtitle", "set_id", "card_number",
+                       "rarity", "type", "count", "condition", "language", "variant",
+                       "is_foil", "acquired_at", "source", "mkm_idProduct",
+                       "price_trend_eur", "price_foil_trend_eur"]
+            writer.writerow(headers)
+            for r in rows:
+                writer.writerow([
+                    r["card_id"], r["name"], r["name_de"] or "", r["subtitle"] or "",
+                    r["set_id"], r["card_number"], r["rarity"] or "", r["type"] or "",
+                    r["count"], r["condition"], r["language"], r["variant"],
+                    1 if r["is_foil"] else 0, r["acquired_at"], r["source"] or "",
+                    r["idProduct"] or "", r["trend"] or "", r["foil_trend"] or "",
+                ])
+            data = out.getvalue()
+            return Response(
+                data,
+                mimetype="text/csv",
+                headers={"Content-Disposition": "attachment; filename=swu_collection.csv"},
+            )
+
+        return Response(
+            json.dumps({"exported_at": _now_iso(), "items": rows}, ensure_ascii=False, indent=2),
+            mimetype="application/json",
+            headers={"Content-Disposition": "attachment; filename=swu_collection.json"},
+        )
+
+    @app.route("/api/collection/import", methods=["POST"])
+    def api_collection_import():
+        """Import a previously exported CSV or JSON back into the collection.
+
+        Body: multipart file 'file' (csv or json), optional form field
+        'mode': 'merge' (default, adds counts) or 'replace' (sets counts,
+        making roundtrips idempotent).
+        """
+        if "file" not in request.files:
+            return jsonify({"error": "Keine Datei (Feld: file)"}), 400
+        mode = request.form.get("mode", "merge")
+        if mode not in ("merge", "replace"):
+            return jsonify({"error": "mode muss 'merge' oder 'replace' sein"}), 400
+        raw = request.files["file"].read()
+        text = raw.decode("utf-8-sig", errors="replace")
+
+        imported, skipped, errors = 0, 0, []
+        conn = connect()
+        try:
+            rows: list[dict[str, Any]] = []
+            if text.lstrip().startswith("[") or text.lstrip().startswith("{"):
+                data = json.loads(text)
+                rows = data.get("items") if isinstance(data, dict) else data
+            else:
+                import csv as _csv
+                import io as _io
+
+                reader = _csv.DictReader(_io.StringIO(text), delimiter=";")
+                rows = [dict(r) for r in reader]
+
+            for r in rows:
+                card_id = (r.get("card_id") or "").strip()
+                if not card_id:
+                    skipped += 1
+                    continue
+                cur = conn.execute("SELECT 1 FROM cards WHERE card_id = ?", (card_id,))
+                if cur.fetchone() is None:
+                    errors.append({"card_id": card_id, "reason": "Karte nicht in Datenbank"})
+                    continue
+                try:
+                    count = max(1, int(r.get("count") or 1))
+                except ValueError:
+                    count = 1
+                is_foil = str(r.get("is_foil") or "0").strip() in ("1", "true", "True")
+                condition = (r.get("condition") or "NM").strip() or "NM"
+                language = (r.get("language") or "en").strip() or "en"
+                variant = (r.get("variant") or "Normal").strip() or "Normal"
+                variant = "Foil" if is_foil else variant
+
+                existing = conn.execute(
+                    """SELECT collection_id, count FROM collection
+                       WHERE card_id=? AND condition=? AND language=? AND variant=?""",
+                    (card_id, condition, language, variant),
+                ).fetchone()
+                if existing:
+                    if mode == "replace":
+                        conn.execute(
+                            "UPDATE collection SET count = ?, is_foil = ? WHERE collection_id = ?",
+                            (count, 1 if is_foil else 0, existing["collection_id"]),
+                        )
+                    else:
+                        conn.execute(
+                            "UPDATE collection SET count = count + ? WHERE collection_id = ?",
+                            (count, existing["collection_id"]),
+                        )
+                else:
+                    conn.execute(
+                        """INSERT INTO collection (card_id, count, condition, language, variant, is_foil, source)
+                           VALUES (?, ?, ?, ?, ?, ?, 'import')""",
+                        (card_id, count, condition, language, variant, 1 if is_foil else 0),
+                    )
+                imported += 1
+            conn.commit()
+            return jsonify({"imported": imported, "skipped": skipped, "errors": errors[:20], "mode": mode})
+        except Exception as e:
+            log.error(f"Collection import failed: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
         finally:
             conn.close()
 
