@@ -994,3 +994,8 @@ td .badge {
 /* Clickable collection items */
 .collection-item.clickable { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
 .collection-item.clickable:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,0.4); border-color: var(--accent); }
+
+/* Language toggle (scan overlay) */
+.lang-toggle { display: flex; gap: 6px; margin-bottom: 4px; }
+.lang-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 16px; cursor: pointer; opacity: 0.5; transition: all 0.15s; line-height: 1; }
+.lang-btn.lang-active { opacity: 1; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); transform: scale(1.08); }

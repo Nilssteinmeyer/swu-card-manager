@@ -387,6 +387,9 @@ def _register_routes(app: Flask) -> None:
         is_foil = body.get("is_foil", False)
         photo_data = body.get("photo")  # base64 photo from camera
         quantity = body.get("quantity", 1)
+        language = (body.get("language") or "").strip().lower()
+        if language not in ("de", "en"):
+            language = _get_setting("card_language", "de") or "de"
 
         if scan_id is None:
             return jsonify({"error": "scan_id required"}), 400
@@ -408,7 +411,7 @@ def _register_routes(app: Flask) -> None:
                         card_id=card_id,
                         count=quantity,
                         condition="NM",
-                        language="en",
+                        language=language,
                         variant=variant,
                         source="scan",
                     )
@@ -451,6 +454,7 @@ def _register_routes(app: Flask) -> None:
                     "confirmed": True,
                     "card_id": card_id,
                     "added_to_collection": add_to_collection,
+                    "language": language,
                     "is_foil": is_foil,
                     "photo_saved": bool(saved_photo_path),
                     "learned": original_card_id != card_id,
@@ -1118,6 +1122,7 @@ def _register_routes(app: Flask) -> None:
         "haptic_on_scan": "true", "haptic_on_confirm": "true", "haptic_on_reject": "true",
         "haptic_pattern_confirm": "50,30,80",
         "card_image_size": "40", "theme": "dark", "language": "de", "card_language": "de",
+        "scan_language": "de",
         "bulk_scan_mode": "false", "bulk_min_confidence": "0.85",
         "save_photos_on_confirm": "true", "auto_retrain_threshold": "50",
         "admin_mode": "true",

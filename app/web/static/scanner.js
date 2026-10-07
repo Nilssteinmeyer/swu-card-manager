@@ -37,7 +37,11 @@ let USER_SETTINGS = {
   max_candidates: 5,
   bulk_scan_mode: false,
   bulk_min_confidence: 0.85,
+  scan_language: "de",
 };
+
+// Language of the card currently shown in the scan overlay ("de" | "en")
+let scanCardLanguage = "de";
 
 function parseBool(v) { return v === "true" || v === true; }
 function parseInt_(v, def) { const n = parseInt(v); return isNaN(n) ? def : n; }
@@ -61,6 +65,7 @@ async function loadUserSettings() {
     USER_SETTINGS.show_processing_time = parseBool(s.show_processing_time);
     USER_SETTINGS.max_candidates = parseInt_(s.max_candidates, 5);
     USER_SETTINGS.bulk_scan_mode = parseBool(s.bulk_scan_mode);
+    USER_SETTINGS.scan_language = s.scan_language || s.card_language || "de";
     USER_SETTINGS.bulk_min_confidence = (parseInt_(s.bulk_min_confidence, 85) || 85) / 100;
     // Bulk session counter
     if (typeof bulkSessionCount === "number") {
@@ -277,6 +282,7 @@ async function autoScan() {
           original_card_id: result.card_id,
           quantity: 1,
           is_foil: false,
+          language: USER_SETTINGS.scan_language || "de",
           photo: lastScanPhoto,
         },
       }).then(() => {
@@ -306,16 +312,42 @@ async function autoScan() {
   }
 }
 
+// Update the scan overlay for the currently selected card language.
+function _applyScanLanguage() {
+  const best = lastScanResult?.candidates?.[0] || {};
+  const isDe = scanCardLanguage === "de";
+  const name = isDe ? (best.name_de || best.name || "") : (best.name || "");
+  const subtitle = isDe ? (best.subtitle_de || best.subtitle || "") : (best.subtitle || "");
+  document.getElementById("result-name").textContent = name || "Unbekannt";
+  document.getElementById("result-sub").textContent = subtitle;
+  // Flag buttons: active state
+  const btnDe = document.getElementById("lang-btn-de");
+  const btnEn = document.getElementById("lang-btn-en");
+  if (btnDe) btnDe.classList.toggle("lang-active", isDe);
+  if (btnEn) btnEn.classList.toggle("lang-active", !isDe);
+  // Card image in the selected language
+  const imgArea = document.getElementById("result-image-area");
+  if (best.card_id) {
+    imgArea.innerHTML = `<img src="${cardImageUrl(best.card_id)}?lang=${scanCardLanguage}" alt="${escapeHtml(name)}" onerror="this.parentElement.innerHTML='🃏'">`;
+  }
+}
+
+function setScanLanguage(lang) {
+  scanCardLanguage = lang === "en" ? "en" : "de";
+  _applyScanLanguage();
+}
+
 function showResultOverlay(result) {
   const overlay = document.getElementById("scan-result-overlay");
   if (!overlay) return;
 
+  scanCardLanguage = USER_SETTINGS.scan_language || "de";
   const cardName = result.card_name || "Unbekannt";
   const best = result.candidates?.[0] || {};
 
   const imgArea = document.getElementById("result-image-area");
   if (best.card_id) {
-    imgArea.innerHTML = `<img src="${cardImageUrl(best.card_id)}" alt="${escapeHtml(cardName)}" onerror="this.parentElement.innerHTML='🃏'">`;
+    imgArea.innerHTML = `<img src="${cardImageUrl(best.card_id)}?lang=${scanCardLanguage}" alt="${escapeHtml(cardName)}" onerror="this.parentElement.innerHTML='🃏'">`;
   } else {
     imgArea.innerHTML = "🃏";
   }
@@ -353,8 +385,9 @@ function showResultOverlay(result) {
   if (result.candidates && result.candidates.length > 1) {
     let html = '<div class="cand-title">Alternative Kandidaten:</div>';
     result.candidates.slice(1, Math.max(2, USER_SETTINGS.max_candidates)).forEach((c) => {
+      const candName = scanCardLanguage === "de" ? (c.name_de || c.name) : c.name;
       html += `<div class="cand-item" onclick="selectCandidate('${escapeHtml(c.card_id)}', '${escapeHtml(c.name)}', '${escapeHtml(c.subtitle || "")}', '${escapeHtml(c.set_id)}', '${escapeHtml(c.card_number)}')">
-        <div><div class="cand-name">${escapeHtml(c.name)}</div><div class="cand-meta">${escapeHtml(c.set_id)} • #${escapeHtml(c.card_number)}</div></div>
+        <div><div class="cand-name">${escapeHtml(candName)}</div><div class="cand-meta">${escapeHtml(c.set_id)} • #${escapeHtml(c.card_number)}</div></div>
         <div class="cand-score">${formatConfidence(c.score)}</div>
       </div>`;
     });
@@ -362,16 +395,22 @@ function showResultOverlay(result) {
   } else {
     candList.innerHTML = "";
   }
+
+  // Apply the selected card language to name/subtitle/flags/image
+  _applyScanLanguage();
 }
 
 function selectCandidate(cardId, name, subtitle, setId, cardNumber) {
   lastScanResult.card_id = cardId;
   lastScanResult.card_name = name;
   if (!lastScanResult.candidates) lastScanResult.candidates = [];
-  lastScanResult.candidates[0] = { card_id: cardId, name, subtitle, set_id: setId, card_number: cardNumber };
+  // keep the full candidate (with name_de/subtitle_de) if present in the list
+  const existing = (lastScanResult.candidates || []).find(c => c.card_id === cardId) || {};
+  lastScanResult.candidates[0] = { ...existing, card_id: cardId, name, subtitle, set_id: setId, card_number: cardNumber };
 
   const imgArea = document.getElementById("result-image-area");
-  imgArea.innerHTML = `<img src="${cardImageUrl(cardId)}" alt="${escapeHtml(name)}" onerror="this.parentElement.innerHTML='🃏'">`;
+  imgArea.innerHTML = `<img src="${cardImageUrl(cardId)}?lang=${scanCardLanguage}" alt="${escapeHtml(name)}" onerror="this.parentElement.innerHTML='🃏'">`;
+  _applyScanLanguage();
   document.getElementById("result-name").textContent = name;
   document.getElementById("result-sub").textContent = subtitle || "";
   document.getElementById("result-meta").textContent = `${setId} • #${cardNumber}`;
@@ -404,6 +443,7 @@ async function confirmScan(confirmed) {
         add_to_collection: confirmed,
         is_foil: isFoil,
         quantity: confirmed ? scanQuantity : 1,
+        language: scanCardLanguage,
         photo: confirmed ? lastScanPhoto : null,  // Only send photo on confirm
       },
     });

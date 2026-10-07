@@ -152,6 +152,24 @@ def build_faiss_index(config: AppConfig | None = None, force: bool = False) -> i
             meta = json.load(f)
         _ref_card_ids = meta["card_ids"]
         _ref_metadata = meta["metadata"]
+        # Enrich cached metadata with German fields from the DB
+        # (older index builds did not persist subtitle_de; the index itself
+        # is unaffected — only the display metadata needs the extra fields)
+        try:
+            conn = connect()
+            cur = conn.execute(
+                "SELECT card_id, name_de, subtitle, subtitle_de FROM cards"
+            )
+            for row in cur.fetchall():
+                m = _ref_metadata.get(row["card_id"])
+                if m:
+                    m["name_de"] = row["name_de"] or m.get("name", "")
+                    m["subtitle"] = row["subtitle"] or m.get("subtitle", "")
+                    m["subtitle_de"] = row["subtitle_de"] or row["subtitle"] or ""
+            conn.close()
+            log.info("Metadata enriched with German fields", extra={"event": "faiss_meta_enriched"})
+        except Exception as e:
+            log.warning(f"Could not enrich metadata with German fields: {e}")
         _index_built = True
         log.info(f"FAISS index loaded: {len(_ref_card_ids)} cards", extra={"event": "faiss_loaded"})
         return len(_ref_card_ids)
@@ -200,6 +218,7 @@ def build_faiss_index(config: AppConfig | None = None, force: bool = False) -> i
                 "name": card["name"],
                 "name_de": card.get("name_de", "") or card["name"],
                 "subtitle": card.get("subtitle", ""),
+                "subtitle_de": card.get("subtitle_de", "") or card.get("subtitle", ""),
                 "set_id": card["set_id"],
                 "card_number": card["card_number"],
                 "front_phash": card.get("front_phash", ""),
@@ -402,7 +421,9 @@ class RecognitionEngine:
                 candidates.append({
                     "card_id": card_id,
                     "name": ref.get("name", ""),
+                    "name_de": ref.get("name_de", "") or ref.get("name", ""),
                     "subtitle": ref.get("subtitle", ""),
+                    "subtitle_de": ref.get("subtitle_de", "") or ref.get("subtitle", ""),
                     "set_id": ref.get("set_id", ""),
                     "card_number": ref.get("card_number", ""),
                     "score": round(total, 4),

@@ -63,6 +63,10 @@
           <div class="scan-result-card">
             <div class="scan-result-image" id="result-image-area">🃏</div>
             <div class="scan-result-info">
+              <div class="lang-toggle" id="scan-lang-toggle" title="Sprache der Karte">
+                <button type="button" class="lang-btn" id="lang-btn-de" onclick="setScanLanguage('de')">🇩🇪</button>
+                <button type="button" class="lang-btn" id="lang-btn-en" onclick="setScanLanguage('en')">🇬🇧</button>
+              </div>
               <div class="scan-result-name" id="result-name">—</div>
               <div class="scan-result-sub" id="result-sub"></div>
               <div class="scan-result-meta" id="result-meta"></div>
@@ -93,7 +97,7 @@
   </div>
 
   <script src="/static/common.js"></script>
-  <script src="/static/scanner.js?v=10"></script>
+  <script src="/static/scanner.js?v=11"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
