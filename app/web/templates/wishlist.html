@@ -44,6 +44,19 @@
       </div>
       <div id="wl-export-status" class="setting-desc mb-2"></div>
 
+      <!-- Deck pricing -->
+      <div class="card mb-2">
+        <div class="card-title">🧮 Deck-Preisrechner</div>
+        <div class="setting-desc" style="margin-bottom:8px;">
+          Füge eine Deckliste ein (eine Karte pro Zeile, z.B. „2x Luke Skywalker (SOR-005)"). Der Rechner zeigt Cardmarket-Preise und was dir fehlt.
+        </div>
+        <textarea id="deck-input" rows="5" style="width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:10px; font-size:14px;" placeholder="2x Luke Skywalker (SOR-005)&#10;1 Darth Vader, Dark Lord of the Sith&#10;3 Wookiee Guerilla"></textarea>
+        <div class="flex gap-1 mt-2">
+          <button class="btn btn-primary" id="btn-deck-price">💰 Preise berechnen</button>
+        </div>
+        <div id="deck-results" class="mt-2"></div>
+      </div>
+
       <div id="wishlist-grid" class="collection-grid">
         <div class="spinner"></div>
         <p class="text-muted">Lade Wishlist...</p>
@@ -143,6 +156,52 @@
     document.getElementById("btn-wl-search").addEventListener("click", searchCards);
     document.getElementById("wl-search").addEventListener("keydown", (e) => {
       if (e.key === "Enter") searchCards();
+    });
+
+    // ---- Deck pricing --------------------------------------------------------
+    document.getElementById("btn-deck-price").addEventListener("click", async () => {
+      const list = document.getElementById("deck-input").value.trim();
+      const resultsEl = document.getElementById("deck-results");
+      if (!list) { resultsEl.innerHTML = ""; return; }
+      resultsEl.innerHTML = '<div class="spinner"></div><p class="text-muted">Berechne Preise...</p>';
+      try {
+        const data = await api("/api/deck/price", { method: "POST", body: { list } });
+        const eur = v => v != null ? v.toLocaleString("de-DE", { style: "currency", currency: "EUR" }) : "—";
+        let html = `
+          <div class="flex gap-1 mb-2">
+            <div class="stat-card blue" style="flex:1; min-width:140px;">
+              <div class="stat-value">${eur(data.total_price)}</div>
+              <div class="stat-label">Deck komplett</div>
+            </div>
+            <div class="stat-card orange" style="flex:1; min-width:140px;">
+              <div class="stat-value">${eur(data.missing_price)}</div>
+              <div class="stat-label">Noch zu kaufen</div>
+            </div>
+          </div>`;
+        if (data.items.length) {
+          html += `<div class="table-wrap" style="max-height:350px; overflow-y:auto;">
+            <table>
+              <thead><tr><th>Karte</th><th>Anz.</th><th>Behalten</th><th>Fehlen</th><th>Zeilenpreis</th></tr></thead>
+            <tbody>
+            ${data.items.map(i => `
+              <tr>
+                <td>${escapeHtml(i.name_de || i.name)} <span class="text-muted" style="font-size:11px;">${escapeHtml(i.card_id)}</span></td>
+                <td>${i.quantity}×</td>
+                <td>${i.owned}</td>
+                <td>${i.needed > 0 ? `<b style="color:var(--orange)">${i.needed}</b>` : "✓"}</td>
+                <td>${eur(i.line_price)}</td>
+              </tr>`).join("")}
+            </tbody>
+            </table>
+          </div>`;
+        }
+        if (data.unknown_lines && data.unknown_lines.length) {
+          html += `<p class="text-muted" style="font-size:12px; margin-top:6px;">Nicht erkannt: ${data.unknown_lines.map(escapeHtml).join(", ")}</p>`;
+        }
+        resultsEl.innerHTML = html;
+      } catch (err) {
+        resultsEl.innerHTML = `<p class="text-muted">✗ ${escapeHtml(err.message)}</p>`;
+      }
     });
     document.addEventListener("DOMContentLoaded", async () => {
       await loadAdminState();

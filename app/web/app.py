@@ -1522,6 +1522,131 @@ def _register_routes(app: Flask) -> None:
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # -- Deck pricing ---------------------------------------------------------
+    @app.route("/api/deck/price", methods=["POST"])
+    def api_deck_price():
+        """Price a decklist against Cardmarket prices + owned cards.
+
+        Body: {list: "2x Luke Skywalker (SOR-005)\n1 Darth Vader ..."}
+        Returns per-line matches (card, quantity, price, owned count)
+        and totals: full price vs. price for missing cards only.
+        """
+        import re as _re
+
+        body = request.get_json(silent=True) or {}
+        raw_list = (body.get("list") or "").strip()
+        if not raw_list:
+            return jsonify({"error": "list erforderlich (Deckliste als Text)"}), 400
+
+        lines = [l.strip() for l in raw_list.splitlines() if l.strip()]
+        if not lines or len(lines) > 200:
+            return jsonify({"error": "Deckliste leer oder zu lang (max 200 Zeilen)"}), 400
+
+        conn = connect()
+        try:
+            # owned counts by card
+            owned: dict[str, int] = {}
+            for r in conn.execute("SELECT card_id, SUM(count) AS c FROM collection GROUP BY card_id"):
+                owned[r["card_id"]] = r["c"]
+
+            # prices by card_id via MKM mapping
+            prices: dict[str, dict[str, Any]] = {}
+            for r in conn.execute(
+                """SELECT m.card_id, p.trend, p.foil_trend, p.low
+                   FROM card_mkm_map m JOIN card_prices p ON p.idProduct = m.idProduct"""
+            ):
+                prices[r["card_id"]] = dict(r)
+
+            # all cards for fuzzy name lookup
+            all_cards = repo.get_all_cards(conn)
+            name_index: dict[str, dict[str, Any]] = {}
+            number_index: dict[str, dict[str, Any]] = {}
+            for c in all_cards:
+                for n in (c.get("name"), c.get("name_de")):
+                    if n:
+                        name_index.setdefault(n.strip().lower(), c)
+                key = f"{c.get('set_id','')}-{(c.get('card_number') or '').lstrip('0') or '0'}".upper()
+                number_index.setdefault(key, c)
+        finally:
+            conn.close()
+
+        import rapidfuzz
+
+        results = []
+        total_price = 0.0
+        missing_price = 0.0
+        unknown_lines = []
+        for line in lines:
+            # parse "2x Name (SET-123)" / "2 Name" / "Name"
+            m = _re.match(r"^(\d+)x?\s+(.+)$", line)
+            if m:
+                qty, rest = int(m.group(1)), m.group(2).strip()
+            else:
+                qty, rest = 1, line
+
+            # explicit set-number in parentheses or brackets
+            card_id: str | None = None
+            id_m = _re.search(r"[（(\[]([A-Z]{2,4})-?(\d{1,3})[）)\]]", rest)
+            if id_m:
+                key = f"{id_m.group(1)}-{int(id_m.group(2))}".upper()
+                cand = number_index.get(key)
+                if cand:
+                    card_id = cand["card_id"]
+                rest = _re.sub(r"\s*[（(\[][A-Z]{2,4}-?\d{1,3}[）)\]]\s*", " ", rest).strip()
+
+            if not card_id:
+                # fuzzy name match
+                best = None
+                best_score = 0
+                rest_l = rest.lower()
+                for name, c in name_index.items():
+                    score = rapidfuzz.fuzz.partial_ratio(rest_l, name)
+                    if score > best_score:
+                        best_score = score
+                        best = c
+                if best and best_score >= 85:
+                    card_id = best["card_id"]
+
+            if not card_id:
+                unknown_lines.append(line)
+                continue
+
+            price_info = prices.get(card_id, {})
+            trend = price_info.get("trend")
+            owned_count = owned.get(card_id, 0)
+            line_price = (trend or 0.0) * qty
+            needed = max(0, qty - owned_count)
+            line_missing_price = (trend or 0.0) * needed
+            total_price += line_price
+            missing_price += line_missing_price
+
+            conn2 = connect()
+            try:
+                card = repo.get_card(conn2, card_id) or {}
+            finally:
+                conn2.close()
+
+            results.append({
+                "line": line,
+                "card_id": card_id,
+                "name": card.get("name", ""),
+                "name_de": card.get("name_de") or card.get("name", ""),
+                "quantity": qty,
+                "owned": owned_count,
+                "needed": needed,
+                "price_trend": trend,
+                "line_price": round(line_price, 2) if trend is not None else None,
+                "line_missing_price": round(line_missing_price, 2) if trend is not None else None,
+            })
+
+        return jsonify({
+            "items": results,
+            "unknown_lines": unknown_lines,
+            "total_price": round(total_price, 2),
+            "missing_price": round(missing_price, 2),
+            "currency": "EUR",
+        })
+
     @app.route("/api/settings")
     def api_get_settings():
         conn = connect()
