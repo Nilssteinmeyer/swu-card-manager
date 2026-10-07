@@ -57,6 +57,13 @@
         <p class="text-muted">Lade Sets...</p>
       </div>
     </main>
+
+    <!-- Completion modal -->
+    <div id="completion-modal" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="card" id="completion-modal-content" style="max-width:600px; width:100%; max-height:85vh; overflow-y:auto; position:relative;">
+        <button id="completion-modal-close" class="btn btn-sm" style="position:absolute; top:8px; right:8px;">✕</button>
+      </div>
+    </div>
   </div>
 
   <script src="/static/common.js"></script>
@@ -65,11 +72,18 @@
       const grid = document.getElementById("sets-grid");
       try {
         const data = await api("/api/sets");
+        let completion = {};
+        try {
+          const comp = await api("/api/sets/completion");
+          completion = Object.fromEntries(comp.sets.map(s => [s.set_id, s]));
+        } catch (e) { /* completion optional */ }
         if (data.sets.length === 0) {
           grid.innerHTML = '<p class="text-muted text-center">Keine Sets gefunden. Synchronisiere mit der API.</p>';
           return;
         }
-        grid.innerHTML = data.sets.map(s => `
+        grid.innerHTML = data.sets.map(s => {
+          s.completion = completion[s.set_id] || null;
+          return `
           <div class="set-card">
             <div class="set-header">
               <div>
@@ -85,13 +99,21 @@
               ${s.release_date ? `<span>📅 ${escapeHtml(s.release_date)}</span>` : ""}
               ${s.max_element ? `<span>🎯 ${escapeHtml(s.max_element)}</span>` : ""}
             </div>
+            ${s.completion ? `
+            <div class="completion-bar-wrap">
+              <div class="completion-bar">
+                <div class="completion-fill" style="width:${s.completion.percent}%"></div>
+              </div>
+              <span class="completion-label">${s.completion.owned_unique}/${s.completion.total_unique} (${s.completion.percent}%)</span>
+            </div>` : ""}
             <div class="set-actions">
+              <button class="btn btn-sm btn-secondary" onclick="showCompletion('${escapeHtml(s.set_id)}')">📊 Fortschritt</button>
               ${IS_ADMIN ? `<button class="btn btn-sm btn-primary" onclick="importSet('${escapeHtml(s.set_id)}')">
                 📥 Importieren
               </button>` : ""}
             </div>
-          </div>
-        `).join("");
+          </div>`;
+        }).join("");
       } catch (err) {
         showToast(`Load failed: ${err.message}`, "error");
         grid.innerHTML = '<p class="text-muted">Fehler beim Laden.</p>';
@@ -178,10 +200,75 @@
       } catch (e) { /* silent */ }
     }
 
+    async function showCompletion(setId) {
+      try {
+        const stats = await api(`/api/sets/${encodeURIComponent(setId)}/completion`);
+        let html = `
+          <div class="card-title">${escapeHtml(setId)}: ${stats.owned_unique}/${stats.total_unique} Karten (${stats.percent}%)</div>
+          <div class="completion-bar mb-2" style="height:14px;">
+            <div class="completion-fill" style="width:${stats.percent}%"></div>
+          </div>`;
+        if (stats.missing_count === 0) {
+          html += `<p class="text-muted">✓ Set vollständig!</p>`;
+        } else {
+          html += `
+          <div class="flex gap-1 mb-2">
+            <button class="btn btn-sm btn-success" onclick="missingToWishlist('${escapeHtml(setId)}')">⭐ Alle ${stats.missing_count} fehlenden Karten zur Wishlist</button>
+          </div>
+          <div class="table-wrap" style="max-height:400px; overflow-y:auto;">
+            <table>
+              <thead><tr><th></th><th>Karte</th><th>Nr.</th><th>Seltenheit</th><th></th></tr></thead>
+              <tbody>
+              ${stats.missing.map(m => `
+                <tr>
+                  <td>${m.front_art_path ? `<img src="${cardImageUrl(m.card_id)}" style="width:36px; height:50px; object-fit:cover; border-radius:4px;">` : "🃏"}</td>
+                  <td>${escapeHtml(m.name_de || m.name)}</td>
+                  <td>${escapeHtml(m.card_number)}</td>
+                  <td>${m.rarity ? escapeHtml(m.rarity) : "—"}</td>
+                  <td><button class="btn btn-sm" onclick="addSingleToWishlist('${escapeHtml(m.card_id)}')">⭐</button></td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`;
+        }
+        document.getElementById("completion-modal-content").innerHTML = html;
+        document.getElementById("completion-modal").classList.remove("hidden");
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function missingToWishlist(setId) {
+      try {
+        const res = await api(`/api/sets/${encodeURIComponent(setId)}/missing-to-wishlist`, { method: "POST", body: {} });
+        showToast(`${res.added} Karten zur Wishlist hinzugefügt ✓`, "success");
+        document.getElementById("completion-modal").classList.add("hidden");
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function addSingleToWishlist(cardId) {
+      try {
+        await api("/api/wishlist/add", { method: "POST", body: { card_id: cardId } });
+        showToast("Zur Wishlist hinzugefügt ✓", "success");
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       await loadAdminState();   // ensure IS_ADMIN is set before rendering buttons
       loadSets();
       if (IS_ADMIN) loadPriceStatus();
+      const modal = document.getElementById("completion-modal");
+      if (modal) {
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) modal.classList.add("hidden");
+        });
+        const closeBtn = document.getElementById("completion-modal-close");
+        if (closeBtn) closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
+      }
     });
   </script>
 </body>

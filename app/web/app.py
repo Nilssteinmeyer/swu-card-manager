@@ -1085,6 +1085,50 @@ def _register_routes(app: Flask) -> None:
         finally:
             conn.close()
 
+    # -- Set completion -------------------------------------------------------
+    @app.route("/api/sets/completion")
+    def api_sets_completion():
+        """Completion stats for all sets (owned/total per set)."""
+        conn = connect()
+        try:
+            results = repo.get_all_set_completion(conn)
+            return jsonify({"sets": results})
+        finally:
+            conn.close()
+
+    @app.route("/api/sets/<set_id>/completion")
+    def api_set_completion(set_id: str):
+        """Detailed completion for one set, including missing cards."""
+        conn = connect()
+        try:
+            cur = conn.execute("SELECT 1 FROM sets WHERE set_id = ?", (set_id,))
+            if cur.fetchone() is None:
+                return jsonify({"error": f"Set {set_id} nicht gefunden"}), 404
+            stats = repo.get_set_completion(conn, set_id)
+            return jsonify(stats)
+        finally:
+            conn.close()
+
+    @app.route("/api/sets/<set_id>/missing-to-wishlist", methods=["POST"])
+    def api_set_missing_to_wishlist(set_id: str):
+        """Add all missing cards of a set to the wishlist."""
+        conn = connect()
+        try:
+            stats = repo.get_set_completion(conn, set_id)
+            added = 0
+            for card in stats["missing"]:
+                # skip if already on wishlist
+                cur = conn.execute(
+                    "SELECT 1 FROM wishlist WHERE card_id = ?", (card["card_id"],)
+                )
+                if cur.fetchone() is None:
+                    repo.add_to_wishlist(conn, card["card_id"])
+                    added += 1
+            conn.commit()
+            return jsonify({"added": added, "total_missing": stats["missing_count"]})
+        finally:
+            conn.close()
+
     # -- Cardmarket account (OAuth) --------------------------------------------
     @app.route("/api/mkm/account/status")
     def api_mkm_account_status():

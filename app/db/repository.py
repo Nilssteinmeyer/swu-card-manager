@@ -515,3 +515,73 @@ def get_wishlist(conn: sqlite3.Connection) -> list[dict[str, Any]]:
            ORDER BY w.created_at DESC"""
     )
     return [dict(r) for r in cur.fetchall()]
+
+
+# --- Set completion -------------------------------------------------------------
+
+
+def get_set_completion(conn: sqlite3.Connection, set_id: str) -> dict[str, Any]:
+    """Completion stats for one set: owned/total, missing cards list.
+
+    'Unique cards' ignores variants (foil/hyperspace duplicates share the
+    same base number); we count distinct normalised card numbers.
+    """
+    # All cards of the set: normalise number (strip leading zeros / F suffix)
+    cur = conn.execute(
+        "SELECT card_id, card_number, name, name_de, rarity, front_art_path FROM cards WHERE set_id = ?",
+        (set_id,),
+    )
+    all_cards = [dict(r) for r in cur.fetchall()]
+
+    # Owned distinct numbers
+    cur = conn.execute(
+        "SELECT DISTINCT card_number FROM collection c JOIN cards ON c.card_id = cards.card_id WHERE cards.set_id = ?",
+        (set_id,),
+    )
+    owned_numbers = {r["card_number"] for r in cur.fetchall()}
+
+    # Index by normalised number (first non-foil, non-variant card wins)
+    by_number: dict[str, dict[str, Any]] = {}
+    for card in all_cards:
+        num = card["card_number"]
+        try:
+            num_norm = str(int(num.rstrip("F").lstrip("0") or "0"))
+        except ValueError:
+            num_norm = num
+        if num_norm not in by_number or (card["card_id"].endswith("F") is False and by_number[num_norm]["card_id"].endswith("F")):
+            by_number[num_norm] = card
+
+    total_unique = len(by_number)
+    owned_unique = sum(1 for n, c in by_number.items() if c["card_number"] in owned_numbers)
+    missing = [
+        c for n, c in by_number.items()
+        if c["card_number"] not in owned_numbers
+    ]
+    # sort by number
+    def _num_key(c: dict[str, Any]) -> tuple[int, str]:
+        try:
+            return (int(c["card_number"].rstrip("F").lstrip("0") or "0"), c["card_number"])
+        except ValueError:
+            return (999999, c["card_number"])
+    missing.sort(key=_num_key)
+
+    return {
+        "set_id": set_id,
+        "total_unique": total_unique,
+        "owned_unique": owned_unique,
+        "percent": round(100.0 * owned_unique / total_unique, 1) if total_unique else 0.0,
+        "missing": missing[:200],
+        "missing_count": len(missing),
+    }
+
+
+def get_all_set_completion(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Completion summary for every set (without the missing list)."""
+    cur = conn.execute("SELECT set_id FROM sets ORDER BY set_id")
+    results = []
+    for r in cur.fetchall():
+        set_id = r["set_id"]
+        stats = get_set_completion(conn, set_id)
+        stats.pop("missing", None)
+        results.append(stats)
+    return results
