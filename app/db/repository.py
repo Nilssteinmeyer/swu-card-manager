@@ -356,3 +356,125 @@ def get_recognition_rate(conn: sqlite3.Connection) -> float:
     total_cur = conn.execute("SELECT COUNT(*) FROM scans")
     total = total_cur.fetchone()[0]
     return recognized / total if total > 0 else 0.0
+
+
+# --- Cardmarket prices -------------------------------------------------------
+
+
+def upsert_price(conn: sqlite3.Connection, price: dict[str, Any]) -> None:
+    """Insert or update one price row (keyed by idProduct)."""
+    conn.execute(
+        """INSERT INTO card_prices (idProduct, trend, low, low_ex, avg_sell,
+               foil_trend, foil_low, foil_sell, avg30, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+           ON CONFLICT(idProduct) DO UPDATE SET
+               trend=excluded.trend, low=excluded.low, low_ex=excluded.low_ex,
+               avg_sell=excluded.avg_sell, foil_trend=excluded.foil_trend,
+               foil_low=excluded.foil_low, foil_sell=excluded.foil_sell,
+               avg30=excluded.avg30, updated_at=datetime('now')""",
+        (
+            price["idProduct"], price.get("trend"), price.get("low"),
+            price.get("low_ex"), price.get("avg_sell"),
+            price.get("foil_trend"), price.get("foil_low"),
+            price.get("foil_sell"), price.get("avg30"),
+        ),
+    )
+
+
+def get_price_for_card(conn: sqlite3.Connection, card_id: str) -> dict[str, Any] | None:
+    """Get MKM price for a card via the card_mkm_map mapping."""
+    cur = conn.execute(
+        """SELECT p.* FROM card_prices p
+           JOIN card_mkm_map m ON p.idProduct = m.idProduct
+           WHERE m.card_id = ?""",
+        (card_id,),
+    )
+    row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def upsert_card_mkm_map(conn: sqlite3.Connection, card_id: str, idProduct: int) -> None:
+    """Map a card_id to an MKM product id.
+
+    Multiple card_ids can point to the same product (SOR-010 and SOR-10 are
+    the same physical card; both are imported into our cards table).
+    """
+    conn.execute(
+        """INSERT INTO card_mkm_map (card_id, idProduct) VALUES (?, ?)
+           ON CONFLICT(card_id) DO UPDATE SET idProduct=excluded.idProduct""",
+        (card_id, idProduct),
+    )
+
+
+def upsert_mkm_product(conn: sqlite3.Connection, product: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT INTO mkm_products (idProduct, name, number, rarity, expansion,
+               website, idMetaproduct, card_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(idProduct) DO UPDATE SET
+               name=excluded.name, number=excluded.number, rarity=excluded.rarity,
+               expansion=excluded.expansion, website=excluded.website,
+               idMetaproduct=excluded.idMetaproduct, card_id=excluded.card_id""",
+        (
+            product["idProduct"], product.get("name"), product.get("number"),
+            product.get("rarity"), product.get("expansion"),
+            product.get("website"), product.get("idMetaproduct"),
+            product.get("card_id"),
+        ),
+    )
+
+
+def get_price_stats(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Import status + freshness of the price table."""
+    cur = conn.execute("SELECT COUNT(*) FROM card_prices")
+    price_count = cur.fetchone()[0]
+    cur = conn.execute("SELECT COUNT(*) FROM card_mkm_map")
+    mapped = cur.fetchone()[0]
+    cur = conn.execute("SELECT MAX(updated_at) FROM card_prices")
+    last_update = cur.fetchone()[0]
+    return {
+        "price_rows": price_count,
+        "mapped_cards": mapped,
+        "last_update": last_update,
+    }
+
+
+def get_collection_value(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Total market value of the collection (foil-aware).
+
+    Value model:
+    - non-foil copy  -> TREND
+    - foil copy      -> FOIL_TREND (fallback TREND)
+    Cards without MKM price are counted as unpriced.
+    """
+    cur = conn.execute(
+        """SELECT
+               SUM(CASE WHEN c.is_foil = 1 AND pr.foil_trend IS NOT NULL
+                        THEN pr.foil_trend * c.count
+                        WHEN pr.trend IS NOT NULL THEN pr.trend * c.count
+                        ELSE 0 END) AS total_value,
+               SUM(CASE WHEN (c.is_foil = 1 AND pr.foil_trend IS NOT NULL)
+                             OR (c.is_foil = 0 AND pr.trend IS NOT NULL)
+                        THEN c.count ELSE 0 END) AS priced_count,
+               COUNT(c.collection_id) AS entry_count,
+               SUM(c.count) AS total_count
+           FROM collection c
+           LEFT JOIN card_mkm_map m ON c.card_id = m.card_id
+           LEFT JOIN card_prices pr ON m.idProduct = pr.idProduct""",
+    )
+    row = cur.fetchone()
+    if not row or row["total_count"] is None:
+        return {
+            "total_value": 0.0,
+            "priced_count": 0,
+            "total_count": 0,
+            "entry_count": 0,
+            "currency": "EUR",
+        }
+    return {
+        "total_value": round(row["total_value"] or 0.0, 2),
+        "priced_count": row["priced_count"] or 0,
+        "total_count": row["total_count"],
+        "entry_count": row["entry_count"] or 0,
+        "currency": "EUR",
+    }

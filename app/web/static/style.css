@@ -180,6 +180,7 @@ html, body {
 .stat-card.yellow .stat-value { color: var(--yellow); }
 .stat-card.purple .stat-value { color: var(--purple); }
 .stat-card.orange .stat-value { color: var(--orange); }
+.stat-card.blue .stat-value { color: var(--accent); }
 
 /* --- Buttons --------------------------------------------------------- */
 
@@ -966,3 +967,7 @@ td .badge {
 /* Admin gate: hidden when admin mode is off */
 .admin-hidden { display: none !important; }
 .setting-desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+/* Card prices in collection grid */
+.ci-price { font-size: 13px; font-weight: 700; color: var(--accent); }
+.ci-price.foil { color: var(--yellow); }

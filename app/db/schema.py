@@ -218,6 +218,44 @@ DDL_STATEMENTS = [
         updated_at      TEXT DEFAULT (datetime('now'))
     )
     """,
+    # --- Cardmarket prices (imported from MKM price guide CSV) ---------------
+    """
+    CREATE TABLE IF NOT EXISTS card_prices (
+        idProduct       INTEGER PRIMARY KEY,
+        trend           REAL,
+        low             REAL,
+        low_ex          REAL,
+        avg_sell        REAL,
+        foil_trend      REAL,
+        foil_low        REAL,
+        foil_sell       REAL,
+        avg30           REAL,
+        updated_at      TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS mkm_products (
+        idProduct       INTEGER PRIMARY KEY,
+        name            TEXT,
+        number          TEXT,
+        rarity          TEXT,
+        expansion       TEXT,
+        website         TEXT,
+        idMetaproduct   INTEGER,
+        card_id         TEXT
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_mkm_products_card ON mkm_products (card_id)
+    """,
+    # --- Card -> MKM product mapping (multiple card_ids may map to one product,
+    #     e.g. SOR-010 from SWU-DB and SOR-10 from the official API are the same card) ---
+    """
+    CREATE TABLE IF NOT EXISTS card_mkm_map (
+        card_id         TEXT PRIMARY KEY,
+        idProduct       INTEGER NOT NULL
+    )
+    """,
     # --- Schema migrations --------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -251,6 +289,8 @@ def init_database(conn: sqlite3.Connection | None = None) -> bool:
         cur = conn.cursor()
         for ddl in DDL_STATEMENTS:
             cur.execute(ddl)
+        # --- migrations for pre-existing databases --------------------------------
+        _migrate(cur)
         # Record schema version
         cur.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, description) VALUES (?, ?)",
@@ -265,6 +305,16 @@ def init_database(conn: sqlite3.Connection | None = None) -> bool:
     finally:
         if own_conn:
             conn.close()
+
+
+def _migrate(cur: sqlite3.Cursor) -> None:
+    """Idempotent column migrations for databases created by older versions."""
+    # collection.is_foil (added manually during development; make it official)
+    cur.execute("PRAGMA table_info(collection)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "is_foil" not in cols:
+        cur.execute("ALTER TABLE collection ADD COLUMN is_foil INTEGER DEFAULT 0")
+        log.info("Migration: added collection.is_foil", extra={"event": "db_migration"})
 
 
 def check_integrity(conn: sqlite3.Connection | None = None) -> bool:

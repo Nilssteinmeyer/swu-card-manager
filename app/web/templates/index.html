@@ -35,6 +35,10 @@
           <div class="stat-value" id="stat-collection-unique">—</div>
           <div class="stat-label">Verschiedene Karten</div>
         </div>
+        <div class="stat-card blue">
+          <div class="stat-value" id="stat-collection-value">—</div>
+          <div class="stat-label">Sammlungswert (Cardmarket)</div>
+        </div>
         <div class="stat-card orange">
           <div class="stat-value" id="stat-foil">—</div>
           <div class="stat-label">Foil-Karten</div>
@@ -90,6 +94,13 @@
         // Collection stats ONLY — no reference/training data
         document.getElementById("stat-collection-total").textContent = data.collection_total.toLocaleString();
         document.getElementById("stat-collection-unique").textContent = data.collection_unique.toLocaleString();
+        const cv = data.collection_value;
+        if (cv && cv.total_value > 0) {
+          document.getElementById("stat-collection-value").textContent =
+            `${cv.total_value.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}`;
+        } else {
+          document.getElementById("stat-collection-value").textContent = "—";
+        }
         document.getElementById("stat-foil").textContent = (data.foil_count || 0).toLocaleString();
         document.getElementById("stat-scans").textContent = data.scans_today.toLocaleString();
         document.getElementById("stat-recognition").textContent = `${(data.recognition_rate * 100).toFixed(1)}%`;

@@ -180,6 +180,11 @@ def _collection_to_dict(row: dict[str, Any]) -> dict[str, Any]:
         "rarity": row.get("rarity", ""),
         "type": row.get("type", ""),
         "front_art_path": row.get("front_art_path", ""),
+        "is_foil": bool(row.get("is_foil", 0)),
+        "price_trend": row.get("price_trend"),
+        "price_foil_trend": row.get("price_foil_trend"),
+        "price_low": row.get("price_low"),
+        "price_updated": row.get("price_updated"),
     }
 
 
@@ -281,6 +286,7 @@ def _register_routes(app: Flask) -> None:
                 "rarity_breakdown": rarity_breakdown,
                 "type_breakdown": type_breakdown,
                 "set_breakdown": set_breakdown,
+                "collection_value": repo.get_collection_value(conn),
             })
         finally:
             conn.close()
@@ -524,9 +530,13 @@ def _register_routes(app: Flask) -> None:
                 SELECT col.*, cards.name, cards.subtitle, cards.set_id,
                        cards.card_number, cards.rarity, cards.type,
                        cards.aspects, cards.traits, cards.cost, cards.power,
-                       cards.hp, cards.front_art_path
+                       cards.hp, cards.front_art_path,
+                       pr.trend AS price_trend, pr.foil_trend AS price_foil_trend,
+                       pr.low AS price_low, pr.updated_at AS price_updated
                 FROM collection col
                 JOIN cards ON col.card_id = cards.card_id
+                LEFT JOIN card_mkm_map m ON m.card_id = col.card_id
+                LEFT JOIN card_prices pr ON pr.idProduct = m.idProduct
                 WHERE 1=1
             """
             params: list[Any] = []
@@ -901,6 +911,118 @@ def _register_routes(app: Flask) -> None:
     @app.route("/api/admin/status")
     def api_admin_status():
         return jsonify({"admin": _is_admin()})
+
+    # -- Cardmarket prices ----------------------------------------------------
+    @app.route("/api/prices/status")
+    def api_prices_status():
+        conn = connect()
+        try:
+            stats = repo.get_price_stats(conn)
+            value = repo.get_collection_value(conn)
+            stats["collection_value"] = value
+            return jsonify(stats)
+        finally:
+            conn.close()
+
+    @app.route("/api/prices/import", methods=["POST"])
+    def api_prices_import():
+        """Import MKM price guide + product catalogue CSVs.
+
+        Accepts multipart file uploads:
+        - 'price_guide': the price guide CSV (gz or plain) for Star Wars Unlimited
+        - 'product_catalogue': the product catalogue CSV (gz or plain)
+        Both are optional individually; matching improves with the catalogue.
+        """
+        import gzip as _gzip
+        import io as _io
+        from app.integrations import cardmarket as mkm
+
+        if "price_guide" not in request.files and "product_catalogue" not in request.files:
+            return jsonify({"error": "Keine Datei hochgeladen (Felder: price_guide, product_catalogue)"}), 400
+
+        result: dict[str, Any] = {}
+
+        conn = connect()
+        try:
+            # --- product catalogue -------------------------------------------------
+            products: list[mkm.MkmProduct] = []
+            if "product_catalogue" in request.files:
+                raw = request.files["product_catalogue"].read()
+                products = mkm.parse_product_catalogue(raw)
+                if not products:
+                    return jsonify({"error": "Product-Catalogue CSV konnte nicht geparst werden (leer/ungültig)"}), 400
+
+                # Match products to our cards
+                cards = repo.get_all_cards(conn)
+                mapping = mkm.match_products_to_cards(products, cards)
+                for p in products:
+                    repo.upsert_mkm_product(conn, {
+                        "idProduct": p.idProduct,
+                        "name": p.name,
+                        "number": p.number,
+                        "rarity": p.rarity,
+                        "expansion": p.expansion,
+                        "website": p.website,
+                        "idMetaproduct": p.metaproduct_id,
+                    })
+                # store card_id -> idProduct mapping (covers duplicate card ids:
+                # SOR-010 and SOR-10 both exist in our cards table)
+                for card_id, pid in mapping.items():
+                    repo.upsert_card_mkm_map(conn, card_id, pid)
+                conn.commit()
+                result["catalogue_products"] = len(products)
+                result["catalogue_matched"] = len(mapping)
+
+            # --- price guide ---------------------------------------------------------
+            if "price_guide" in request.files:
+                raw = request.files["price_guide"].read()
+                rows = mkm.parse_price_guide(raw)
+                if not rows:
+                    return jsonify({"error": "Price-Guide CSV konnte nicht geparst werden (leer/ungültig)"}), 400
+                for row in rows:
+                    repo.upsert_price(conn, {
+                        "idProduct": row.idProduct,
+                        "trend": row.trend,
+                        "low": row.low,
+                        "low_ex": row.low_ex,
+                        "avg_sell": row.avg_sell,
+                        "foil_trend": row.foil_trend,
+                        "foil_low": row.foil_low,
+                        "foil_sell": row.foil_sell,
+                        "avg30": row.avg30,
+                    })
+                conn.commit()
+                result["price_rows"] = len(rows)
+
+            value = repo.get_collection_value(conn)
+            result["collection_value"] = value
+            return jsonify(result)
+        except Exception as e:
+            log.error(f"MKM import failed: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
+
+    @app.route("/api/card/<card_id>/price")
+    def api_card_price(card_id: str):
+        conn = connect()
+        try:
+            price = repo.get_price_for_card(conn, card_id)
+            if price is None:
+                return jsonify({"error": "Kein Preis für diese Karte"}), 404
+            return jsonify(price)
+        finally:
+            conn.close()
+
+    @app.route("/api/collection/value")
+    def api_collection_value():
+        conn = connect()
+        try:
+            value = repo.get_collection_value(conn)
+            value["stats"] = repo.get_price_stats(conn)
+            return jsonify(value)
+        finally:
+            conn.close()
 
     @app.route("/api/settings")
     def api_get_settings():

@@ -178,15 +178,26 @@
           grid.innerHTML = '<p class="text-muted text-center">Keine Karten gefunden.</p>';
           return;
         }
-        grid.innerHTML = data.items.map(item => `
+        grid.innerHTML = data.items.map(item => {
+          // Price display: foil entries use foil trend, normal use trend
+          let priceHtml = "";
+          const isFoil = item.is_foil;
+          const trend = isFoil ? item.price_foil_trend : item.price_trend;
+          if (trend != null) {
+            const cls = isFoil ? "ci-price foil" : "ci-price";
+            priceHtml = `<div class="${cls}">${trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</div>`;
+          }
+          return `
           <div class="collection-item">
             ${item.front_art_path
               ? `<img class="ci-image" src="${cardImageUrl(item.card_id)}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\'placeholder-image\\'>🃏</div>'">`
               : '<div class="placeholder-image">🃏</div>'}
             <div class="ci-name">${escapeHtml(item.name)}</div>
             <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}</div>
-            <div class="ci-count">×${item.count}</div>
-          </div>`).join("");
+            ${priceHtml}
+            <div class="ci-count">${isFoil ? "✨ " : ""}×${item.count}</div>
+          </div>`;
+        }).join("");
       } catch (err) {
         showToast(`Load failed: ${err.message}`, "error");
         grid.innerHTML = '<p class="text-muted">Fehler beim Laden.</p>';
