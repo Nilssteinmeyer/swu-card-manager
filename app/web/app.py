@@ -1880,6 +1880,16 @@ def main() -> None:
 
     app = create_app()
 
+    # Warm up the recognition engine NOW (loads CLIP into GPU memory once)
+    # instead of lazily on the first scan - eliminates the 10-30s cold-start
+    # delay users saw on the first scan after server start.
+    print("  Warming up recognition engine (CLIP + FAISS)...", flush=True)
+    engine = _get_engine(app)
+    if engine:
+        print("  Recognition engine ready.", flush=True)
+    else:
+        print("  WARNING: recognition engine failed to initialise!", flush=True)
+
     # Determine SSL cert paths
     project_root = Path(__file__).resolve().parent.parent.parent
     cert_path = project_root / "ssl" / "cert.pem"
