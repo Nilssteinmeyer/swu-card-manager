@@ -248,6 +248,20 @@ DDL_STATEMENTS = [
     """
     CREATE INDEX IF NOT EXISTS idx_mkm_products_card ON mkm_products (card_id)
     """,
+    # --- TCGplayer (tcgcsv) prices in USD -------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS tcg_prices (
+        card_id         TEXT PRIMARY KEY,
+        product_id       INTEGER,
+        market_normal   REAL,
+        market_foil     REAL,
+        low_normal       REAL,
+        low_foil         REAL,
+        mid_normal       REAL,
+        mid_foil         REAL,
+        updated_at       TEXT DEFAULT (datetime('now'))
+    )
+    """,
     # --- Card -> MKM product mapping (multiple card_ids may map to one product,
     #     e.g. SOR-010 from SWU-DB and SOR-10 from the official API are the same card) ---
     """

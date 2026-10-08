@@ -44,7 +44,11 @@
         </div>
         <div class="stat-card blue">
           <div class="stat-value" id="stat-collection-value">—</div>
-          <div class="stat-label">Sammlungswert (Cardmarket)</div>
+          <div class="stat-label">Sammlungswert (Cardmarket €)</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-value" id="stat-collection-value-usd">—</div>
+          <div class="stat-label">Sammlungswert (TCGplayer $)</div>
         </div>
         <div class="stat-card orange">
           <div class="stat-value" id="stat-foil">—</div>
@@ -107,6 +111,13 @@
             `${cv.total_value.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}`;
         } else {
           document.getElementById("stat-collection-value").textContent = "—";
+        }
+        const cvUsd = data.collection_value_usd;
+        if (cvUsd && cvUsd.total_value > 0) {
+          document.getElementById("stat-collection-value-usd").textContent =
+            cvUsd.total_value.toLocaleString("en-US", { style: "currency", currency: "USD" });
+        } else {
+          document.getElementById("stat-collection-value-usd").textContent = "—";
         }
         document.getElementById("stat-foil").textContent = (data.foil_count || 0).toLocaleString();
         document.getElementById("stat-scans").textContent = data.scans_today.toLocaleString();

@@ -704,3 +704,57 @@ def get_all_set_completion(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         stats.pop("missing", None)
         results.append(stats)
     return results
+
+
+# --- TCGplayer (tcgcsv) prices ---------------------------------------------------
+
+
+def upsert_tcg_price(conn: sqlite3.Connection, card_id: str, price: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT INTO tcg_prices (card_id, product_id, market_normal, market_foil,
+               low_normal, low_foil, mid_normal, mid_foil, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+           ON CONFLICT(card_id) DO UPDATE SET
+               product_id=excluded.product_id,
+               market_normal=excluded.market_normal, market_foil=excluded.market_foil,
+               low_normal=excluded.low_normal, low_foil=excluded.low_foil,
+               mid_normal=excluded.mid_normal, mid_foil=excluded.mid_foil,
+               updated_at=datetime('now')""",
+        (card_id, price.get("product_id"), price.get("market_normal"),
+         price.get("market_foil"), price.get("low_normal"), price.get("low_foil"),
+         price.get("mid_normal"), price.get("mid_foil")),
+    )
+
+
+def get_tcg_stats(conn: sqlite3.Connection) -> dict[str, Any]:
+    cur = conn.execute("SELECT COUNT(*) FROM tcg_prices")
+    rows = cur.fetchone()[0]
+    cur = conn.execute("SELECT MAX(updated_at) FROM tcg_prices")
+    last = cur.fetchone()[0]
+    return {"price_rows": rows, "last_update": last}
+
+
+def get_collection_value_usd(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Collection market value based on TCGplayer prices (USD)."""
+    cur = conn.execute(
+        """SELECT
+               SUM(CASE WHEN c.is_foil = 1 AND t.market_foil IS NOT NULL
+                        THEN t.market_foil * c.count
+                        WHEN t.market_normal IS NOT NULL THEN t.market_normal * c.count
+                        ELSE 0 END) AS total_value,
+               SUM(CASE WHEN (c.is_foil = 1 AND t.market_foil IS NOT NULL)
+                             OR (c.is_foil = 0 AND t.market_normal IS NOT NULL)
+                        THEN c.count ELSE 0 END) AS priced_count,
+               SUM(c.count) AS total_count
+           FROM collection c
+           LEFT JOIN tcg_prices t ON c.card_id = t.card_id"""
+    )
+    row = cur.fetchone()
+    if not row or row["total_count"] is None:
+        return {"total_value": 0.0, "priced_count": 0, "total_count": 0, "currency": "USD"}
+    return {
+        "total_value": round(row["total_value"] or 0.0, 2),
+        "priced_count": row["priced_count"] or 0,
+        "total_count": row["total_count"],
+        "currency": "USD",
+    }

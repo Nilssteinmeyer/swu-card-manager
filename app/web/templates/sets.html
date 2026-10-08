@@ -51,6 +51,16 @@
           <button class="btn btn-success" id="btn-mkm-import" onclick="importMkmFiles()">📥 Preise importieren</button>
         </div>
         <div id="mkm-import-status" class="text-muted" style="font-size:13px;">Noch kein Preis-Import.</div>
+
+        <div style="border-top:1px solid var(--border); margin-top:12px; padding-top:12px;">
+          <b style="font-size:14px;">🇺🇸 TCGplayer-Preise (automatisch, ohne Login)</b>
+          <p class="text-muted" style="font-size:13px; margin:6px 0 8px 0;">
+            Lädt Marktpreise (USD) aller SWU-Sets von tcgcsv.com — öffentliche TCGplayer-Daten, täglich aktualisiert.
+            Dauer: ca. 30–60 Sekunden.
+          </p>
+          <button class="btn btn-primary" id="btn-tcg-sync" onclick="syncTcgPrices()">🔄 Preise synchronisieren</button>
+          <span id="tcg-sync-status" class="text-muted" style="font-size:13px; margin-left:8px;"></span>
+        </div>
       </div>
 
       <div id="import-status" class="card hidden" data-admin-only>
@@ -263,10 +273,39 @@
       }
     }
 
+    async function syncTcgPrices() {
+      const btn = document.getElementById("btn-tcg-sync");
+      const status = document.getElementById("tcg-sync-status");
+      if (btn) btn.disabled = true;
+      if (status) status.textContent = "⏳ Synchronisiere (30-60s)...";
+      try {
+        const result = await api("/api/prices/tcg/sync", { method: "POST", body: {} });
+        const s = result.stats;
+        if (status) status.textContent = `✓ ${s.matched_cards} Karten mit Preisen (${s.groups_matched}/${s.groups_seen} Sets, ${s.products} Produkte)`;
+        showToast("TCGplayer-Preise synchronisiert ✓", "success");
+      } catch (err) {
+        if (status) status.textContent = `✗ ${err.message}`;
+        showToast(`Sync fehlgeschlagen: ${err.message}`, "error");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function loadTcgStatus() {
+      try {
+        const st = await api("/api/prices/tcg/status");
+        const el = document.getElementById("tcg-sync-status");
+        if (el && st.price_rows > 0) {
+          const dt = st.last_update ? new Date(st.last_update + "Z") : null;
+          el.textContent = `${st.price_rows.toLocaleString()} Preise (Stand ${dt ? dt.toLocaleDateString("de-DE") : "?"})`;
+        }
+      } catch (e) { /* silent */ }
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       await loadAdminState();   // ensure IS_ADMIN is set before rendering buttons
       loadSets();
-      if (IS_ADMIN) loadPriceStatus();
+      if (IS_ADMIN) { loadPriceStatus(); loadTcgStatus(); }
       const modal = document.getElementById("completion-modal");
       if (modal) {
         modal.addEventListener("click", (e) => {

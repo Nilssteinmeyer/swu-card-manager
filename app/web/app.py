@@ -297,6 +297,7 @@ def _register_routes(app: Flask) -> None:
                 "type_breakdown": type_breakdown,
                 "set_breakdown": set_breakdown,
                 "collection_value": repo.get_collection_value(conn),
+                "collection_value_usd": repo.get_collection_value_usd(conn),
             })
         finally:
             conn.close()
@@ -1266,6 +1267,64 @@ def _register_routes(app: Flask) -> None:
         return jsonify({"admin": _is_admin()})
 
     # -- Cardmarket prices ----------------------------------------------------
+    @app.route("/api/prices/tcg/sync", methods=["POST"])
+    def api_prices_tcg_sync():
+        """Sync TCGplayer (tcgcsv) prices for all SWU sets. Legal, login-free.
+
+        Runs synchronously (~30-60s for all sets); returns stats.
+        """
+        from app.integrations import tcgcsv
+
+        if not _is_admin():
+            return jsonify({"error": "Admin-Rechte erforderlich"}), 403
+        conn = connect()
+        try:
+            cards = repo.get_all_cards(conn)
+            set_name_lookup = {
+                r["set_id"]: (r["full_name"] or "")
+                for r in conn.execute("SELECT set_id, full_name FROM sets").fetchall()
+            }
+        finally:
+            conn.close()
+
+        try:
+            result = tcgcsv.sync_all_sets(cards, set_name_lookup)
+            prices = result["prices"]
+            conn = connect()
+            try:
+                for card_id, price in prices.items():
+                    repo.upsert_tcg_price(conn, card_id, price)
+                conn.commit()
+            finally:
+                conn.close()
+            return jsonify({
+                "synced": True,
+                "stats": result["stats"],
+            })
+        except Exception as e:
+            log.error(f"TCGCSV sync failed: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/prices/tcg/status")
+    def api_prices_tcg_status():
+        conn = connect()
+        try:
+            stats = repo.get_tcg_stats(conn)
+            stats["collection_value"] = repo.get_collection_value_usd(conn)
+            return jsonify(stats)
+        finally:
+            conn.close()
+
+    @app.route("/api/collection/value/usd")
+    def api_collection_value_usd():
+        conn = connect()
+        try:
+            value = repo.get_collection_value_usd(conn)
+            value["stats"] = repo.get_tcg_stats(conn)
+            return jsonify(value)
+        finally:
+            conn.close()
+
     @app.route("/api/prices/status")
     def api_prices_status():
         conn = connect()
