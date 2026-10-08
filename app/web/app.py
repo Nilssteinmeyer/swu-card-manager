@@ -578,6 +578,58 @@ def _register_routes(app: Flask) -> None:
             conn.close()
 
     # -- Collection --------------------------------------------------------
+    @app.route("/api/collection/add", methods=["POST"])
+    def api_collection_add():
+        """Manually add a card to the collection (no scan involved).
+
+        Body: {card_id, count?, is_foil?, language?}
+        """
+        body = request.get_json(silent=True) or {}
+        card_id = (body.get("card_id") or "").strip()
+        if not card_id:
+            return jsonify({"error": "card_id erforderlich"}), 400
+        try:
+            count = max(1, int(body.get("count", 1) or 1))
+        except (TypeError, ValueError):
+            count = 1
+        is_foil = bool(body.get("is_foil", False))
+        language = (body.get("language") or "").strip().lower()
+        if language not in ("de", "en"):
+            language = _get_setting("card_language", "de") or "de"
+
+        conn = connect()
+        try:
+            cur = conn.execute("SELECT 1 FROM cards WHERE card_id = ?", (card_id,))
+            if cur.fetchone() is None:
+                return jsonify({"error": f"Karte {card_id} nicht gefunden"}), 404
+            variant = "Foil" if is_foil else "Normal"
+            add_info = repo.add_to_collection(
+                conn,
+                card_id=card_id,
+                count=count,
+                condition="NM",
+                language=language,
+                variant=variant,
+                source="manual",
+                return_details=True,
+            )
+            if is_foil:
+                conn.execute(
+                    "UPDATE collection SET is_foil=1 WHERE collection_id=?",
+                    (add_info["collection_id"],),
+                )
+                conn.commit()
+            return jsonify({
+                "added": True,
+                "card_id": card_id,
+                "count": count,
+                "is_foil": is_foil,
+                "language": language,
+                "collection_id": add_info["collection_id"],
+            })
+        finally:
+            conn.close()
+
     @app.route("/api/collection")
     def api_collection():
         conn = connect()
@@ -929,13 +981,15 @@ def _register_routes(app: Flask) -> None:
         try:
             # Candidate set via SQL LIKE (fast pre-filter), then fuzzy re-rank
             like = f"%{q}%"
+            num_like = f"%{q.lstrip('0') or q}%"
             cur = conn.execute(
                 """SELECT card_id, name, subtitle, name_de, set_id, card_number,
                           rarity, type, front_art_path
                    FROM cards
                    WHERE name LIKE ? OR name_de LIKE ? OR subtitle LIKE ?
+                      OR card_id LIKE ? OR card_number LIKE ?
                    LIMIT 400""",
-                (like, like, like),
+                (like, like, like, like, num_like),
             )
             candidates = [dict(r) for r in cur.fetchall()]
 

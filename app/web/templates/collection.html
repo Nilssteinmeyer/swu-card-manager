@@ -136,12 +136,61 @@
             </label>
           </div>
         </div>
-        <div class="card-title" style="margin-top:8px;">Ergebnisse (<span id="coll-count">0</span>)</div>
+        <div class="card-title flex-center-between" style="margin-top:8px;">
+          <span>Ergebnisse (<span id="coll-count">0</span>)</span>
+          <button class="btn btn-sm btn-success" id="btn-add-manual" onclick="openAddModal()">➕ Karte manuell hinzufügen</button>
+        </div>
         <div id="collection-grid" class="collection-grid">
           <p class="text-muted">Filter anwenden oder Sammlung laden...</p>
         </div>
       </div>
     </main>
+
+    <!-- Add card modal -->
+    <div id="add-modal" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this) closeAddModal()">
+      <div class="card" style="max-width:560px; width:100%; max-height:88vh; overflow-y:auto; position:relative; padding:20px;">
+        <button class="btn btn-sm" style="position:absolute; top:10px; right:10px; z-index:2;" onclick="closeAddModal()">✕</button>
+        <div class="card-title" style="margin-bottom:12px;">➕ Karte hinzufügen</div>
+
+        <div class="flex gap-1 mb-2">
+          <input type="text" id="add-search" class="setting-input" style="flex:1; text-align:left;" placeholder="Name oder Nummer (z.B. HMW-160)..." autocomplete="off">
+          <button class="btn btn-primary" id="btn-add-search">🔍</button>
+        </div>
+        <div id="add-search-results" style="max-height:300px; overflow-y:auto; margin-bottom:12px;"></div>
+
+        <div id="add-selected" class="hidden mb-2" style="border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; gap:12px; align-items:center;">
+          <img id="add-selected-img" style="width:70px; border-radius:6px; display:none;">
+          <div style="flex:1;">
+            <div id="add-selected-name" style="font-weight:700;"></div>
+            <div id="add-selected-meta" class="text-muted" style="font-size:12px;"></div>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label>Foil-Version</label>
+          <label class="switch"><input type="checkbox" id="add-foil"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <label>Sprache</label>
+          <select id="add-language" class="setting-select">
+            <option value="de">🇩🇪 Deutsch</option>
+            <option value="en">🇬🇧 Englisch</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>Anzahl</label>
+          <div class="quantity-control">
+            <button class="btn btn-qty" id="add-qty-minus">−</button>
+            <span class="qty-display" id="add-qty">1</span>
+            <button class="btn btn-qty" id="add-qty-plus">+</button>
+          </div>
+        </div>
+
+        <div class="flex gap-1 mt-2">
+          <button class="btn btn-success btn-large" id="btn-add-save" style="flex:1;">💾 Zur Sammlung hinzufügen</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Card detail modal -->
     <div id="card-modal" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this) closeCardModal()">
@@ -282,6 +331,110 @@
       } finally {
         e.target.value = "";
       }
+    });
+
+    // ---- Manual add modal -------------------------------------------------------
+    let addSelectedCard = null;
+    let addQuantity = 1;
+    let addSearchCache = [];
+
+    function openAddModal() {
+      document.getElementById("add-modal").classList.remove("hidden");
+      document.getElementById("add-search").value = "";
+      document.getElementById("add-search-results").innerHTML = "";
+      document.getElementById("add-selected").classList.add("hidden");
+      document.getElementById("add-foil").checked = false;
+      document.getElementById("add-language").value = "de";
+      addQuantity = 1;
+      document.getElementById("add-qty").textContent = "1";
+      addSelectedCard = null;
+      setTimeout(() => document.getElementById("add-search").focus(), 50);
+    }
+
+    function closeAddModal() {
+      document.getElementById("add-modal").classList.add("hidden");
+    }
+
+    async function addSearch() {
+      const q = document.getElementById("add-search").value.trim();
+      const resultsEl = document.getElementById("add-search-results");
+      if (!q) { resultsEl.innerHTML = ""; return; }
+      resultsEl.innerHTML = '<div class="spinner"></div>';
+      try {
+        const data = await api(`/api/cards/search?q=${encodeURIComponent(q)}&limit=15`);
+        if (!data.items || data.items.length === 0) {
+          resultsEl.innerHTML = '<p class="text-muted">Keine Karten gefunden.</p>';
+          return;
+        }
+        addSearchCache = data.items;
+        resultsEl.innerHTML = data.items.map((card, idx) => `
+          <div class="search-result-row" style="cursor:pointer;" onclick="selectAddCard(${idx})">
+            <img src="${cardImageUrl(card.card_id)}" style="width:34px; height:47px; object-fit:cover; border-radius:4px;" loading="lazy" onerror="this.style.display='none'">
+            <span class="sr-name">${escapeHtml(card.display_name || card.name)}${card.subtitle ? `<span class="text-muted"> — ${escapeHtml(card.subtitle)}</span>` : ""}</span>
+            <span class="sr-meta">${escapeHtml(card.set_id)} #${escapeHtml(card.card_number)}${card.owned ? " · ✓ im Besitz" : ""}</span>
+          </div>`).join("");
+      } catch (err) {
+        resultsEl.innerHTML = `<p class="text-muted">Suche fehlgeschlagen: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    function selectAddCard(idx) {
+      const card = addSearchCache[idx];
+      if (!card) return;
+      addSelectedCard = card.card_id;
+      const name = card.display_name || card.name;
+      const setId = card.set_id;
+      const cardNumber = card.card_number;
+      document.getElementById("add-search-results").innerHTML = "";
+      document.getElementById("add-search").value = "";
+      const sel = document.getElementById("add-selected");
+      sel.classList.remove("hidden");
+      document.getElementById("add-selected-name").textContent = name;
+      document.getElementById("add-selected-meta").textContent = `${setId} #${cardNumber}`;
+      const img = document.getElementById("add-selected-img");
+      img.src = cardImageUrl(cardId);
+      img.style.display = "block";
+    }
+
+    async function saveAddCard() {
+      if (!addSelectedCard) {
+        showToast("Bitte zuerst eine Karte auswählen", "error");
+        return;
+      }
+      try {
+        const result = await api("/api/collection/add", {
+          method: "POST",
+          body: {
+            card_id: addSelectedCard,
+            count: addQuantity,
+            is_foil: document.getElementById("add-foil").checked,
+            language: document.getElementById("add-language").value,
+          },
+        });
+        showToast(`${result.count}× "${document.getElementById("add-selected-name").textContent}"${result.is_foil ? " (Foil)" : ""} hinzugefügt ✓`, "success");
+        closeAddModal();
+        loadCollection();
+        loadStats();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    document.getElementById("btn-add-search").addEventListener("click", addSearch);
+    document.getElementById("add-search").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") addSearch();
+    });
+    document.getElementById("btn-add-save").addEventListener("click", saveAddCard);
+    document.getElementById("add-qty-minus").addEventListener("click", () => {
+      addQuantity = Math.max(1, addQuantity - 1);
+      document.getElementById("add-qty").textContent = String(addQuantity);
+    });
+    document.getElementById("add-qty-plus").addEventListener("click", () => {
+      addQuantity = Math.min(99, addQuantity + 1);
+      document.getElementById("add-qty").textContent = String(addQuantity);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeAddModal();
     });
 
     // ---- Collapsible sections ------------------------------------------------
