@@ -24,7 +24,7 @@ from app.core.logging import get_logger
 
 log = get_logger("db")
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def get_db_path() -> Path:
@@ -210,6 +210,91 @@ DDL_STATEMENTS = [
         details         TEXT
     )
     """,
+    # --- Auth: users ---------------------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        user_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        username        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        email           TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        password_hash   TEXT NOT NULL,
+        display_name    TEXT,
+        is_platform_admin INTEGER DEFAULT 0,
+        email_verified  INTEGER DEFAULT 0,
+        created_at      TEXT DEFAULT (datetime('now')),
+        last_login_at   TEXT
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)
+    """,
+    # --- Auth: households (collection contexts) -------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS households (
+        household_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+        name            TEXT NOT NULL,
+        owner_user_id   INTEGER NOT NULL,
+        invite_code     TEXT UNIQUE,
+        created_at      TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (owner_user_id) REFERENCES users(user_id)
+    )
+    """,
+    # --- Auth: household memberships with roles --------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS household_members (
+        member_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        household_id    INTEGER NOT NULL,
+        user_id         INTEGER NOT NULL,
+        role            TEXT NOT NULL DEFAULT 'editor',  -- owner|editor|viewer
+        joined_at       TEXT DEFAULT (datetime('now')),
+        UNIQUE (household_id, user_id),
+        FOREIGN KEY (household_id) REFERENCES households(household_id),
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    )
+    """,
+    # --- Auth: sessions (remember-me tokens) ------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+        session_token   TEXT PRIMARY KEY,
+        user_id         INTEGER NOT NULL,
+        created_at      TEXT DEFAULT (datetime('now')),
+        expires_at      TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    )
+    """,
+    # --- Auth: password reset tokens ---------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS password_resets (
+        reset_token     TEXT PRIMARY KEY,
+        user_id         INTEGER NOT NULL,
+        created_at      TEXT DEFAULT (datetime('now')),
+        expires_at      TEXT NOT NULL,
+        used            INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    )
+    """,
+    # --- Auth: login rate limiting ------------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS login_attempts (
+        attempt_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        username_or_email TEXT NOT NULL,
+        ip              TEXT,
+        success         INTEGER DEFAULT 0,
+        attempted_at    TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts (username_or_email, attempted_at)
+    """,
+    # --- Auth: email verification tokens -------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS email_verifications (
+        verify_token    TEXT PRIMARY KEY,
+        user_id         INTEGER NOT NULL,
+        expires_at      TEXT NOT NULL,
+        used            INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    )
+    """,
     # --- Settings (user preferences, overridable at runtime) -----------------
     """
     CREATE TABLE IF NOT EXISTS settings (
@@ -367,6 +452,36 @@ def _migrate(cur: sqlite3.Cursor) -> None:
     if "front_art_url_de" not in cols:
         cur.execute("ALTER TABLE cards ADD COLUMN front_art_url_de TEXT")
         log.info("Migration: added cards.front_art_url_de", extra={"event": "db_migration"})
+
+    # ---- Multi-tenancy (v3): household_id on all collection-scoped tables ----
+    # Existing data is backfilled onto the legacy default household (id 1)
+    # once the FIRST user registers (see auth.ensure_legacy_household).
+    tenant_tables = {
+        "collection": ("household_id INTEGER", "user_id INTEGER"),
+        "scans": ("household_id INTEGER",),
+        "wishlist": ("household_id INTEGER",),
+        "scan_undo": ("household_id INTEGER",),
+        "settings": ("user_id INTEGER", "household_id INTEGER"),
+    }
+    for table, col_defs in tenant_tables.items():
+        cur.execute(f"PRAGMA table_info({table})")
+        cols = {row[1] for row in cur.fetchall()}
+        for col_def in col_defs:
+            col_name = col_def.split()[0]
+            if col_name not in cols:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
+                log.info(f"Migration: added {table}.{col_name}", extra={"event": "db_migration"})
+
+    # Indexes for tenant-scoped queries
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_collection_household ON collection (household_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_scans_household ON scans (household_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_settings_user ON settings (user_id, household_id)"
+    )
 
 
 def check_integrity(conn: sqlite3.Connection | None = None) -> bool:

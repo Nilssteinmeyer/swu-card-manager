@@ -39,8 +39,8 @@ def test_completion_empty_collection(db):
 
 def test_completion_with_owned_cards(db):
     # Own 2 of 5 cards
-    db.execute("INSERT INTO collection (card_id, count, is_foil) VALUES ('SOR-001', 1, 0)")
-    db.execute("INSERT INTO collection (card_id, count, is_foil) VALUES ('SOR-002', 1, 1)")
+    db.execute("INSERT INTO collection (card_id, count, is_foil, household_id) VALUES ('SOR-001', 1, 0, 1)")
+    db.execute("INSERT INTO collection (card_id, count, is_foil, household_id) VALUES ('SOR-002', 1, 1, 1)")
     db.commit()
     stats = repo.get_set_completion(db, "SOR")
     assert stats["owned_unique"] == 2
@@ -54,7 +54,7 @@ def test_completion_with_owned_cards(db):
 
 def test_completion_full_set(db):
     for card_id in ("SOR-001", "SOR-002", "SOR-003", "SOR-004", "SOR-005"):
-        db.execute("INSERT INTO collection (card_id, count) VALUES (?, 1)", (card_id,))
+        db.execute("INSERT INTO collection (card_id, count, household_id) VALUES (?, 1, 1)", (card_id,))
     db.commit()
     stats = repo.get_set_completion(db, "SOR")
     assert stats["percent"] == 100.0
@@ -63,7 +63,7 @@ def test_completion_full_set(db):
 
 
 def test_completion_all_sets_summary(db):
-    db.execute("INSERT INTO collection (card_id, count) VALUES ('SOR-001', 1)")
+    db.execute("INSERT INTO collection (card_id, count, household_id) VALUES ('SOR-001', 1, 1)")
     db.commit()
     results = repo.get_all_set_completion(db)
     sor = next((s for s in results if s["set_id"] == "SOR"), None)

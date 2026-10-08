@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-Mail bestätigen — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=12">
+</head>
+<body class="auth-body">
+  <div class="auth-card" style="text-align:center;">
+    <div class="auth-logo">{% if ok %}✅{% else %}❌{% endif %}</div>
+    <h1>{% if ok %}E-Mail bestätigt!{% else %}Link ungültig{% endif %}</h1>
+    <p class="text-muted">
+      {% if ok %}Deine E-Mail-Adresse wurde erfolgreich bestätigt.{% else %}Der Bestätigungs-Link ist ungültig oder abgelaufen.{% endif %}
+    </p>
+    <a class="btn btn-primary" href="/">Weiter zur Sammlung</a>
+  </div>
+</body>
+</html>

@@ -41,8 +41,13 @@ def app_client(tmp_path, monkeypatch):
     monkeypatch.setattr(AppConfig, "load", classmethod(lambda cls: _CfgStub(db_path)))
     app = create_app()
     app.config["TESTING"] = True
-    with app.test_client() as client:
-        yield client, db_path
+    app.config["SESSION_COOKIE_SECURE"] = False
+    client = app.test_client()
+    resp = client.post("/api/auth/register", json={
+        "username": "tester", "email": "tester@example.com", "password": "testpass123",
+    })
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    yield client, db_path
 
 
 def test_add_card_manual(app_client):

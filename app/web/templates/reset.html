@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Passwort zurücksetzen — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=12">
+</head>
+<body class="auth-body">
+  <div class="auth-card">
+    <div class="auth-logo">🔐</div>
+    <h1>Passwort zurücksetzen</h1>
+
+    <div id="step-request">
+      <p class="text-muted" style="margin-bottom:16px;">Gib deine E-Mail-Adresse ein. Du erhältst einen Reset-Code (gültig 30 Minuten).</p>
+      <div class="form-group">
+        <label>E-Mail-Adresse</label>
+        <input type="email" id="email-input" autocapitalize="none">
+      </div>
+      <div id="req-error" class="auth-error hidden"></div>
+      <button class="btn btn-primary btn-large" id="btn-request" style="width:100%;">Reset-Code erstellen</button>
+    </div>
+
+    <div id="step-confirm" class="hidden">
+      <p class="text-muted" style="margin-bottom:16px;">Gib deinen Reset-Code und das neue Passwort ein.</p>
+      <div class="form-group">
+        <label>Reset-Code</label>
+        <input type="text" id="token-input" autocapitalize="none">
+      </div>
+      <div class="form-group">
+        <label>Neues Passwort (min. 8 Zeichen)</label>
+        <input type="password" id="newpass-input" autocomplete="new-password">
+      </div>
+      <div id="conf-error" class="auth-error hidden"></div>
+      <button class="btn btn-success btn-large" id="btn-confirm" style="width:100%;">Passwort setzen</button>
+    </div>
+
+    <div id="step-done" class="hidden">
+      <p>✓ Passwort geändert. Alle Sitzungen wurden abgemeldet.</p>
+      <a class="btn btn-primary" href="/login">Jetzt anmelden</a>
+    </div>
+
+    <div class="auth-links">
+      <a href="/login">Zurück zur Anmeldung</a>
+    </div>
+  </div>
+
+  <script src="/static/common.js?v=12"></script>
+  <script>
+    const preset = new URLSearchParams(window.location.search).get("token");
+    if (preset) {
+      document.getElementById("step-request").classList.add("hidden");
+      document.getElementById("step-confirm").classList.remove("hidden");
+      document.getElementById("token-input").value = preset;
+    }
+
+    document.getElementById("btn-request").addEventListener("click", async () => {
+      const email = document.getElementById("email-input").value.trim();
+      const errEl = document.getElementById("req-error");
+      errEl.classList.add("hidden");
+      try {
+        const resp = await fetch("/api/auth/reset", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({email}),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "Fehler");
+        document.getElementById("step-request").classList.add("hidden");
+        document.getElementById("step-confirm").classList.remove("hidden");
+        if (data.email_sent === false && data.reset_token_local) {
+          document.getElementById("token-input").value = data.reset_token_local;
+          showToast("Lokaler Modus: Code automatisch eingetragen", "info");
+        } else {
+          showToast("Reset-Code per E-Mail versendet", "success");
+        }
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove("hidden");
+      }
+    });
+
+    document.getElementById("btn-confirm").addEventListener("click", async () => {
+      const token = document.getElementById("token-input").value.trim();
+      const password = document.getElementById("newpass-input").value;
+      const errEl = document.getElementById("conf-error");
+      errEl.classList.add("hidden");
+      try {
+        const resp = await fetch("/api/auth/reset/confirm", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({token, password}),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "Fehler");
+        document.getElementById("step-confirm").classList.add("hidden");
+        document.getElementById("step-done").classList.remove("hidden");
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>

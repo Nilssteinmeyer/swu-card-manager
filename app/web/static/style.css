@@ -1028,3 +1028,29 @@ td .badge {
   border: 1px solid rgba(255,255,255,0.25);
 }
 #camera-video { transition: transform 0.15s ease-out; }
+
+
+/* ---- Auth pages ---- */
+.auth-body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; background: var(--bg, #0a0e14); }
+.auth-card { background: var(--surface, #131a24); border: 1px solid var(--border); border-radius: 16px; padding: 32px 28px; max-width: 400px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.auth-card h1 { font-size: 22px; margin: 8px 0 4px 0; text-align: center; }
+.auth-logo { font-size: 44px; text-align: center; margin-bottom: 4px; }
+.auth-card .form-group { margin-bottom: 14px; }
+.auth-card .form-group label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.auth-card .form-group input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2, #1a2332); color: var(--text); font-size: 16px; box-sizing: border-box; }
+.auth-card input:focus { outline: none; border-color: var(--accent); }
+.auth-error { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; border-radius: 10px; padding: 10px 14px; font-size: 14px; margin-bottom: 12px; }
+.auth-links { display: flex; justify-content: space-between; margin-top: 18px; font-size: 14px; }
+.auth-links a { color: var(--accent); text-decoration: none; }
+
+/* ---- Account menu ---- */
+.account-menu { position: relative; }
+.account-btn { display: flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 12px; color: var(--text); font-size: 13px; cursor: pointer; }
+.account-dropdown { position: absolute; right: 0; top: calc(100% + 8px); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; min-width: 220px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); z-index: 1100; overflow: hidden; }
+.account-dropdown .ad-header { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.account-dropdown .ad-header .ad-name { font-weight: 700; font-size: 14px; }
+.account-dropdown .ad-header .ad-role { font-size: 12px; color: var(--muted); }
+.account-dropdown .ad-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; font-size: 14px; cursor: pointer; }
+.account-dropdown .ad-item:hover { background: var(--surface2); }
+.account-dropdown .ad-item span.ad-value { color: var(--muted); font-size: 12px; }
+.account-dropdown .ad-section { padding: 8px 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }

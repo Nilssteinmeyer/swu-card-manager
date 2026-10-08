@@ -21,7 +21,7 @@ def app_client(tmp_path, monkeypatch):
     conn.execute("INSERT OR IGNORE INTO sets (set_id, full_name) VALUES ('SOR', 'Spark of Rebellion')")
     conn.execute("INSERT INTO cards (card_id, set_id, card_number, name, name_de) VALUES ('SOR-005', 'SOR', '005', 'Luke Skywalker', 'Luke Skywalker')")
     conn.execute("INSERT INTO cards (card_id, set_id, card_number, name, name_de) VALUES ('SOR-010', 'SOR', '010', 'Darth Vader', 'Darth Vader')")
-    conn.execute("INSERT INTO collection (card_id, count, condition, language, variant, is_foil) VALUES ('SOR-005', 2, 'NM', 'en', 'Normal', 0)")
+    conn.execute("INSERT INTO collection (card_id, count, condition, language, variant, is_foil, household_id) VALUES ('SOR-005', 2, 'NM', 'en', 'Normal', 0, 1)")
     conn.commit()
     conn.close()
 
@@ -29,8 +29,13 @@ def app_client(tmp_path, monkeypatch):
     monkeypatch.setattr(AppConfig, "load", classmethod(lambda cls: _cfg_with_db(db_path)))
     app = create_app()
     app.config["TESTING"] = True
-    with app.test_client() as client:
-        yield client, db_path
+    app.config["SESSION_COOKIE_SECURE"] = False
+    client = app.test_client()
+    resp = client.post("/api/auth/register", json={
+        "username": "tester", "email": "tester@example.com", "password": "testpass123",
+    })
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    yield client, db_path
 
 
 class _CfgStub:

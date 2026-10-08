@@ -36,7 +36,7 @@ def app_client(tmp_path, monkeypatch):
     conn.execute("INSERT INTO cards (card_id, set_id, card_number, name, name_de) VALUES ('SOR-005', 'SOR', '005', 'Luke Skywalker', 'Luke Skywalker')")
     conn.execute("INSERT INTO cards (card_id, set_id, card_number, name, name_de) VALUES ('SOR-010', 'SOR', '010', 'Darth Vader', 'Darth Vader')")
     # owned: 1x Luke
-    conn.execute("INSERT INTO collection (card_id, count) VALUES ('SOR-005', 1)")
+    conn.execute("INSERT INTO collection (card_id, count, household_id) VALUES ('SOR-005', 1, 1)")
     # prices: Luke 4.90, Vader 12.50
     conn.execute("INSERT INTO card_mkm_map (card_id, idProduct) VALUES ('SOR-005', 401005)")
     conn.execute("INSERT INTO card_mkm_map (card_id, idProduct) VALUES ('SOR-010', 401010)")
@@ -48,8 +48,13 @@ def app_client(tmp_path, monkeypatch):
     monkeypatch.setattr(AppConfig, "load", classmethod(lambda cls: _CfgStub(db_path)))
     app = create_app()
     app.config["TESTING"] = True
-    with app.test_client() as client:
-        yield client
+    app.config["SESSION_COOKIE_SECURE"] = False
+    client = app.test_client()
+    resp = client.post("/api/auth/register", json={
+        "username": "tester", "email": "tester@example.com", "password": "testpass123",
+    })
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    yield client
 
 
 def test_deck_price_with_explicit_ids(app_client):

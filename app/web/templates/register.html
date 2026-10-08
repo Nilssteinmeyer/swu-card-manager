@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Registrieren — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=12">
+</head>
+<body class="auth-body">
+  <div class="auth-card">
+    <div class="auth-logo">🃏</div>
+    <h1>Konto erstellen</h1>
+    <div class="form-group">
+      <label>Benutzername (3–30 Zeichen)</label>
+      <input type="text" id="username-input" autocomplete="username" autocapitalize="none">
+    </div>
+    <div class="form-group">
+      <label>E-Mail</label>
+      <input type="email" id="email-input" autocomplete="email" autocapitalize="none">
+    </div>
+    <div class="form-group">
+      <label>Passwort (min. 8 Zeichen)</label>
+      <input type="password" id="password-input" autocomplete="new-password">
+    </div>
+    <div id="reg-error" class="auth-error hidden"></div>
+    <button class="btn btn-success btn-large" id="btn-register" style="width:100%;">Konto erstellen</button>
+    <div id="reg-success" class="hidden" style="margin-top:14px;">
+      <p id="reg-success-text"></p>
+      <a class="btn btn-primary" href="/">Zur Sammlung →</a>
+    </div>
+    <div class="auth-links">
+      <a href="/login">Zurück zur Anmeldung</a>
+    </div>
+  </div>
+
+  <script src="/static/common.js?v=12"></script>
+  <script>
+    async function doRegister() {
+      const username = document.getElementById("username-input").value.trim();
+      const email = document.getElementById("email-input").value.trim();
+      const password = document.getElementById("password-input").value;
+      const errEl = document.getElementById("reg-error");
+      errEl.classList.add("hidden");
+      document.getElementById("btn-register").disabled = true;
+      try {
+        const resp = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({username, email, password}),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "Registrierung fehlgeschlagen");
+        let msg = "Konto erstellt! 🎉";
+        if (data.email_sent === false) {
+          msg += "<br><br><b>Lokaler Modus (noch kein E-Mail-Server):</b><br>Bestätigungs-Link: <a href='/verify-email?token=" + (data.verify_token_local || "") + "'>E-Mail jetzt bestätigen</a>";
+        }
+        document.getElementById("reg-success-text").innerHTML = msg;
+        document.getElementById("reg-success").classList.remove("hidden");
+        document.getElementById("btn-register").classList.add("hidden");
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove("hidden");
+      } finally {
+        document.getElementById("btn-register").disabled = false;
+      }
+    }
+    document.getElementById("btn-register").addEventListener("click", doRegister);
+    document.getElementById("password-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doRegister();
+    });
+  </script>
+</body>
+</html>

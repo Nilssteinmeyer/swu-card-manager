@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=12">
+</head>
+<body class="auth-body">
+  <div class="auth-card" style="text-align:center;">
+    <div class="auth-logo">🗂️</div>
+    <h1>Keine Sammlung</h1>
+    <p class="text-muted">Du bist noch in keiner Sammlung. Erstelle eine neue oder tritt einer mit Einladungscode bei.</p>
+    <div class="form-group" style="text-align:left;">
+      <label>Neue Sammlung erstellen</label>
+      <input type="text" id="new-name" placeholder="z.B. Meine Sammlung">
+    </div>
+    <button class="btn btn-success" id="btn-create" style="width:100%; margin-bottom:16px;">Sammlung erstellen</button>
+    <div class="form-group" style="text-align:left;">
+      <label>Oder mit Code beitreten</label>
+      <input type="text" id="join-code" placeholder="Einladungscode">
+    </div>
+    <button class="btn btn-primary" id="btn-join" style="width:100%;">Beitreten</button>
+    <div class="auth-links" style="margin-top:20px;">
+      <a href="#" id="logout-link">Abmelden</a>
+    </div>
+  </div>
+  <script src="/static/common.js?v=12"></script>
+  <script>
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await fetch("/api/auth/logout", {method: "POST"});
+      location.href = "/login";
+    });
+    document.getElementById("btn-create").addEventListener("click", async () => {
+      const name = document.getElementById("new-name").value.trim();
+      if (!name) { showToast("Bitte einen Namen eingeben", "error"); return; }
+      const resp = await fetch("/api/auth/household/create", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name}),
+      });
+      if (resp.ok) location.href = "/";
+      else showToast("Fehler", "error");
+    });
+    document.getElementById("btn-join").addEventListener("click", async () => {
+      const code = document.getElementById("join-code").value.trim();
+      if (!code) { showToast("Bitte Code eingeben", "error"); return; }
+      const resp = await fetch("/api/auth/household/join", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({code}),
+      });
+      const data = await resp.json();
+      if (resp.ok) location.href = "/";
+      else showToast(data.error || "Fehler", "error");
+    });
+  </script>
+</body>
+</html>

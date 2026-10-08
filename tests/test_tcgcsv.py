@@ -49,9 +49,9 @@ def test_price_upsert_and_value(db):
     assert stats["price_rows"] == 1
 
     # collection: 2x normal + 1x foil -> 2*0.25 + 1*1.20 = 1.70
-    db.execute("INSERT INTO collection (card_id, count, is_foil) VALUES ('HMW-160', 2, 0)")
-    db.execute("INSERT INTO collection (card_id, count, is_foil) VALUES ('HMW-160', 1, 1)")
-    db.execute("INSERT INTO collection (card_id, count, is_foil) VALUES ('HMW-161', 5, 0)")  # unpriced
+    db.execute("INSERT INTO collection (card_id, count, is_foil, household_id) VALUES ('HMW-160', 2, 0, 1)")
+    db.execute("INSERT INTO collection (card_id, count, is_foil, household_id) VALUES ('HMW-160', 1, 1, 1)")
+    db.execute("INSERT INTO collection (card_id, count, is_foil, household_id) VALUES ('HMW-161', 5, 0, 1)")  # unpriced
     db.commit()
     value = repo.get_collection_value_usd(db)
     assert value["total_value"] == pytest.approx(1.70)

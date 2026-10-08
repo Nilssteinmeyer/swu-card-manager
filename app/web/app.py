@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from flask import Flask, Response, jsonify, render_template, request, send_file
+from flask import Flask, Response, jsonify, redirect, render_template, request, send_file
 
 # Ensure project root is importable when running as a script
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -57,6 +57,25 @@ def create_app(config: AppConfig | None = None) -> Flask:
         static_folder=static_dir,
     )
     app.config["JSON_SORT_KEYS"] = False
+
+    # -- Sessions & auth ------------------------------------------------------
+    import os as _os
+    secret_file = Path(__file__).resolve().parent.parent.parent / "config" / "secret_key"
+    if _os.environ.get("SWU_SECRET_KEY"):
+        app.config["SECRET_KEY"] = _os.environ["SWU_SECRET_KEY"]
+    elif secret_file.exists():
+        app.config["SECRET_KEY"] = secret_file.read_text(encoding="utf-8").strip()
+    else:
+        import secrets as _secrets
+        key = _secrets.token_urlsafe(48)
+        secret_file.parent.mkdir(parents=True, exist_ok=True)
+        secret_file.write_text(key, encoding="utf-8")
+        app.config["SECRET_KEY"] = key
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = True  # HTTPS only (LAN uses self-signed HTTPS)
+    app.config["PERMANENT_SESSION_LIFETIME"] = 60 * 60 * 24 * 30
+
     # -- Hardening ------------------------------------------------------------
     app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024  # 12 MB upload cap (base64 images)
     # CORS: same-origin for the UI; LAN hosts are allowed explicitly (scanner
@@ -73,7 +92,35 @@ def create_app(config: AppConfig | None = None) -> Flask:
     app.config["_ENGINE"] = None
     app.config["_UPDATE_MGR"] = None
 
+    # Auth: load current user/household for every request
+    from app.auth import load_current_user
+    from app.auth.routes import bp as auth_bp
+
+    app.before_request(lambda: load_current_user(app))
+    app.register_blueprint(auth_bp)
+
     _register_routes(app)
+
+    # -- Route protection: everything except auth/static requires login ---------
+    _PUBLIC_PATHS = {
+        "/login", "/register", "/reset", "/verify-email", "/no-household",
+        "/api/auth/login", "/api/auth/register", "/api/auth/reset",
+        "/api/auth/reset/confirm", "/api/auth/me", "/static",
+    }
+
+    @app.before_request
+    def _require_auth():
+        from flask import g as _g
+        path = request.path
+        if any(path == p or path.startswith(p) for p in _PUBLIC_PATHS):
+            return None
+        if path.startswith("/static/") or path == "/favicon.ico":
+            return None
+        if _g.get("user") is None:
+            if path.startswith("/api/"):
+                return jsonify({"error": "Nicht eingeloggt"}), 401
+            return redirect("/login")
+        return None
 
     # -- Global error handlers -------------------------------------------------
     @app.errorhandler(413)
@@ -162,6 +209,21 @@ def _card_to_dict(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _hh() -> int:
+    """Active household id for the current request (10 = unauthenticated legacy)."""
+    from flask import g
+
+    h = g.get("household")
+    return int(h["household_id"]) if h else 1
+
+
+def _uid() -> int | None:
+    from flask import g
+
+    u = g.get("user")
+    return int(u["user_id"]) if u else None
+
+
 def _now_iso() -> str:
     from datetime import datetime, timezone
 
@@ -248,17 +310,19 @@ def _register_routes(app: Flask) -> None:
         conn = connect()
         try:
             # Dashboard shows ONLY collection stats — no training/reference data
-            collection_total = repo.get_collection_count(conn)
-            collection_unique = repo.get_unique_collection_count(conn)
-            scans_today = repo.get_scan_count_today(conn)
-            recognition_rate = repo.get_recognition_rate(conn)
+            hh = _hh()
+            collection_total = repo.get_collection_count(conn, hh)
+            collection_unique = repo.get_unique_collection_count(conn, hh)
+            scans_today = repo.get_scan_count_today(conn, hh)
+            recognition_rate = repo.get_recognition_rate(conn, hh)
 
             # Rarity breakdown — from COLLECTION only
             cur = conn.execute(
                 """SELECT cards.rarity, SUM(col.count) as c
                    FROM collection col JOIN cards ON col.card_id = cards.card_id
-                   WHERE cards.rarity IS NOT NULL AND cards.rarity != ''
-                   GROUP BY cards.rarity ORDER BY c DESC"""
+                   WHERE cards.rarity IS NOT NULL AND cards.rarity != '' AND col.household_id = ?
+                   GROUP BY cards.rarity ORDER BY c DESC""",
+                (hh,),
             )
             rarity_breakdown = [{"rarity": r["rarity"], "count": r["c"]} for r in cur.fetchall()]
 
@@ -266,8 +330,9 @@ def _register_routes(app: Flask) -> None:
             cur = conn.execute(
                 """SELECT cards.type, SUM(col.count) as c
                    FROM collection col JOIN cards ON col.card_id = cards.card_id
-                   WHERE cards.type IS NOT NULL AND cards.type != ''
-                   GROUP BY cards.type ORDER BY c DESC"""
+                   WHERE cards.type IS NOT NULL AND cards.type != '' AND col.household_id = ?
+                   GROUP BY cards.type ORDER BY c DESC""",
+                (hh,),
             )
             type_breakdown = [{"type": r["type"], "count": r["c"]} for r in cur.fetchall()]
 
@@ -275,15 +340,17 @@ def _register_routes(app: Flask) -> None:
             cur = conn.execute(
                 """SELECT cards.set_id, SUM(col.count) as c
                    FROM collection col JOIN cards ON col.card_id = cards.card_id
-                   GROUP BY cards.set_id ORDER BY c DESC"""
+                   WHERE col.household_id = ?
+                   GROUP BY cards.set_id ORDER BY c DESC""",
+                (hh,),
             )
             set_breakdown = [{"set_id": r["set_id"], "count": r["c"]} for r in cur.fetchall()]
 
             # Recent scans (from scan history)
-            recent_scans = repo.get_recent_scans(conn, limit=10)
+            recent_scans = repo.get_recent_scans(conn, limit=10, household_id=hh)
 
             # Foil count
-            cur = conn.execute("SELECT COALESCE(SUM(count), 0) FROM collection WHERE is_foil = 1")
+            cur = conn.execute("SELECT COALESCE(SUM(count), 0) FROM collection WHERE is_foil = 1 AND household_id = ?", (hh,))
             foil_count = cur.fetchone()[0]
 
             return jsonify({
@@ -296,8 +363,8 @@ def _register_routes(app: Flask) -> None:
                 "rarity_breakdown": rarity_breakdown,
                 "type_breakdown": type_breakdown,
                 "set_breakdown": set_breakdown,
-                "collection_value": repo.get_collection_value(conn),
-                "collection_value_usd": repo.get_collection_value_usd(conn),
+                "collection_value": repo.get_collection_value(conn, hh),
+                "collection_value_usd": repo.get_collection_value_usd(conn, hh),
             })
         finally:
             conn.close()
@@ -386,10 +453,11 @@ def _register_routes(app: Flask) -> None:
         """
         conn = connect()
         try:
-            preview = repo.get_last_undoable(conn)
+            hh = _hh()
+            preview = repo.get_last_undoable(conn, hh)
             if preview is None:
                 return jsonify({"undone": False, "error": "Nichts zum Rückgängigmachen"}), 404
-            result = repo.undo_last_scan_action(conn)
+            result = repo.undo_last_scan_action(conn, hh)
             if result.get("undone"):
                 log.info(
                     f"Undid scan action: {result['card_id']}",
@@ -407,7 +475,7 @@ def _register_routes(app: Flask) -> None:
         """What would be undone next (for the undo button state)."""
         conn = connect()
         try:
-            row = repo.get_last_undoable(conn)
+            row = repo.get_last_undoable(conn, _hh())
             if row is None:
                 return jsonify({"available": False})
             return jsonify({
@@ -460,6 +528,8 @@ def _register_routes(app: Flask) -> None:
                         variant=variant,
                         source="scan",
                         return_details=True,
+                        household_id=_hh(),
+                        user_id=_uid(),
                     )
                     # Set is_foil flag on the newly added entry
                     if is_foil:
@@ -505,6 +575,7 @@ def _register_routes(app: Flask) -> None:
                         photo_path=saved_photo_path or None,
                         correction_id=(learn_info or {}).get("correction_id"),
                         dataset_path=(learn_info or {}).get("dataset_path"),
+                        household_id=_hh(),
                     )
 
                 return jsonify({
@@ -613,6 +684,8 @@ def _register_routes(app: Flask) -> None:
                 variant=variant,
                 source="manual",
                 return_details=True,
+                household_id=_hh(),
+                user_id=_uid(),
             )
             if is_foil:
                 conn.execute(
@@ -661,9 +734,9 @@ def _register_routes(app: Flask) -> None:
                 JOIN cards ON col.card_id = cards.card_id
                 LEFT JOIN card_mkm_map m ON m.card_id = col.card_id
                 LEFT JOIN card_prices pr ON pr.idProduct = m.idProduct
-                WHERE 1=1
+                WHERE col.household_id = ?
             """
-            params: list[Any] = []
+            params: list[Any] = [_hh()]
             if search:
                 query += " AND (cards.name LIKE ? OR cards.subtitle LIKE ? OR col.card_id LIKE ?)"
                 like = f"%{search}%"
@@ -758,7 +831,9 @@ def _register_routes(app: Flask) -> None:
                    JOIN cards ON col.card_id = cards.card_id
                    LEFT JOIN card_mkm_map m ON m.card_id = col.card_id
                    LEFT JOIN card_prices pr ON pr.idProduct = m.idProduct
-                   ORDER BY cards.set_id, cards.card_number"""
+                   WHERE col.household_id = ?
+                   ORDER BY cards.set_id, cards.card_number""",
+                (_hh(),),
             )
             rows = [dict(r) for r in cur.fetchall()]
         finally:
@@ -844,8 +919,8 @@ def _register_routes(app: Flask) -> None:
 
                 existing = conn.execute(
                     """SELECT collection_id, count FROM collection
-                       WHERE card_id=? AND condition=? AND language=? AND variant=?""",
-                    (card_id, condition, language, variant),
+                       WHERE card_id=? AND condition=? AND language=? AND variant=? AND household_id=?""",
+                    (card_id, condition, language, variant, _hh()),
                 ).fetchone()
                 if existing:
                     if mode == "replace":
@@ -860,9 +935,9 @@ def _register_routes(app: Flask) -> None:
                         )
                 else:
                     conn.execute(
-                        """INSERT INTO collection (card_id, count, condition, language, variant, is_foil, source)
-                           VALUES (?, ?, ?, ?, ?, ?, 'import')""",
-                        (card_id, count, condition, language, variant, 1 if is_foil else 0),
+                        """INSERT INTO collection (card_id, count, condition, language, variant, is_foil, source, household_id, user_id)
+                           VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?)""",
+                        (card_id, count, condition, language, variant, 1 if is_foil else 0, _hh(), _uid()),
                     )
                 imported += 1
             conn.commit()
@@ -878,13 +953,15 @@ def _register_routes(app: Flask) -> None:
     def api_collection_stats():
         conn = connect()
         try:
-            total = repo.get_collection_count(conn)
-            unique = repo.get_unique_collection_count(conn)
+            hh = _hh()
+            total = repo.get_collection_count(conn, hh)
+            unique = repo.get_unique_collection_count(conn, hh)
             cur = conn.execute(
                 """SELECT cards.rarity, COUNT(*) as c
                    FROM collection col JOIN cards ON col.card_id = cards.card_id
-                   WHERE cards.rarity IS NOT NULL AND cards.rarity != ''
-                   GROUP BY cards.rarity ORDER BY c DESC"""
+                   WHERE cards.rarity IS NOT NULL AND cards.rarity != '' AND col.household_id = ?
+                   GROUP BY cards.rarity ORDER BY c DESC""",
+                (hh,),
             )
             by_rarity = [{"rarity": r["rarity"], "count": r["c"]} for r in cur.fetchall()]
             cur = conn.execute(
@@ -1009,7 +1086,9 @@ def _register_routes(app: Flask) -> None:
             # Mark owned cards
             owned_ids = {
                 r["card_id"]
-                for r in conn.execute("SELECT DISTINCT card_id FROM collection").fetchall()
+                for r in conn.execute(
+                    "SELECT DISTINCT card_id FROM collection WHERE household_id = ?", (_hh(),)
+                ).fetchall()
             }
             items = []
             for score, display, c in scored[:limit]:
@@ -1319,7 +1398,7 @@ def _register_routes(app: Flask) -> None:
     def api_collection_value_usd():
         conn = connect()
         try:
-            value = repo.get_collection_value_usd(conn)
+            value = repo.get_collection_value_usd(conn, _hh())
             value["stats"] = repo.get_tcg_stats(conn)
             return jsonify(value)
         finally:
@@ -1425,8 +1504,8 @@ def _register_routes(app: Flask) -> None:
                 return jsonify({"error": "card not found"}), 404
             # owned count in collection
             cur = conn.execute(
-                "SELECT COALESCE(SUM(count),0) AS c, COALESCE(SUM(CASE WHEN is_foil=1 THEN count ELSE 0 END),0) AS f FROM collection WHERE card_id = ?",
-                (card_id,),
+                "SELECT COALESCE(SUM(count),0) AS c, COALESCE(SUM(CASE WHEN is_foil=1 THEN count ELSE 0 END),0) AS f FROM collection WHERE card_id = ? AND household_id = ?",
+                (card_id, _hh()),
             )
             owned = cur.fetchone()
             card["owned_count"] = owned["c"]
@@ -1457,7 +1536,7 @@ def _register_routes(app: Flask) -> None:
     def api_collection_value():
         conn = connect()
         try:
-            value = repo.get_collection_value(conn)
+            value = repo.get_collection_value(conn, _hh())
             value["stats"] = repo.get_price_stats(conn)
             return jsonify(value)
         finally:
@@ -1469,7 +1548,7 @@ def _register_routes(app: Flask) -> None:
         """Completion stats for all sets (owned/total per set)."""
         conn = connect()
         try:
-            results = repo.get_all_set_completion(conn)
+            results = repo.get_all_set_completion(conn, _hh())
             return jsonify({"sets": results})
         finally:
             conn.close()
@@ -1482,7 +1561,7 @@ def _register_routes(app: Flask) -> None:
             cur = conn.execute("SELECT 1 FROM sets WHERE set_id = ?", (set_id,))
             if cur.fetchone() is None:
                 return jsonify({"error": f"Set {set_id} nicht gefunden"}), 404
-            stats = repo.get_set_completion(conn, set_id)
+            stats = repo.get_set_completion(conn, set_id, _hh())
             return jsonify(stats)
         finally:
             conn.close()
@@ -1492,7 +1571,7 @@ def _register_routes(app: Flask) -> None:
         """Add all missing cards of a set to the wishlist."""
         conn = connect()
         try:
-            stats = repo.get_set_completion(conn, set_id)
+            stats = repo.get_set_completion(conn, set_id, _hh())
             added = 0
             for card in stats["missing"]:
                 # skip if already on wishlist
@@ -1500,7 +1579,7 @@ def _register_routes(app: Flask) -> None:
                     "SELECT 1 FROM wishlist WHERE card_id = ?", (card["card_id"],)
                 )
                 if cur.fetchone() is None:
-                    repo.add_to_wishlist(conn, card["card_id"])
+                    repo.add_to_wishlist(conn, card["card_id"], household_id=_hh())
                     added += 1
             conn.commit()
             return jsonify({"added": added, "total_missing": stats["missing_count"]})
@@ -1566,7 +1645,7 @@ def _register_routes(app: Flask) -> None:
     def api_wishlist():
         conn = connect()
         try:
-            items = repo.get_wishlist(conn)
+            items = repo.get_wishlist(conn, _hh())
             return jsonify({"items": items, "count": len(items)})
         finally:
             conn.close()
@@ -1589,7 +1668,7 @@ def _register_routes(app: Flask) -> None:
             cur = conn.execute("SELECT 1 FROM cards WHERE card_id = ?", (card_id,))
             if cur.fetchone() is None:
                 return jsonify({"error": f"Karte {card_id} nicht gefunden"}), 404
-            wl_id = repo.add_to_wishlist(conn, card_id, count, target_price, body.get("notes"))
+            wl_id = repo.add_to_wishlist(conn, card_id, count, target_price, body.get("notes"), household_id=_hh())
             conn.commit()
             return jsonify({"wishlist_id": wl_id, "added": True})
         finally:
@@ -1782,7 +1861,10 @@ def _register_routes(app: Flask) -> None:
         try:
             # owned counts by card
             owned: dict[str, int] = {}
-            for r in conn.execute("SELECT card_id, SUM(count) AS c FROM collection GROUP BY card_id"):
+            for r in conn.execute(
+                "SELECT card_id, SUM(count) AS c FROM collection WHERE household_id = ? GROUP BY card_id",
+                (_hh(),),
+            ):
                 owned[r["card_id"]] = r["c"]
 
             # prices by card_id via MKM mapping

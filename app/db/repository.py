@@ -213,6 +213,8 @@ def add_to_collection(
     location: str | None = None,
     source: str = "scan",
     return_details: bool = False,
+    household_id: int = 1,
+    user_id: int | None = None,
 ) -> int | dict[str, Any]:
     """Add a card to the collection. If an identical entry exists, increment count.
 
@@ -221,8 +223,8 @@ def add_to_collection(
     """
     cur = conn.execute(
         """SELECT collection_id, count FROM collection
-           WHERE card_id=? AND condition=? AND language=? AND variant=?""",
-        (card_id, condition, language, variant),
+           WHERE card_id=? AND condition=? AND language=? AND variant=? AND household_id=?""",
+        (card_id, condition, language, variant, household_id),
     )
     row = cur.fetchone()
     if row:
@@ -241,9 +243,9 @@ def add_to_collection(
             }
         return row["collection_id"]
     cur = conn.execute(
-        """INSERT INTO collection (card_id, count, condition, language, variant, location, source)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (card_id, count, condition, language, variant, location, source),
+        """INSERT INTO collection (card_id, count, condition, language, variant, location, source, household_id, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (card_id, count, condition, language, variant, location, source, household_id, user_id),
     )
     conn.commit()
     if return_details:
@@ -267,38 +269,40 @@ def record_scan_undo(
     photo_path: str | None,
     correction_id: int | None,
     dataset_path: str | None,
+    household_id: int = 1,
 ) -> int:
     """Journal a scan-confirm action so it can be undone."""
     cur = conn.execute(
         """INSERT INTO scan_undo (scan_id, collection_id, card_id, count_added,
-               previous_count, entry_created, is_foil, photo_path, correction_id, dataset_path)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               previous_count, entry_created, is_foil, photo_path, correction_id, dataset_path, household_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (scan_id, collection_id, card_id, count_added, previous_count,
          1 if entry_created else 0, 1 if is_foil else 0,
-         photo_path, correction_id, dataset_path),
+         photo_path, correction_id, dataset_path, household_id),
     )
     conn.commit()
     return cur.lastrowid
 
 
-def get_last_undoable(conn: sqlite3.Connection) -> dict[str, Any] | None:
-    """Most recent confirm action that has not been undone yet."""
+def get_last_undoable(conn: sqlite3.Connection, household_id: int = 1) -> dict[str, Any] | None:
+    """Most recent confirm action that has not been undone yet (per household)."""
     cur = conn.execute(
-        "SELECT * FROM scan_undo WHERE undone = 0 ORDER BY undo_id DESC LIMIT 1"
+        "SELECT * FROM scan_undo WHERE undone = 0 AND household_id = ? ORDER BY undo_id DESC LIMIT 1",
+        (household_id,),
     )
     row = cur.fetchone()
     return dict(row) if row else None
 
 
-def undo_last_scan_action(conn: sqlite3.Connection) -> dict[str, Any]:
-    """Undo the most recent not-yet-undone confirm action.
+def undo_last_scan_action(conn: sqlite3.Connection, household_id: int = 1) -> dict[str, Any]:
+    """Undo the most recent not-yet-undone confirm action (per household).
 
     - restores the collection count (or removes the entry if it was newly created)
     - deletes the training photo taken for this scan
     - removes the correction learning record (scan_corrections row + dataset sample)
     Returns a result dict describing what was undone.
     """
-    row = get_last_undoable(conn)
+    row = get_last_undoable(conn, household_id)
     if row is None:
         return {"undone": False, "error": "Keine rückgängig zu machende Aktion"}
 
@@ -355,23 +359,31 @@ def undo_last_scan_action(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-def get_collection(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def get_collection(conn: sqlite3.Connection, household_id: int = 1) -> list[dict[str, Any]]:
     cur = conn.execute(
         """SELECT c.*, cards.name, cards.subtitle, cards.set_id, cards.card_number,
                   cards.rarity, cards.type, cards.front_art_path
            FROM collection c JOIN cards ON c.card_id = cards.card_id
-           ORDER BY cards.name"""
+           WHERE c.household_id = ?
+           ORDER BY cards.name""",
+        (household_id,),
     )
     return [dict(r) for r in cur.fetchall()]
 
 
-def get_collection_count(conn: sqlite3.Connection) -> int:
-    cur = conn.execute("SELECT COALESCE(SUM(count), 0) FROM collection")
+def get_collection_count(conn: sqlite3.Connection, household_id: int = 1) -> int:
+    cur = conn.execute(
+        "SELECT COALESCE(SUM(count), 0) FROM collection WHERE household_id = ?",
+        (household_id,),
+    )
     return cur.fetchone()[0]
 
 
-def get_unique_collection_count(conn: sqlite3.Connection) -> int:
-    cur = conn.execute("SELECT COUNT(*) FROM collection")
+def get_unique_collection_count(conn: sqlite3.Connection, household_id: int = 1) -> int:
+    cur = conn.execute(
+        "SELECT COUNT(*) FROM collection WHERE household_id = ?",
+        (household_id,),
+    )
     return cur.fetchone()[0]
 
 
@@ -388,12 +400,13 @@ def record_scan(
     ocr_text: str = "",
     error_status: str = "",
     processing_time_ms: int = 0,
+    household_id: int = 1,
 ) -> int:
     cur = conn.execute(
         """INSERT INTO scans (image_path, recognized_card_id, confidence, method,
-                              ocr_text, error_status, processing_time_ms)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (image_path, recognized_card_id, confidence, method, ocr_text, error_status, processing_time_ms),
+                              ocr_text, error_status, processing_time_ms, household_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (image_path, recognized_card_id, confidence, method, ocr_text, error_status, processing_time_ms, household_id),
     )
     conn.commit()
     return cur.lastrowid
@@ -451,28 +464,35 @@ def get_correction_count(conn: sqlite3.Connection) -> int:
     return cur.fetchone()[0]
 
 
-def get_recent_scans(conn: sqlite3.Connection, limit: int = 20) -> list[dict[str, Any]]:
+def get_recent_scans(conn: sqlite3.Connection, limit: int = 20, household_id: int = 1) -> list[dict[str, Any]]:
     cur = conn.execute(
         """SELECT s.*, cards.name, cards.subtitle FROM scans s
            LEFT JOIN cards ON s.recognized_card_id = cards.card_id
+           WHERE s.household_id = ?
            ORDER BY s.timestamp DESC LIMIT ?""",
-        (limit,),
+        (household_id, limit),
     )
     return [dict(r) for r in cur.fetchall()]
 
 
-def get_scan_count_today(conn: sqlite3.Connection) -> int:
+def get_scan_count_today(conn: sqlite3.Connection, household_id: int = 1) -> int:
     cur = conn.execute(
-        "SELECT COUNT(*) FROM scans WHERE date(timestamp) = date('now')"
+        "SELECT COUNT(*) FROM scans WHERE date(timestamp) = date('now') AND household_id = ?",
+        (household_id,),
     )
     return cur.fetchone()[0]
 
 
-def get_recognition_rate(conn: sqlite3.Connection) -> float:
-    """Fraction of scans with recognized_card_id not null."""
-    cur = conn.execute("SELECT COUNT(*) FROM scans WHERE recognized_card_id IS NOT NULL")
+def get_recognition_rate(conn: sqlite3.Connection, household_id: int = 1) -> float:
+    """Fraction of scans with recognized_card_id not null (per household)."""
+    cur = conn.execute(
+        "SELECT COUNT(*) FROM scans WHERE recognized_card_id IS NOT NULL AND household_id = ?",
+        (household_id,),
+    )
     recognized = cur.fetchone()[0]
-    total_cur = conn.execute("SELECT COUNT(*) FROM scans")
+    total_cur = conn.execute(
+        "SELECT COUNT(*) FROM scans WHERE household_id = ?", (household_id,)
+    )
     total = total_cur.fetchone()[0]
     return recognized / total if total > 0 else 0.0
 
@@ -558,7 +578,7 @@ def get_price_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-def get_collection_value(conn: sqlite3.Connection) -> dict[str, Any]:
+def get_collection_value(conn: sqlite3.Connection, household_id: int = 1) -> dict[str, Any]:
     """Total market value of the collection (foil-aware).
 
     Value model:
@@ -579,7 +599,9 @@ def get_collection_value(conn: sqlite3.Connection) -> dict[str, Any]:
                SUM(c.count) AS total_count
            FROM collection c
            LEFT JOIN card_mkm_map m ON c.card_id = m.card_id
-           LEFT JOIN card_prices pr ON m.idProduct = pr.idProduct""",
+           LEFT JOIN card_prices pr ON m.idProduct = pr.idProduct
+           WHERE c.household_id = ?""",
+        (household_id,),
     )
     row = cur.fetchone()
     if not row or row["total_count"] is None:
@@ -608,11 +630,12 @@ def add_to_wishlist(
     count: int = 1,
     target_price: float | None = None,
     notes: str | None = None,
+    household_id: int = 1,
 ) -> int:
     cur = conn.execute(
-        """INSERT INTO wishlist (card_id, count, target_price, notes)
-           VALUES (?, ?, ?, ?)""",
-        (card_id, count, target_price, notes),
+        """INSERT INTO wishlist (card_id, count, target_price, notes, household_id)
+           VALUES (?, ?, ?, ?, ?)""",
+        (card_id, count, target_price, notes, household_id),
     )
     return cur.lastrowid
 
@@ -622,7 +645,7 @@ def remove_from_wishlist(conn: sqlite3.Connection, wishlist_id: int) -> bool:
     return cur.rowcount > 0
 
 
-def get_wishlist(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def get_wishlist(conn: sqlite3.Connection, household_id: int = 1) -> list[dict[str, Any]]:
     cur = conn.execute(
         """SELECT w.*, cards.name, cards.subtitle, cards.set_id, cards.card_number,
                   cards.rarity, cards.front_art_path,
@@ -631,7 +654,9 @@ def get_wishlist(conn: sqlite3.Connection) -> list[dict[str, Any]]:
            JOIN cards ON w.card_id = cards.card_id
            LEFT JOIN card_mkm_map m ON m.card_id = w.card_id
            LEFT JOIN card_prices p ON p.idProduct = m.idProduct
-           ORDER BY w.created_at DESC"""
+           WHERE w.household_id = ?
+           ORDER BY w.created_at DESC""",
+        (household_id,),
     )
     return [dict(r) for r in cur.fetchall()]
 
@@ -639,7 +664,7 @@ def get_wishlist(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 # --- Set completion -------------------------------------------------------------
 
 
-def get_set_completion(conn: sqlite3.Connection, set_id: str) -> dict[str, Any]:
+def get_set_completion(conn: sqlite3.Connection, set_id: str, household_id: int = 1) -> dict[str, Any]:
     """Completion stats for one set: owned/total, missing cards list.
 
     'Unique cards' ignores variants (foil/hyperspace duplicates share the
@@ -654,8 +679,8 @@ def get_set_completion(conn: sqlite3.Connection, set_id: str) -> dict[str, Any]:
 
     # Owned distinct numbers
     cur = conn.execute(
-        "SELECT DISTINCT card_number FROM collection c JOIN cards ON c.card_id = cards.card_id WHERE cards.set_id = ?",
-        (set_id,),
+        "SELECT DISTINCT card_number FROM collection c JOIN cards ON c.card_id = cards.card_id WHERE cards.set_id = ? AND c.household_id = ?",
+        (set_id, household_id),
     )
     owned_numbers = {r["card_number"] for r in cur.fetchall()}
 
@@ -694,13 +719,13 @@ def get_set_completion(conn: sqlite3.Connection, set_id: str) -> dict[str, Any]:
     }
 
 
-def get_all_set_completion(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def get_all_set_completion(conn: sqlite3.Connection, household_id: int = 1) -> list[dict[str, Any]]:
     """Completion summary for every set (without the missing list)."""
     cur = conn.execute("SELECT set_id FROM sets ORDER BY set_id")
     results = []
     for r in cur.fetchall():
         set_id = r["set_id"]
-        stats = get_set_completion(conn, set_id)
+        stats = get_set_completion(conn, set_id, household_id)
         stats.pop("missing", None)
         results.append(stats)
     return results
@@ -734,7 +759,7 @@ def get_tcg_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"price_rows": rows, "last_update": last}
 
 
-def get_collection_value_usd(conn: sqlite3.Connection) -> dict[str, Any]:
+def get_collection_value_usd(conn: sqlite3.Connection, household_id: int = 1) -> dict[str, Any]:
     """Collection market value based on TCGplayer prices (USD)."""
     cur = conn.execute(
         """SELECT
@@ -747,7 +772,9 @@ def get_collection_value_usd(conn: sqlite3.Connection) -> dict[str, Any]:
                         THEN c.count ELSE 0 END) AS priced_count,
                SUM(c.count) AS total_count
            FROM collection c
-           LEFT JOIN tcg_prices t ON c.card_id = t.card_id"""
+           LEFT JOIN tcg_prices t ON c.card_id = t.card_id
+           WHERE c.household_id = ?""",
+        (household_id,),
     )
     row = cur.fetchone()
     if not row or row["total_count"] is None:

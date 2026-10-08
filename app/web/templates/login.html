@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Login — SWU Card Manager</title>
+  <link rel="stylesheet" href="/static/style.css?v=12">
+</head>
+<body class="auth-body">
+  <div class="auth-card">
+    <div class="auth-logo">🃏</div>
+    <h1>SWU Card Manager</h1>
+    <p class="text-muted" style="margin-bottom:20px;">Melde dich an, um deine Sammlung zu verwalten.</p>
+
+    <div class="form-group">
+      <label>Benutzername oder E-Mail</label>
+      <input type="text" id="login-input" autocomplete="username" autocapitalize="none">
+    </div>
+    <div class="form-group">
+      <label>Passwort</label>
+      <input type="password" id="password-input" autocomplete="current-password">
+    </div>
+    <div class="setting-row" style="margin:4px 0 14px 0;">
+      <label style="font-size:14px;">Angemeldet bleiben</label>
+      <label class="switch"><input type="checkbox" id="remember-checkbox" checked><span class="slider"></span></label>
+    </div>
+    <div id="login-error" class="auth-error hidden"></div>
+    <button class="btn btn-success btn-large" id="btn-login" style="width:100%;">Anmelden</button>
+
+    <div class="auth-links">
+      <a href="/register">Konto erstellen</a>
+      <a href="/reset">Passwort vergessen?</a>
+    </div>
+  </div>
+
+  <script src="/static/common.js?v=12"></script>
+  <script>
+    async function doLogin() {
+      const login = document.getElementById("login-input").value.trim();
+      const password = document.getElementById("password-input").value;
+      const remember = document.getElementById("remember-checkbox").checked;
+      const errEl = document.getElementById("login-error");
+      errEl.classList.add("hidden");
+      document.getElementById("btn-login").disabled = true;
+      try {
+        const resp = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({login, password, remember}),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "Login fehlgeschlagen");
+        const next = new URLSearchParams(window.location.search).get("next") || "/";
+        window.location.href = next;
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove("hidden");
+      } finally {
+        document.getElementById("btn-login").disabled = false;
+      }
+    }
+
+    document.getElementById("btn-login").addEventListener("click", doLogin);
+    document.getElementById("password-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doLogin();
+    });
+  </script>
+</body>
+</html>

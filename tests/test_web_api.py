@@ -26,76 +26,16 @@ from app.db import repository as repo
 
 @pytest.fixture
 def db_conn(tmp_path):
-    """Create a fresh test database."""
-    db_path = tmp_path / "test.db"
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys=ON")
-    # Create tables
-    conn.executescript("""
-        CREATE TABLE sets (
-            set_id TEXT PRIMARY KEY, full_name TEXT, parent_set_id TEXT,
-            number_cards INTEGER DEFAULT 0, max_element TEXT,
-            is_base_set INTEGER DEFAULT 0, release_date TEXT,
-            imported INTEGER DEFAULT 0, imported_at TEXT,
-            card_count_actual INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT (datetime('now')),
-            full_name_de TEXT
-        );
-        CREATE TABLE cards (
-            card_id TEXT PRIMARY KEY, set_id TEXT NOT NULL,
-            card_number TEXT NOT NULL, name TEXT NOT NULL, subtitle TEXT,
-            type TEXT, rarity TEXT, aspects TEXT, traits TEXT, arenas TEXT,
-            cost TEXT, power TEXT, hp TEXT, front_text TEXT, back_text TEXT,
-            epic_action TEXT, artist TEXT, language TEXT DEFAULT 'en',
-            variant_type TEXT DEFAULT 'Normal', unique_card INTEGER DEFAULT 0,
-            double_sided INTEGER DEFAULT 0, front_art_url TEXT, back_art_url TEXT,
-            front_art_path TEXT, back_art_path TEXT, tcgplayer_id TEXT, cid TEXT,
-            market_price TEXT, low_price TEXT, front_phash TEXT, back_phash TEXT,
-            front_features BLOB, imported_at TEXT, updated_at TEXT,
-            name_de TEXT, subtitle_de TEXT, type_de TEXT, rarity_de TEXT,
-            aspects_de TEXT, traits_de TEXT, arenas_de TEXT,
-            front_text_de TEXT, back_text_de TEXT, epic_action_de TEXT
-        );
-        CREATE TABLE collection (
-            collection_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_id TEXT NOT NULL, count INTEGER DEFAULT 1,
-            condition TEXT DEFAULT 'NM', language TEXT DEFAULT 'en',
-            variant TEXT DEFAULT 'Normal', location TEXT,
-            acquired_at TEXT, source TEXT DEFAULT 'scan', notes TEXT,
-            is_foil INTEGER DEFAULT 0
-        );
-        CREATE TABLE scans (
-            scan_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT DEFAULT (datetime('now')),
-            image_path TEXT, recognized_card_id TEXT,
-            confidence REAL, method TEXT, ocr_text TEXT,
-            error_status TEXT, manual_correction INTEGER DEFAULT 0,
-            corrected_card_id TEXT, processing_time_ms INTEGER
-        );
-        CREATE TABLE scan_candidates (
-            candidate_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            scan_id INTEGER NOT NULL, card_id TEXT NOT NULL,
-            score REAL, method TEXT, details TEXT
-        );
-        CREATE TABLE scan_corrections (
-            correction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            scan_id INTEGER, original_card_id TEXT,
-            corrected_card_id TEXT, image_path TEXT,
-            timestamp TEXT DEFAULT (datetime('now')),
-            used_for_training INTEGER DEFAULT 0
-        );
-    """)
-    # Insert test set and cards
-    conn.execute("INSERT INTO sets (set_id, full_name) VALUES ('SOR', 'Spark of Rebellion')")
-    conn.execute("INSERT INTO sets (set_id, full_name) VALUES ('HMW', 'Homeworlds')")
-    conn.execute("""INSERT INTO cards (card_id, set_id, card_number, name, name_de, type, rarity, aspects)
-        VALUES ('SOR-010', 'SOR', '010', 'Darth Vader', 'Darth Vader', 'Leader', 'Special', '["Aggression"]')""")
-    conn.execute("""INSERT INTO cards (card_id, set_id, card_number, name, name_de, type, rarity, aspects)
-        VALUES ('SOR-029', 'SOR', '029', 'Administrator Tower', 'Turm des Administrators', 'Base', 'Common', '["Vigilance"]')""")
-    conn.execute("""INSERT INTO cards (card_id, set_id, card_number, name, name_de, type, rarity, aspects)
-        VALUES ('HMW-160', 'HMW', '160', 'Noxious Refinery', 'Giftige Raffinerie', 'Base', 'Common', '["Cunning"]')""")
+    """Fresh test database via the real schema (incl. tenant columns)."""
+    from app.db.schema import connect as _connect, init_database
+
+    conn = _connect(tmp_path / "test.db")
+    init_database(conn)
+    conn.execute("INSERT OR IGNORE INTO sets (set_id, full_name) VALUES ('SOR', 'Spark of Rebellion')")
+    conn.execute("INSERT OR IGNORE INTO cards (card_id, set_id, card_number, name, name_de, type, rarity) VALUES ('SOR-010', 'SOR', '010', 'Darth Vader', 'Darth Vader', 'Leader', 'Special')")
+    conn.execute("INSERT OR IGNORE INTO cards (card_id, set_id, card_number, name, name_de, type, rarity) VALUES ('SOR-029', 'SOR', '029', 'Admin Tower', 'Turm', 'Base', 'Common')")
+    conn.execute("INSERT OR IGNORE INTO sets (set_id, full_name) VALUES ('HMW', 'Homeworlds')")
+    conn.execute("INSERT OR IGNORE INTO cards (card_id, set_id, card_number, name, name_de) VALUES ('HMW-160', 'HMW', '160', 'Noxious Refinery', 'Giftige Raffinerie')")
     conn.commit()
     yield conn
     conn.close()
@@ -275,59 +215,15 @@ class TestBilingualCards:
 class TestFlaskAPI:
     @pytest.fixture
     def app_client(self, tmp_path, monkeypatch):
-        """Create a Flask test client with a temp database."""
-        # Override database path
+        """Authenticated Flask test client on a temp database."""
         monkeypatch.setattr("app.db.schema.get_db_path", lambda: tmp_path / "test_api.db")
 
-        # Create test DB
-        conn = sqlite3.connect(str(tmp_path / "test_api.db"))
-        conn.row_factory = sqlite3.Row
-        conn.executescript("""
-            CREATE TABLE sets (set_id TEXT PRIMARY KEY, full_name TEXT, parent_set_id TEXT,
-                number_cards INTEGER DEFAULT 0, max_element TEXT, is_base_set INTEGER DEFAULT 0,
-                release_date TEXT, imported INTEGER DEFAULT 0, imported_at TEXT,
-                card_count_actual INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT, full_name_de TEXT);
-            CREATE TABLE cards (card_id TEXT PRIMARY KEY, set_id TEXT NOT NULL,
-                card_number TEXT NOT NULL, name TEXT NOT NULL, subtitle TEXT, type TEXT,
-                rarity TEXT, aspects TEXT, traits TEXT, arenas TEXT, cost TEXT, power TEXT,
-                hp TEXT, front_text TEXT, back_text TEXT, epic_action TEXT, artist TEXT,
-                language TEXT DEFAULT 'en', variant_type TEXT DEFAULT 'Normal',
-                unique_card INTEGER DEFAULT 0, double_sided INTEGER DEFAULT 0,
-                front_art_url TEXT, back_art_url TEXT, front_art_path TEXT, back_art_path TEXT,
-                tcgplayer_id TEXT, cid TEXT, market_price TEXT, low_price TEXT,
-                front_phash TEXT, back_phash TEXT, front_features BLOB,
-                imported_at TEXT, updated_at TEXT, name_de TEXT, subtitle_de TEXT,
-                type_de TEXT, rarity_de TEXT, aspects_de TEXT, traits_de TEXT, arenas_de TEXT,
-                front_text_de TEXT, back_text_de TEXT, epic_action_de TEXT);
-            CREATE TABLE collection (collection_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                card_id TEXT NOT NULL, count INTEGER DEFAULT 1, condition TEXT DEFAULT 'NM',
-                language TEXT DEFAULT 'en', variant TEXT DEFAULT 'Normal', location TEXT,
-                acquired_at TEXT, source TEXT DEFAULT 'scan', notes TEXT, is_foil INTEGER DEFAULT 0);
-            CREATE TABLE scans (scan_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT DEFAULT (datetime('now')), image_path TEXT,
-                recognized_card_id TEXT, confidence REAL, method TEXT, ocr_text TEXT,
-                error_status TEXT, manual_correction INTEGER DEFAULT 0,
-                corrected_card_id TEXT, processing_time_ms INTEGER);
-            CREATE TABLE scan_candidates (candidate_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                scan_id INTEGER NOT NULL, card_id TEXT NOT NULL, score REAL, method TEXT, details TEXT);
-            CREATE TABLE scan_corrections (correction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                scan_id INTEGER, original_card_id TEXT, corrected_card_id TEXT,
-                image_path TEXT, timestamp TEXT DEFAULT (datetime('now')),
-                used_for_training INTEGER DEFAULT 0);
-            CREATE TABLE models (model_id TEXT PRIMARY KEY, version TEXT, trained_at TEXT,
-                dataset_version TEXT, parameters TEXT, validation_accuracy REAL,
-                recognition_rate REAL, confusion_matrix TEXT, storage_path TEXT,
-                is_active INTEGER DEFAULT 0, status TEXT, notes TEXT, created_at TEXT);
-            CREATE TABLE dataset_versions (version_id TEXT PRIMARY KEY, created_at TEXT,
-                sample_count INTEGER, card_count INTEGER, description TEXT,
-                status TEXT, path TEXT);
-            CREATE TABLE job_log (job_id TEXT PRIMARY KEY, job_type TEXT, started_at TEXT,
-                completed_at TEXT, status TEXT, result TEXT, details TEXT);
-            CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT, description TEXT);
-        """)
-        conn.execute("INSERT INTO sets (set_id, full_name) VALUES ('SOR', 'Spark of Rebellion')")
-        conn.execute("INSERT INTO cards (card_id, set_id, card_number, name, name_de, type, rarity, aspects) VALUES ('SOR-010', 'SOR', '010', 'Darth Vader', 'Darth Vader', 'Leader', 'Special', '[\"Aggression\"]')")
-        conn.execute("INSERT INTO cards (card_id, set_id, card_number, name, name_de, type, rarity, aspects) VALUES ('SOR-029', 'SOR', '029', 'Admin Tower', 'Turm', 'Base', 'Common', '[\"Vigilance\"]')")
+        from app.db.schema import connect as _connect, init_database
+        conn = _connect(tmp_path / "test_api.db")
+        init_database(conn)
+        conn.execute("INSERT OR IGNORE INTO sets (set_id, full_name) VALUES ('SOR', 'Spark of Rebellion')")
+        conn.execute("INSERT OR IGNORE INTO cards (card_id, set_id, card_number, name, name_de, type, rarity, aspects) VALUES ('SOR-010', 'SOR', '010', 'Darth Vader', 'Darth Vader', 'Leader', 'Special', '[\"Aggression\"]')")
+        conn.execute("INSERT OR IGNORE INTO cards (card_id, set_id, card_number, name, name_de, type, rarity, aspects) VALUES ('SOR-029', 'SOR', '029', 'Admin Tower', 'Turm', 'Base', 'Common', '[\"Vigilance\"]')")
         conn.commit()
         conn.close()
 
@@ -335,8 +231,13 @@ class TestFlaskAPI:
         AppConfig.reset()
         app = create_app()
         app.config["TESTING"] = True
-        with app.test_client() as client:
-            yield client
+        app.config["SESSION_COOKIE_SECURE"] = False
+        client = app.test_client()
+        resp = client.post("/api/auth/register", json={
+            "username": "tester", "email": "tester@example.com", "password": "testpass123",
+        })
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+        yield client
 
     def test_dashboard_empty(self, app_client):
         """Dashboard returns zeros for empty collection."""

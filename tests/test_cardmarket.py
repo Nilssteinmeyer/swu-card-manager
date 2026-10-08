@@ -164,9 +164,9 @@ def test_collection_value_foil_aware(db):
     for pid, trend, foil in ((401001, 0.12, 0.30), (401002, 2.20, 7.20)):
         repo.upsert_price(db, {"idProduct": pid, "trend": trend, "foil_trend": foil})
     # Collection: 2x Luke normal, 1x Vader foil, 1x Vader normal
-    db.execute("INSERT INTO collection (card_id, count, condition, language, variant, is_foil) VALUES ('SOR-010', 2, 'NM', 'en', 'Normal', 0)")
-    db.execute("INSERT INTO collection (card_id, count, condition, language, variant, is_foil) VALUES ('SOR-029', 1, 'NM', 'en', 'Normal', 1)")
-    db.execute("INSERT INTO collection (card_id, count, condition, language, variant, is_foil) VALUES ('SOR-029', 1, 'NM', 'en', 'Normal', 0)")
+    db.execute("INSERT INTO collection (card_id, count, condition, language, variant, is_foil, household_id) VALUES ('SOR-010', 2, 'NM', 'en', 'Normal', 0, 1)")
+    db.execute("INSERT INTO collection (card_id, count, condition, language, variant, is_foil, household_id) VALUES ('SOR-029', 1, 'NM', 'en', 'Normal', 1, 1)")
+    db.execute("INSERT INTO collection (card_id, count, condition, language, variant, is_foil, household_id) VALUES ('SOR-029', 1, 'NM', 'en', 'Normal', 0, 1)")
     db.commit()
 
     value = repo.get_collection_value(db)

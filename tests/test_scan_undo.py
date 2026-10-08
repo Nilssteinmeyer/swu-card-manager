@@ -41,8 +41,13 @@ def app_client(tmp_path, monkeypatch):
     monkeypatch.setattr(AppConfig, "load", classmethod(lambda cls: _CfgStub(db_path)))
     app = create_app()
     app.config["TESTING"] = True
-    with app.test_client() as client:
-        yield client, db_path
+    app.config["SESSION_COOKIE_SECURE"] = False
+    client = app.test_client()
+    resp = client.post("/api/auth/register", json={
+        "username": "tester", "email": "tester@example.com", "password": "testpass123",
+    })
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    yield client, db_path
 
 
 def test_undo_new_entry_removes_it(app_client):
@@ -76,7 +81,7 @@ def test_undo_increment_restores_previous_count(app_client):
     client, db_path = app_client
     conn = connect(db_path)
     # Existing entry with 3 copies
-    conn.execute("INSERT INTO collection (card_id, count, condition, language, variant) VALUES ('SOR-005', 3, 'NM', 'de', 'Normal')")
+    conn.execute("INSERT INTO collection (card_id, count, condition, language, variant, household_id) VALUES ('SOR-005', 3, 'NM', 'de', 'Normal', 1)")
     conn.commit()
     conn.close()
 
