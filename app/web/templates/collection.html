@@ -158,11 +158,12 @@
         </div>
         <div id="add-search-results" style="max-height:300px; overflow-y:auto; margin-bottom:12px;"></div>
 
-        <div id="add-selected" class="hidden mb-2" style="border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; gap:12px; align-items:center;">
-          <img id="add-selected-img" style="width:70px; border-radius:6px; display:none;">
+        <div id="add-selected" class="hidden mb-2" style="border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; gap:14px; align-items:center;">
+          <img id="add-selected-img" style="width:140px; border-radius:8px; border:1px solid var(--border); display:none;">
           <div style="flex:1;">
-            <div id="add-selected-name" style="font-weight:700;"></div>
-            <div id="add-selected-meta" class="text-muted" style="font-size:12px;"></div>
+            <div id="add-selected-name" style="font-weight:700; font-size:16px;"></div>
+            <div id="add-selected-meta" class="text-muted" style="font-size:12px; margin-bottom:4px;"></div>
+            <div id="add-selected-lang-note" class="text-muted" style="font-size:11px;"></div>
           </div>
         </div>
 
@@ -382,19 +383,39 @@
       const card = addSearchCache[idx];
       if (!card) return;
       addSelectedCard = card.card_id;
-      const name = card.display_name || card.name;
-      const setId = card.set_id;
-      const cardNumber = card.card_number;
       document.getElementById("add-search-results").innerHTML = "";
       document.getElementById("add-search").value = "";
       const sel = document.getElementById("add-selected");
       sel.classList.remove("hidden");
-      document.getElementById("add-selected-name").textContent = name;
-      document.getElementById("add-selected-meta").textContent = `${setId} #${cardNumber}`;
+      refreshAddSelectedView(card);
+    }
+
+    // Show the selected card in the currently chosen language (image + name)
+    function refreshAddSelectedView(card) {
+      if (!card) return;
+      const lang = document.getElementById("add-language").value || "de";
+      const name = lang === "de" ? (card.name_de || card.name) : (card.name || card.name_de);
+      document.getElementById("add-selected-name").textContent = name || card.display_name || card.name;
+      document.getElementById("add-selected-meta").textContent = `${card.set_id} #${card.card_number}`;
+      document.getElementById("add-selected-lang-note").textContent =
+        lang === "de" ? "Deutsches Kartenbild" : "Englisches Kartenbild";
       const img = document.getElementById("add-selected-img");
-      img.src = cardImageUrl(cardId);
+      img.src = `${cardImageUrl(card.card_id)}?lang=${lang}`;
       img.style.display = "block";
     }
+
+    // Language switch updates the preview immediately (fetches fresh card
+    // details so German/English names are correct even beyond the cache)
+    document.getElementById("add-language").addEventListener("change", async () => {
+      if (!addSelectedCard) return;
+      try {
+        const card = await api(`/api/card/${encodeURIComponent(addSelectedCard)}`);
+        refreshAddSelectedView(card);
+      } catch (err) {
+        const cached = addSearchCache.find(c => c.card_id === addSelectedCard);
+        if (cached) refreshAddSelectedView(cached);
+      }
+    });
 
     async function saveAddCard() {
       if (!addSelectedCard) {

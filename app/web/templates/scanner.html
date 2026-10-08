@@ -58,6 +58,20 @@
             <div id="scan-overlay-icon" class="scan-overlay-icon">📷</div>
             <div id="scan-overlay-text" class="scan-overlay-text">Kamera gestoppt</div>
           </div>
+
+          <!-- Camera controls (iOS-like): zoom slider + torch -->
+          <div id="camera-controls" class="camera-controls hidden">
+            <button class="cam-btn" id="btn-torch" title="Blitz an/aus">🔦</button>
+            <div class="zoom-track" id="zoom-track">
+              <input type="range" id="zoom-slider" min="1" max="10" step="0.1" value="1" title="Zoom">
+              <div class="zoom-presets" id="zoom-presets">
+                <button class="zoom-preset" data-zoom="1">1×</button>
+                <button class="zoom-preset" data-zoom="2">2×</button>
+                <button class="zoom-preset" data-zoom="4" id="zoom-preset-4">4×</button>
+              </div>
+            </div>
+            <div class="zoom-badge" id="zoom-badge">1×</div>
+          </div>
         </div>
 
         <!-- Controls -->
@@ -106,7 +120,7 @@
   </div>
 
   <script src="/static/common.js"></script>
-  <script src="/static/scanner.js?v=13"></script>
+  <script src="/static/scanner.js?v=14"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

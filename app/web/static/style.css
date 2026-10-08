@@ -999,3 +999,32 @@ td .badge {
 .lang-toggle { display: flex; gap: 6px; margin-bottom: 4px; }
 .lang-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 16px; cursor: pointer; opacity: 0.5; transition: all 0.15s; line-height: 1; }
 .lang-btn.lang-active { opacity: 1; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); transform: scale(1.08); }
+
+/* Camera controls (iOS-like: torch + zoom) */
+.camera-controls {
+  position: absolute; bottom: 14px; left: 0; right: 0; z-index: 30;
+  display: flex; align-items: center; gap: 10px; padding: 0 14px;
+}
+.cam-btn {
+  width: 42px; height: 42px; border-radius: 50%; flex: 0 0 42px;
+  background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.25);
+  color: #fff; font-size: 19px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.cam-btn-active { background: rgba(255, 204, 0, 0.85); border-color: #fc3; }
+.zoom-track { flex: 1; display: flex; align-items: center; gap: 8px; }
+#zoom-slider { flex: 1; accent-color: #fff; height: 28px; }
+.zoom-presets { display: flex; gap: 6px; }
+.zoom-preset {
+  min-width: 34px; height: 30px; border-radius: 15px; padding: 0 8px;
+  background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.25);
+  color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.zoom-badge {
+  min-width: 40px; text-align: center; padding: 3px 6px; border-radius: 10px;
+  background: rgba(0,0,0,0.55); color: #fff; font-size: 12px; font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+#camera-video { transition: transform 0.15s ease-out; }

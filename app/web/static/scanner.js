@@ -43,6 +43,122 @@ let USER_SETTINGS = {
 // Language of the card currently shown in the scan overlay ("de" | "en")
 let scanCardLanguage = "de";
 
+// ---- Camera controls: torch + zoom (hardware with digital fallback) ---------
+let activeVideoTrack = null;
+let hwZoomCaps = null;      // {min, max, step} when the device supports hardware zoom
+let currentZoom = 1;        // effective zoom factor (hw or digital)
+let torchOn = false;
+const DIGITAL_ZOOM_MAX = 4; // CSS/canvas fallback zoom cap
+
+function _setupCameraControls(stream) {
+  activeVideoTrack = stream.getVideoTracks()[0] || null;
+  hwZoomCaps = null;
+  torchOn = false;
+  currentZoom = 1;
+
+  const controls = document.getElementById("camera-controls");
+  const torchBtn = document.getElementById("btn-torch");
+  const slider = document.getElementById("zoom-slider");
+  const badge = document.getElementById("zoom-badge");
+  const preset4 = document.getElementById("zoom-preset-4");
+  if (!controls || !activeVideoTrack) return;
+
+  controls.classList.remove("hidden");
+
+  // Torch support (iOS 17.5+, Chrome on Android)
+  let torchSupported = false;
+  try {
+    const caps = activeVideoTrack.getCapabilities ? activeVideoTrack.getCapabilities() : {};
+    torchSupported = "torch" in caps;
+  } catch (e) { torchSupported = false; }
+  if (torchBtn) {
+    torchBtn.style.display = torchSupported ? "inline-flex" : "none";
+    torchBtn.classList.remove("cam-btn-active");
+  }
+
+  // Hardware zoom support detection (iOS Safari exposes 'zoom' in capabilities)
+  try {
+    const caps = activeVideoTrack.getCapabilities ? activeVideoTrack.getCapabilities() : {};
+    if (caps.zoom && typeof caps.zoom.min === "number" && typeof caps.zoom.max === "number") {
+      hwZoomCaps = { min: caps.zoom.min, max: caps.zoom.max, step: (caps.zoom.step || 0.1) };
+    }
+  } catch (e) { hwZoomCaps = null; }
+
+  // Configure the slider range
+  const maxZoom = hwZoomCaps ? Math.min(hwZoomCaps.max, 16) : DIGITAL_ZOOM_MAX;
+  if (slider) {
+    slider.min = "1";
+    slider.max = String(maxZoom);
+    slider.step = hwZoomCaps ? String(hwZoomCaps.step || 0.1) : "0.1";
+    slider.value = "1";
+  }
+  if (preset4) preset4.style.display = maxZoom >= 4 ? "inline-flex" : "none";
+  if (badge) badge.textContent = "1×";
+  // reset digital zoom visual
+  _applyDigitalZoom(1);
+}
+
+async function setZoom(factor) {
+  const slider = document.getElementById("zoom-slider");
+  const badge = document.getElementById("zoom-badge");
+  currentZoom = Math.max(1, factor);
+  if (slider && slider.max) currentZoom = Math.min(currentZoom, parseFloat(slider.max));
+  if (slider) slider.value = String(currentZoom);
+  if (badge) badge.textContent = `${currentZoom.toFixed(1).replace(/\.0$/, "")}×`;
+
+  // 1) Hardware zoom (preferred: real optics, no quality loss)
+  if (hwZoomCaps && activeVideoTrack) {
+    try {
+      await activeVideoTrack.applyConstraints({ advanced: [{ zoom: currentZoom }] });
+      // hardware zoom handles the picture; make sure no digital scaling remains
+      _applyDigitalZoom(1);
+      return;
+    } catch (e) { /* fall through to digital */ }
+  }
+  // 2) Digital zoom fallback (CSS transform + canvas crop on scan)
+  _applyDigitalZoom(currentZoom);
+}
+
+function _applyDigitalZoom(factor) {
+  const video = document.getElementById("camera-video");
+  if (!video) return;
+  video.style.transformOrigin = "center";
+  video.style.transform = factor > 1 ? `scale(${factor})` : "";
+}
+
+// Capture respects the digital zoom: crop the center region of the frame
+function _cropForDigitalZoom(sourceW, sourceH) {
+  const factor = (!hwZoomCaps && currentZoom > 1) ? currentZoom : 1;
+  if (factor <= 1) return { w: sourceW, h: sourceH, x: 0, y: 0 };
+  const w = Math.round(sourceW / factor);
+  const h = Math.round(sourceH / factor);
+  const x = Math.round((sourceW - w) / 2);
+  const y = Math.round((sourceH - h) / 2);
+  return { w, h, x, y };
+}
+
+async function toggleTorch() {
+  if (!activeVideoTrack) return;
+  try {
+    torchOn = !torchOn;
+    await activeVideoTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+    document.getElementById("btn-torch")?.classList.toggle("cam-btn-active", torchOn);
+  } catch (e) {
+    showToast("Blitz nicht verfügbar", "info");
+    torchOn = false;
+  }
+}
+
+function _teardownCameraControls() {
+  activeVideoTrack = null;
+  hwZoomCaps = null;
+  currentZoom = 1;
+  torchOn = false;
+  const controls = document.getElementById("camera-controls");
+  if (controls) controls.classList.add("hidden");
+  _applyDigitalZoom(1);
+}
+
 function parseBool(v) { return v === "true" || v === true; }
 function parseInt_(v, def) { const n = parseInt(v); return isNaN(n) ? def : n; }
 function parsePattern(v, def) { try { const p = v.split(",").map(Number).filter(n => !isNaN(n) && n > 0); return p.length ? p : def; } catch { return def; } }
@@ -96,6 +212,52 @@ async function initScanner() {
   if (stopBtn) stopBtn.addEventListener("click", stopCamera);
   const manualBtn = document.getElementById("manual-scan-btn");
   if (manualBtn) manualBtn.addEventListener("click", triggerManualScan);
+
+  // ---- Camera controls (torch + zoom) ---------------------------------
+  const torchBtn = document.getElementById("btn-torch");
+  if (torchBtn) torchBtn.addEventListener("click", toggleTorch);
+
+  const zoomSlider = document.getElementById("zoom-slider");
+  if (zoomSlider) zoomSlider.addEventListener("input", () => setZoom(parseFloat(zoomSlider.value)));
+
+  document.querySelectorAll("#zoom-presets .zoom-preset").forEach(btn => {
+    btn.addEventListener("click", () => setZoom(parseFloat(btn.dataset.zoom)));
+  });
+
+  // Pinch-to-zoom on the camera preview (two-finger gesture, iOS-like)
+  const cameraWrap = document.getElementById("camera-wrap");
+  if (cameraWrap) {
+    let pinchStartDist = 0;
+    let pinchStartZoom = 1;
+    let pinchActive = false;
+
+    const touchDist = (touches) => {
+      const [a, b] = touches;
+      const dx = a.clientX - b.clientX;
+      const dy = a.clientY - b.clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    cameraWrap.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        pinchActive = true;
+        pinchStartDist = touchDist(e.touches);
+        pinchStartZoom = currentZoom;
+      }
+    }, { passive: true });
+
+    cameraWrap.addEventListener("touchmove", (e) => {
+      if (!pinchActive || e.touches.length !== 2) return;
+      e.preventDefault();
+      const dist = touchDist(e.touches);
+      if (pinchStartDist > 0) {
+        const factor = pinchStartZoom * (dist / pinchStartDist);
+        setZoom(factor);
+      }
+    }, { passive: false });
+
+    cameraWrap.addEventListener("touchend", () => { pinchActive = false; });
+  }
   if (confirmBtn) confirmBtn.addEventListener("click", () => confirmScan(true));
   if (rejectBtn) rejectBtn.addEventListener("click", () => confirmScan(false));
   const cancelBtn = document.getElementById("btn-cancel");
@@ -152,6 +314,7 @@ async function startCamera() {
     });
     video.srcObject = videoStream;
     await video.play();
+    _setupCameraControls(videoStream);
     if (startBtn) startBtn.classList.add("hidden");
     if (stopBtn) stopBtn.classList.remove("hidden");
     isScanning = true;
@@ -180,6 +343,7 @@ async function startCamera() {
 function stopCamera() {
   if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
   isScanning = false;
+  _teardownCameraControls();
   if (videoStream) { videoStream.getTracks().forEach((t) => t.stop()); videoStream = null; }
   const video = document.getElementById("camera-video");
   if (video) video.srcObject = null;
@@ -279,12 +443,15 @@ async function performScan() {
   const freeze = USER_SETTINGS.freeze_camera_during_scan && !USER_SETTINGS.bulk_scan_mode;
   if (freeze && video) video.pause();
 
+  // Capture with active zoom: hardware zoom is already in the frame;
+  // digital zoom crops the center region so the scan matches the preview.
+  const crop = _cropForDigitalZoom(video.videoWidth, video.videoHeight);
   const canvas = document.createElement("canvas");
-  const scale = Math.min(1, USER_SETTINGS.capture_resolution / video.videoWidth);
-  canvas.width = Math.round(video.videoWidth * scale);
-  canvas.height = Math.round(video.videoHeight * scale);
+  const scale = Math.min(1, USER_SETTINGS.capture_resolution / crop.w);
+  canvas.width = Math.round(crop.w * scale);
+  canvas.height = Math.round(crop.h * scale);
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL("image/jpeg", USER_SETTINGS.jpeg_quality / 100);
 
   // Store the captured photo for training on confirm
