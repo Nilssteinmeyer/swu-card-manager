@@ -28,6 +28,11 @@ SCHEMA_VERSION = 3
 
 
 def get_db_path() -> Path:
+    import os
+
+    override = os.environ.get("SWU_DB_PATH_OVERRIDE")
+    if override:
+        return Path(override)
     cfg = AppConfig.load()
     return cfg.path("database")
 
