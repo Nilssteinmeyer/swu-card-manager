@@ -1346,6 +1346,141 @@ def _register_routes(app: Flask) -> None:
         return jsonify({"admin": _is_admin()})
 
     # -- Cardmarket prices ----------------------------------------------------
+    # -- Model pipeline (admin) -------------------------------------------------
+    @app.route("/api/models", methods=["GET"])
+    def api_models_list():
+        """List all model versions with metrics (admin only)."""
+        from flask import g as _g
+
+        if not _g.get("user") or not _g["user"].get("is_platform_admin"):
+            return jsonify({"error": "Nur Plattform-Admin"}), 403
+        conn = connect()
+        try:
+            from app.ml.pipeline import list_models
+
+            models = list_models(conn)
+            return jsonify({"models": models})
+        finally:
+            conn.close()
+
+    @app.route("/api/models/train", methods=["POST"])
+    def api_models_train():
+        """Train a new candidate model on confirmed scan photos.
+
+        Long-running (~15-60 min GPU): runs synchronously for now; returns
+        the new version + evaluation. Admin only.
+        Body: {epochs?, batch_size?}
+        """
+        from flask import g as _g
+
+        if not _g.get("user") or not _g["user"].get("is_platform_admin"):
+            return jsonify({"error": "Nur Plattform-Admin"}), 403
+        body = request.get_json(silent=True) or {}
+        epochs = int(body.get("epochs", 5) or 5)
+        batch_size = int(body.get("batch_size", 32) or 32)
+
+        from app.ml.pipeline import (
+            build_eval_split,
+            create_dataset_snapshot,
+            evaluate_model,
+            next_version_number,
+            register_model,
+        )
+        from app.db.schema import connect as _connect
+
+        conn = _connect()
+        try:
+            version = str(next_version_number(conn))
+            snapshot = create_dataset_snapshot(version)
+
+            # Train (reuses the proven clip_finetune on the snapshot)
+            from app.db.schema import connect as _c2
+            from app.ml import pipeline as pl
+            from app.ml.clip_finetune import fine_tune_clip
+
+            cfg = app.config["_SWU_CFG"]
+            models_dir = cfg.path("models_dir")
+            model_path = models_dir / f"clip_v{version}.pt"
+            # Iterativ vom aktiven Modell weitertrainieren (statt von Null):
+            _conn2 = _c2()
+            _active = pl.get_active_model(_conn2)
+            _conn2.close()
+            init_from = _active.get("storage_path") if _active and _active.get("storage_path") else None
+            metrics = fine_tune_clip(
+                epochs=epochs, batch_size=batch_size,
+                save_path=str(model_path),
+                include_scan_photos=True,
+                init_from=init_from,
+            )
+            train_loss = metrics.get("final_loss") if isinstance(metrics, dict) else None
+
+            # Evaluate: candidate vs. active on the SAME split
+            samples = build_eval_split(cfg)
+            cand = evaluate_model(Path(model_path), samples, cfg)
+            active = get_active_model(conn)
+            active_eval = None
+            if active and active.get("storage_path") and Path(active["storage_path"]).exists():
+                active_eval = evaluate_model(Path(active["storage_path"]), samples, cfg)
+
+            gate_gain = round((cand.top1 - (active_eval.top1 if active_eval else 0.0)) * 100, 2)
+            params = {"epochs": epochs, "batch_size": batch_size,
+                      "train_loss": train_loss, "dataset_snapshot": str(snapshot)}
+            model_id = register_model(
+                conn, version=version, dataset_ref=f"dataset-v{version}",
+                parameters=params,
+                metrics={
+                    "top1": cand.top1, "top5": cand.top5,
+                    "mean_confidence": cand.mean_confidence,
+                    "latency_ms": cand.latency_ms,
+                    "per_card": cand.per_card,
+                    "active_top1": active_eval.top1 if active_eval else None,
+                    "gain_top1_pp": gate_gain,
+                    "sample_count": cand.sample_count,
+                },
+                storage_path=str(model_path),
+                status="candidate",
+            )
+            return jsonify({
+                "trained": True,
+                "model_id": model_id,
+                "version": version,
+                "metrics": {
+                    "top1": cand.top1, "top5": cand.top5,
+                    "active_top1": active_eval.top1 if active_eval else None,
+                    "gain_top1_pp": gate_gain,
+                    "samples": cand.sample_count,
+                },
+            })
+        except Exception as e:
+            log.error(f"Model training failed: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
+
+    @app.route("/api/models/promote", methods=["POST"])
+    def api_models_promote():
+        """Activate a candidate/retired model (admin). Never auto-invoked."""
+        from flask import g as _g
+
+        if not _g.get("user") or not _g["user"].get("is_platform_admin"):
+            return jsonify({"error": "Nur Plattform-Admin"}), 403
+        body = request.get_json(silent=True) or {}
+        model_id = (body.get("model_id") or "").strip()
+        if not model_id:
+            return jsonify({"error": "model_id erforderlich"}), 400
+        conn = connect()
+        try:
+            from app.ml.pipeline import promote_model
+
+            if not promote_model(conn, model_id):
+                return jsonify({"error": "Modell nicht gefunden oder Status unpassend"}), 400
+            # Service-Neustart-Hinweis: das aktive Modell wird beim naechsten
+            # Engine-Reload uebernommen (Server-Neustart erzwungen)
+            return jsonify({"promoted": True, "model_id": model_id,
+                            "hint": "Server-Neustart laedt das neue Modell (server.ps1 -Restart)"})
+        finally:
+            conn.close()
+
     @app.route("/api/prices/tcg/sync", methods=["POST"])
     def api_prices_tcg_sync():
         """Sync TCGplayer (tcgcsv) prices for all SWU sets. Legal, login-free.

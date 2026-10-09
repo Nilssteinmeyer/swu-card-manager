@@ -1,0 +1,55 @@
+# ============================================================================
+# SWU Card Manager — PRODUCTION-CONFIG (Go-Live)
+# ----------------------------------------------------------------------------
+# Diese Datei ist DIE zentrale Konfiguration fuer den Server-Betrieb.
+# Werte hier aendern = Server neu starten (server.ps1 -Restart).
+# Geheimnisse (Passwoerter, Tokens) stehen NICHT hier, sondern als
+# Umgebungsvariablen bzw. im Windows-Vault (siehe docs/OPERATIONS.md).
+# ============================================================================
+
+server:
+  # Interne Ports (Caddy haelt 443/80 extern und proxyt hierher)
+  app_host: "127.0.0.1"        # NUR localhost — Caddy ist der einzige Eingang
+  app_port: 8443
+  # Oeffentlicher Name (Go-Live Phase 6)
+  public_domain: "swu-cardscanner.duckdns.org"
+
+backup:
+  # Taegliches automatisches Backup (Windows-Aufgabenplanung ruft backup.py)
+  schedule_time: "03:00"
+  # Ziel: separater Datenordner auf C: (764 GB frei). Spaeter extern/S3 =
+  # nur diesen Pfad aendern (z.B. "E:/swu-backups" oder Netzlaufwerk).
+  target_dir: "C:/SWU-ServerBackups"
+  # Fallback, falls das Ziel nicht beschreibbar ist:
+  target_dir_fallback: "C:/Users/LLM/Desktop/TCG-Cardscannprojekt/swu_card_manager/project_state/backups/daily"
+  # Rotation
+  keep_daily: 7
+  keep_weekly: 4
+  keep_monthly: 6
+  # Woechentlicher Restore-Drill (Backup entpacken + Smoke-Test)
+  restore_drill_weekday: 0    # 0=Sonntag
+  email_on_failure: true
+
+mail:
+  # Leer = lokaler Modus (Reset-Tokens im Log). Wird in Go-Live Phase 5 gesetzt:
+  # host / port / user / from_name kommen hier rein;
+  # das Passwort NUR als Env-Variable SWU_SMTP_PASSWORD.
+  host: ""
+  port: 587
+  user: ""                    # z.B. swuscanner@gmail.com
+  from_name: "SWU Card Manager"
+  use_tls: true
+
+security:
+  # Rate-Limit fuer den teuren Scan-Endpunkt (GPU-Schutz)
+  scan_requests_per_minute: 30
+  # Admin-Bereich zusaetzlich via Platform-Admin-Flag (bereits implementiert)
+  hsts: true
+
+model_pipeline:
+  # Wann soll ein Retraining vorgeschlagen werden?
+  min_new_photos: 50           # neue besttigte Fotos seit letztem Training
+  # Automatisches Promote nur bei klarer Verbesserung; sonst manueller Klick
+  auto_promote_gain_top1_pp: 2.0
+  # Evaluations-Splits
+  val_split_per_card: 5        # max 5 Fotos/Karte in den Validation-Split

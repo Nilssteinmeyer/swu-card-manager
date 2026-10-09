@@ -72,6 +72,11 @@ def _load_clip_model():
     cfg = AppConfig.load()
     models_dir = cfg.path("models_dir")
     finetuned_path = models_dir / "clip_finetuned.pt"
+    # Pipeline override: evaluation/promote may point at a candidate model
+    override = globals().get("_finetuned_path_override")
+    if override:
+        finetuned_path = Path(override)
+        log.info(f"Using CANDIDATE model: {finetuned_path}", extra={"event": "clip_candidate_load"})
     has_finetuned = finetuned_path.exists()
 
     # If we have fine-tuned weights, create the model WITHOUT downloading

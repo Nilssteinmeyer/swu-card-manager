@@ -76,17 +76,21 @@ class CardDataset(Dataset):
         return img
 
     def __getitem__(self, idx):
-        card_id, img_path = self.card_images[idx]
-        img = cv2.imread(img_path)
+        item = self.card_images[idx]
+        if len(item) == 3:
+            # (card_id, ref_path, photo_path): pair reference with the REAL photo
+            card_id, img_path, photo_path = item
+            orig = self._load(img_path)
+            real = self._load(photo_path)
+            if orig is None or real is None:
+                return self.__getitem__(random.randint(0, len(self.card_images) - 1))
+            orig_tensor = self.preprocess(Image.fromarray(orig))
+            real_tensor = self.preprocess(Image.fromarray(real))
+            return orig_tensor, real_tensor, idx
+        card_id, img_path = item
+        img = self._load(img_path)
         if img is None:
-            card_id, img_path = self.card_images[random.randint(0, len(self.card_images)-1)]
-            img = cv2.imread(img_path)
-            if img is None:
-                img = np.zeros((1050, 750, 3), dtype=np.uint8)
-        h, w = img.shape[:2]
-        if w > h:
-            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
-        img = cv2.resize(img, (224, 224))
+            return self.__getitem__(random.randint(0, len(self.card_images) - 1))
         orig_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         orig_pil = Image.fromarray(orig_rgb)
         orig_tensor = self.preprocess(orig_pil)
@@ -98,6 +102,15 @@ class CardDataset(Dataset):
         else:
             aug_tensor = orig_tensor
         return orig_tensor, aug_tensor, idx
+
+    def _load(self, path: str) -> "np.ndarray | None":
+        img = cv2.imread(path)
+        if img is None:
+            return None
+        h, w = img.shape[:2]
+        if w > h:
+            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+        return cv2.resize(img, (224, 224))
 
 
 def fine_tune_clip(
@@ -183,10 +196,11 @@ def fine_tune_clip(
 
     models_dir = cfg.path("models_dir")
     models_dir.mkdir(parents=True, exist_ok=True)
-    model_path = models_dir / "clip_finetuned.pt"
+    model_path = Path(save_path) if save_path else models_dir / "clip_finetuned.pt"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), str(model_path))
     log.info(f"Fine-tuned model saved to {model_path}", extra={"event": "clip_train_done"})
-    return str(model_path)
+    return {"path": str(model_path), "final_loss": avg_loss}
 
 
 if __name__ == "__main__":

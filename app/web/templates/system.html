@@ -71,6 +71,19 @@
         </div>
       </div>
 
+      <!-- KI-Modelle (admin only) -->
+      <div class="card" data-admin-only>
+        <div class="card-title">🧠 KI-Modelle</div>
+        <div class="flex gap-1 mb-2" style="flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="trainModel()">🎓 Neu trainieren (bestätigte Fotos)</button>
+          <button class="btn" onclick="loadModels()">↻ Aktualisieren</button>
+        </div>
+        <div id="train-status" class="setting-desc mb-2"></div>
+        <div id="models-list" class="table-wrap">
+          <p class="text-muted">Lade Modell-Versionen...</p>
+        </div>
+      </div>
+
       <!-- Logs (admin only) -->
       <div class="card" data-admin-only>
         <div class="card-title">Logs</div>
@@ -175,6 +188,61 @@
       }
     }
 
+    // ---- KI-Modelle ------------------------------------------------------------
+    async function loadModels() {
+      const el = document.getElementById("models-list");
+      try {
+        const data = await api("/api/models");
+        if (!data.models || data.models.length === 0) {
+          el.innerHTML = '<p class="text-muted">Noch keine trainierten Modell-Versionen. Nutze „Neu trainieren“.</p>';
+          return;
+        }
+        el.innerHTML = `<table>
+          <thead><tr><th>Version</th><th>Trainiert</th><th>Top-1</th><th>Top-5</th><th>Δ vs. aktiv</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+          ${data.models.map(m => `
+            <tr>
+              <td><b>v${escapeHtml(m.version)}</b></td>
+              <td>${escapeHtml((m.trained_at || "").split("T")[0])}</td>
+              <td>${((m.validation_accuracy || 0) * 100).toFixed(1)}%</td>
+              <td>${((m.recognition_rate || 0) * 100).toFixed(1)}%</td>
+              <td>${m.is_active ? "—" : "candidate"}</td>
+              <td>${m.is_active ? '<span class="badge badge-imported">AKTIV</span>' : escapeHtml(m.status)}</td>
+              <td>${!m.is_active ? `<button class="btn btn-sm btn-success" onclick="promoteModel('${escapeHtml(m.model_id)}')">Aktivieren</button>` : ""}</td>
+            </tr>`).join("")}
+          </tbody></table>`;
+      } catch (err) {
+        el.innerHTML = `<p class="text-muted">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    async function trainModel() {
+      const status = document.getElementById("train-status");
+      if (!confirm("Modell neu trainieren? Das dauert ~15-60 Min auf der GPU. Der Server bleibt erreichbar.")) return;
+      status.textContent = "⏳ Training läuft (15-60 Min)...";
+      try {
+        const result = await api("/api/models/train", { method: "POST", body: {} });
+        const m = result.metrics;
+        status.textContent = `✓ v${result.version} trainiert: Top-1 ${(m.top1 * 100).toFixed(1)}% (bisher: ${m.active_top1 != null ? (m.active_top1 * 100).toFixed(1) + "%" : "—"}) | Δ ${(m.gain_top1_pp || 0).toFixed(1)}pp auf ${m.samples} Testfotos`;
+        showToast("Training abgeschlossen — Modell ist Kandidat. Aktivieren nach Prüfung.", "success", 6000);
+        loadModels();
+      } catch (err) {
+        status.textContent = `✗ ${err.message}`;
+        showToast(`Training fehlgeschlagen: ${err.message}`, "error");
+      }
+    }
+
+    async function promoteModel(modelId) {
+      if (!confirm("Dieses Modell als AKTIV setzen? (Aktuelles wird retired, Server-Neustart lädt es.)")) return;
+      try {
+        await api("/api/models/promote", { method: "POST", body: { model_id: modelId } });
+        showToast("Modell aktiviert — Server-Neustart übernimmt es", "success");
+        loadModels();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       await loadAdminState();
       if (IS_ADMIN) {
@@ -182,6 +250,7 @@
         loadSystem();
         loadBackups();
         loadLogs();
+        loadModels();
       } else {
         document.getElementById("non-admin-notice").classList.remove("hidden");
         // Admin data not loaded for non-admins
