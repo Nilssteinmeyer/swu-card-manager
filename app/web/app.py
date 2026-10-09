@@ -122,6 +122,28 @@ def create_app(config: AppConfig | None = None) -> Flask:
             return redirect("/login")
         return None
 
+    # -- Security headers (pentest fix HOCH-1) -----------------------------------
+    @app.after_request
+    def _set_security_headers(resp):
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        resp.headers.setdefault("Permissions-Policy", "camera=(self), microphone=(), geolocation=()")
+        # CSP: eigene Skripte/Styles + Inline (Templates nutzen Inline-Handlers),
+        # Kartenbilder von den offiziellen CDNs
+        resp.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "img-src 'self' https://cdn.starwarsunlimited.com https://cdn.swu-db.com data:; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'",
+        )
+        if request.is_secure:
+            resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        return resp
+
     # -- Global error handlers -------------------------------------------------
     @app.errorhandler(413)
     def _too_large(e):
@@ -207,6 +229,24 @@ def _card_to_dict(card: dict[str, Any]) -> dict[str, Any]:
         "market_price": card.get("market_price", ""),
         "low_price": card.get("low_price", ""),
     }
+
+
+# Sliding-window rate limiter for the GPU-heavy scan endpoint (module level
+# so every route can call it; per-process, sufficient for the single server).
+_scan_window: list[float] = []
+
+
+def _scan_rate_limited() -> bool:
+    import time as _t
+
+    limit = 30  # scans per minute
+    now = _t.time()
+    while _scan_window and now - _scan_window[0] > 60:
+        _scan_window.pop(0)
+    if len(_scan_window) >= limit:
+        return True
+    _scan_window.append(now)
+    return False
 
 
 def _hh() -> int:
@@ -385,6 +425,8 @@ def _register_routes(app: Flask) -> None:
     # -- Scan --------------------------------------------------------------
     @app.route("/api/scan", methods=["POST"])
     def api_scan():
+        if _scan_rate_limited():
+            return jsonify({"error": "Zu viele Scans. Bitte kurz warten."}), 429
         body = request.get_json(silent=True) or {}
         image_data = body.get("image")
         if not image_data:
