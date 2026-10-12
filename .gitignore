@@ -34,3 +34,4 @@ project_state/errors/
 ssl/
 Thumbs.db
 venv/
+tools/
