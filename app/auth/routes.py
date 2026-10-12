@@ -16,6 +16,7 @@ from flask import (
 
 from app.auth import (
     SESSION_COOKIE,
+    add_member_by_username,
     can_edit,
     consume_email_verification,
     consume_password_reset,
@@ -40,6 +41,8 @@ from app.auth import (
     login_required,
     mark_email_verified,
     record_login_attempt,
+    remove_member,
+    set_member_role,
     set_user_password,
     verify_password,
 )
@@ -361,6 +364,76 @@ def api_household_invite_code():
     try:
         household = get_household(conn, g.household["household_id"])
         return jsonify({"code": household["invite_code"]})
+    finally:
+        conn.close()
+
+
+@bp.route("/api/auth/household/invite", methods=["POST"])
+@login_required
+def api_household_invite():
+    """Owner laedt einen bestehenden User per BENUTZERNAMEN ein (ohne Code)."""
+    if g.get("household") is None:
+        return jsonify({"error": "Keine aktive Sammlung"}), 400
+    body = request.get_json(silent=True) or {}
+    username = (body.get("username") or "").strip()
+    role = (body.get("role") or "editor").strip()
+    if not username:
+        return jsonify({"error": "Benutzername erforderlich"}), 400
+    conn = connect()
+    try:
+        result = add_member_by_username(
+            conn, g.household["household_id"], username, role, g.user["user_id"]
+        )
+        if result.get("ok"):
+            return jsonify(result), 200
+        err = result.get("error", "")
+        if "nicht gefunden" in err:
+            return jsonify(result), 404
+        if "Nur Admins" in err or "Owner" in err or "bereits Mitglied" in err:
+            return jsonify(result), 403
+        return jsonify(result), 400
+    finally:
+        conn.close()
+
+
+@bp.route("/api/auth/household/members/role", methods=["POST"])
+@login_required
+def api_household_member_role():
+    """Owner aendert die Rolle eines Mitglieds (viewer/editor/owner)."""
+    if g.get("household") is None:
+        return jsonify({"error": "Keine aktive Sammlung"}), 400
+    body = request.get_json(silent=True) or {}
+    username = (body.get("username") or "").strip()
+    role = (body.get("role") or "").strip()
+    conn = connect()
+    try:
+        result = set_member_role(
+            conn, g.household["household_id"], username, role, g.user["user_id"]
+        )
+        if result.get("ok"):
+            return jsonify(result), 200
+        err = result.get("error", "")
+        if "nicht gefunden" in err or "kein Mitglied" in err:
+            return jsonify(result), 404
+        return jsonify(result), 403
+    finally:
+        conn.close()
+
+
+@bp.route("/api/auth/household/members/remove", methods=["POST"])
+@login_required
+def api_household_member_remove():
+    """Owner entfernt ein Mitglied aus der Sammlung."""
+    if g.get("household") is None:
+        return jsonify({"error": "Keine aktive Sammlung"}), 400
+    body = request.get_json(silent=True) or {}
+    username = (body.get("username") or "").strip()
+    conn = connect()
+    try:
+        result = remove_member(
+            conn, g.household["household_id"], username, g.user["user_id"]
+        )
+        return jsonify(result), 200 if result.get("ok") else 403
     finally:
         conn.close()
 

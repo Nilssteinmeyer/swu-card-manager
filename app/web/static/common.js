@@ -234,10 +234,8 @@ function _accountDropdownHTML(me, household, roleLabel) {
       </button>`;
     });
   }
-  if (household && household.role === "owner") {
-    html += `<div class="ad-section">Aktionen</div>
-      <button class="ad-item" onclick="showInviteDialog()"><span>👥 Sammlung teilen</span><span class="ad-value">Einladungscode</span></button>`;
-  }
+  html += `<div class="ad-section">Aktionen</div>
+    <button class="ad-item" onclick="showInviteDialog()"><span>👥 Sammlung teilen</span><span class="ad-value">${household && household.role === "owner" ? "Verwalten" : "Beitreten"}</span></button>`;
   html += `<div class="ad-section">&nbsp;</div>
     <button class="ad-item danger" onclick="logout()"><span>🚪 Abmelden</span></button>`;
   return html;
@@ -272,13 +270,172 @@ async function logout() {
   window.location.href = "/login";
 }
 
-async function showInviteDialog() {
+// ---- Sammlung teilen: Dialog -----------------------------------------------
+async function showInviteDialog() { await openShareDialog(); }
+
+async function openShareDialog() {
+  const dlg = document.getElementById("share-dialog");
+  const bd = document.getElementById("share-backdrop");
+  if (!dlg) return;
+  dlg.hidden = false; bd.hidden = false;
+  requestAnimationFrame(() => { dlg.classList.add("visible"); bd.classList.add("visible"); });
+  await refreshShareDialog();
+}
+
+function closeShareDialog() {
+  const dlg = document.getElementById("share-dialog");
+  const bd = document.getElementById("share-backdrop");
+  if (!dlg) return;
+  dlg.classList.remove("visible"); bd.classList.remove("visible");
+  setTimeout(() => { dlg.hidden = true; bd.hidden = true; }, 250);
+}
+
+async function refreshShareDialog() {
+  const setMsg = (id) => { const el = document.getElementById(id); if (el) { el.textContent = ""; } };
+  setMsg("invite-msg"); setMsg("join-msg");
+
+  if (!ME) {
+    try {
+      const resp = await fetch("/api/auth/me");
+      const data = await resp.json();
+      if (data.user) ME = data;
+    } catch (e) { /* ignore */ }
+  }
+  const household = ME && (ME.households || []).find(h => h.household_id === ME.active_household_id);
+  const isOwner = !!(household && household.role === "owner");
+
+  const ownerArea = document.getElementById("share-owner-area");
+  if (ownerArea) ownerArea.style.display = isOwner ? "" : "none";
+
+  // Beitreten-Feld: nur wenn der Nutzer KEIN Member der aktiven Sammlung ist
+  // (z.B. frischer Account) ODER explizit ueber den Beitritts-Link kam.
+  const joinArea = document.getElementById("share-join-area");
+  if (joinArea) joinArea.style.display = household ? "none" : "";
+
+  // Code-Bereich: Owner sieht den Code
+  const codeWrap = document.getElementById("share-code-area");
+  const codeEl = document.getElementById("share-code-display");
+  if (codeWrap) codeWrap.style.display = isOwner ? "" : "none";
+  if (isOwner) {
+    try {
+      const resp = await fetch("/api/auth/household/invite-code");
+      const data = await resp.json();
+      if (resp.ok && data.code) {
+        codeEl.innerHTML = `<span>${escapeHtml(data.code)}</span>
+          <button class="btn btn-sm" style="margin-left:12px;" onclick="navigator.clipboard.writeText('${escapeHtml(data.code)}').then(()=>showToast('Code kopiert','success'))">Kopieren</button>`;
+      } else {
+        codeEl.innerHTML = `<span class="text-muted" style="font-size:0.9rem;">${escapeHtml(data.error || "Nicht verfügbar")}</span>`;
+      }
+    } catch (e) {
+      codeEl.innerHTML = '<span class="text-muted">Fehler beim Laden</span>';
+    }
+  }
+
+  if (isOwner) await loadShareMembers();
+}
+
+async function loadShareMembers() {
+  const listEl = document.getElementById("share-members-list");
+  if (!listEl) return;
+  listEl.innerHTML = '<span class="text-muted">Lade Mitglieder…</span>';
   try {
-    const resp = await fetch("/api/auth/household/invite-code");
+    const resp = await fetch("/api/auth/household/members");
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || "Fehler");
-    showToast("Einladungscode: " + data.code, "info", 10000);
+    const members = data.members || [];
+    const me = ME ? ME.user.username : "";
+    listEl.innerHTML = members.map(m => `
+      <div class="share-member">
+        <div class="sm-avatar">👤</div>
+        <div>
+          <div class="sm-name">${escapeHtml(m.username)}${m.username === me ? " (du)" : ""}</div>
+        </div>
+        <div class="sm-actions">
+          <select onchange="changeMemberRole('${escapeHtml(m.username)}', this.value)" ${m.username === me ? "disabled" : ""}>
+            <option value="owner" ${m.role === "owner" ? "selected" : ""}>Admin</option>
+            <option value="editor" ${m.role === "editor" ? "selected" : ""}>Schreiben</option>
+            <option value="viewer" ${m.role === "viewer" ? "selected" : ""}>Lesen</option>
+          </select>
+          <button class="btn btn-sm btn-danger" ${m.username === me ? "disabled" : ""} onclick="removeMember('${escapeHtml(m.username)}')" title="Entfernen">✕</button>
+        </div>
+      </div>`).join("");
+  } catch (e) {
+    listEl.innerHTML = `<span class="text-muted">${escapeHtml(e.message)}</span>`;
+  }
+}
+
+async function inviteByUsername() {
+  const username = (document.getElementById("invite-username-input").value || "").trim();
+  const role = document.getElementById("invite-role-select").value;
+  const msgEl = document.getElementById("invite-msg");
+  msgEl.textContent = ""; msgEl.className = "share-msg";
+  if (!username) { msgEl.textContent = "Benutzername eingeben."; msgEl.classList.add("err"); return; }
+  try {
+    const resp = await fetch("/api/auth/household/invite", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username, role}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Fehler");
+    msgEl.textContent = "✓ " + username + " wurde hinzugefügt.";
+    msgEl.classList.add("ok");
+    document.getElementById("invite-username-input").value = "";
+    await loadShareMembers();
+    showToast(username + " eingeladen ✓", "success");
+  } catch (e) {
+    msgEl.textContent = "✗ " + e.message; msgEl.classList.add("err");
+  }
+}
+
+async function changeMemberRole(username, role) {
+  try {
+    const resp = await fetch("/api/auth/household/members/role", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username, role}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Fehler");
+    showToast("Rolle von " + username + " geändert", "success");
+    await loadShareMembers();
+  } catch (e) {
+    showToast(e.message, "error");
+    await loadShareMembers();
+  }
+}
+
+async function removeMember(username) {
+  if (!confirm(username + " aus der Sammlung entfernen?")) return;
+  try {
+    const resp = await fetch("/api/auth/household/members/remove", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Fehler");
+    showToast(username + " entfernt", "info");
+    await loadShareMembers();
   } catch (e) { showToast(e.message, "error"); }
+}
+
+async function joinByCode() {
+  const code = (document.getElementById("join-code-input").value || "").trim();
+  const msgEl = document.getElementById("join-msg");
+  msgEl.textContent = ""; msgEl.className = "share-msg";
+  if (!code) { msgEl.textContent = "Code eingeben."; msgEl.classList.add("err"); return; }
+  try {
+    const resp = await fetch("/api/auth/household/join", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({code}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Ungültiger Code");
+    msgEl.textContent = "✓ Du bist der Sammlung beigetreten!";
+    msgEl.classList.add("ok");
+    showToast("Willkommen in der Sammlung! 🎉", "success");
+    setTimeout(() => window.location.reload(), 900);
+  } catch (e) {
+    msgEl.textContent = "✗ " + e.message; msgEl.classList.add("err");
+  }
 }
 
 // ---- Init on page load ---------------------------------------------------

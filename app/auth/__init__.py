@@ -209,6 +209,75 @@ def join_household_by_code(conn, invite_code: str, user_id: int, role: str = "ed
     return {"ok": True, "household_id": household["household_id"], "name": household["name"]}
 
 
+def add_member_by_username(conn, household_id: int, username: str, role: str, inviter_user_id: int) -> dict[str, Any]:
+    """Owner/Admin laedt einen bestehenden User per Benutzernamen direkt ein."""
+    if role not in ("viewer", "editor", "owner"):
+        return {"ok": False, "error": "Ungültige Rolle (viewer, editor, owner)"}
+    household = get_household(conn, household_id)
+    if household is None:
+        return {"ok": False, "error": "Sammlung nicht gefunden"}
+    # Nur der Owner darf einladen
+    inviter = get_membership(conn, household_id, inviter_user_id)
+    if not inviter or inviter["role"] != "owner":
+        return {"ok": False, "error": "Nur Admins (Owner) dürfen Mitglieder einladen"}
+    user = get_user_by_login(conn, username)
+    if user is None:
+        return {"ok": False, "error": f"Benutzer \"{username}\" nicht gefunden"}
+    existing = get_membership(conn, household_id, user["user_id"])
+    if existing:
+        return {"ok": False, "error": f"{username} ist bereits Mitglied"}
+    conn.execute(
+        "INSERT INTO household_members (household_id, user_id, role) VALUES (?, ?, ?)",
+        (household_id, user["user_id"], role),
+    )
+    conn.commit()
+    return {"ok": True, "user_id": user["user_id"], "role": role}
+
+
+def set_member_role(conn, household_id: int, username: str, role: str, actor_user_id: int) -> dict[str, Any]:
+    """Owner aendert die Rolle eines Mitglieds."""
+    if role not in ("viewer", "editor", "owner"):
+        return {"ok": False, "error": "Ungültige Rolle (viewer, editor, owner)"}
+    actor = get_membership(conn, household_id, actor_user_id)
+    if not actor or actor["role"] != "owner":
+        return {"ok": False, "error": "Nur Admins (Owner) dürfen Rollen ändern"}
+    user = get_user_by_login(conn, username)
+    if user is None:
+        return {"ok": False, "error": f"Benutzer \"{username}\" nicht gefunden"}
+    target = get_membership(conn, household_id, user["user_id"])
+    if not target:
+        return {"ok": False, "error": f"{username} ist kein Mitglied dieser Sammlung"}
+    if user["user_id"] == actor_user_id:
+        return {"ok": False, "error": "Eigene Rolle kann nicht geändert werden"}
+    conn.execute(
+        "UPDATE household_members SET role = ? WHERE household_id = ? AND user_id = ?",
+        (role, household_id, user["user_id"]),
+    )
+    conn.commit()
+    return {"ok": True, "role": role}
+
+
+def remove_member(conn, household_id: int, username: str, actor_user_id: int) -> dict[str, Any]:
+    """Owner entfernt ein Mitglied."""
+    household = get_household(conn, household_id)
+    if household is None:
+        return {"ok": False, "error": "Sammlung nicht gefunden"}
+    actor = get_membership(conn, household_id, actor_user_id)
+    if not actor or actor["role"] != "owner":
+        return {"ok": False, "error": "Nur Admins (Owner) dürfen Mitglieder entfernen"}
+    user = get_user_by_login(conn, username)
+    if user is None:
+        return {"ok": False, "error": f"Benutzer \"{username}\" nicht gefunden"}
+    if user["user_id"] == household["owner_user_id"]:
+        return {"ok": False, "error": "Der Owner kann nicht entfernt werden"}
+    conn.execute(
+        "DELETE FROM household_members WHERE household_id = ? AND user_id = ?",
+        (household_id, user["user_id"]),
+    )
+    conn.commit()
+    return {"ok": True}
+
+
 def leave_household(conn, household_id: int, user_id: int) -> dict[str, Any]:
     household = get_household(conn, household_id)
     if household is None:

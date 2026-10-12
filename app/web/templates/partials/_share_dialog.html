@@ -1,0 +1,47 @@
+{% raw %}<!-- Sammlungs-Sharing: Mitglieder verwalten (Owner) + Beitreten per Code.
+     Wird im Mehr-Sheet (Mobile) und im Desktop-Dropdown verlinkt;
+     oeffnet als eigenes Modal/Sheet via common.js. -->
+<div class="share-backdrop" id="share-backdrop" hidden onclick="closeShareDialog()"></div>
+<div class="share-dialog" id="share-dialog" role="dialog" aria-modal="true" aria-label="Sammlung teilen" hidden>
+  <div class="sheet-handle"></div>
+  <div class="share-title">👥 Sammlung teilen</div>
+
+  <!-- Owner-Bereich: Einladen per Name -->
+  <div class="share-section" id="share-owner-area">
+    <div class="share-subtitle">Person einladen (Benutzername)</div>
+    <div class="share-invite-row">
+      <input type="text" id="invite-username-input" placeholder="Benutzername" autocapitalize="none" style="flex:1;">
+      <select id="invite-role-select">
+        <option value="editor" selected>Schreiben</option>
+        <option value="viewer">Lesen</option>
+        <option value="owner">Admin</option>
+      </select>
+      <button class="btn btn-primary" id="btn-invite-user" onclick="inviteByUsername()">Einladen</button>
+    </div>
+    <div id="invite-msg" class="share-msg"></div>
+
+    <div class="share-subtitle" style="margin-top:14px;">Mitglieder</div>
+    <div id="share-members-list" class="share-members"></div>
+  </div>
+
+  <!-- Code-Bereich (Owner sieht Code, alle sehen Beitreten) -->
+  <div class="share-section" id="share-code-area">
+    <div class="share-subtitle">Einladungscode</div>
+    <div id="share-code-display" class="share-code-box">
+      <span class="share-msg text-muted">Lade…</span>
+    </div>
+  </div>
+
+  <!-- Beitreten (fuer Nutzer OHNE eigene Mitgliedschaft in dieser Sammlung) -->
+  <div class="share-section" id="share-join-area">
+    <div class="share-subtitle">Mit Code beitreten</div>
+    <div class="share-invite-row">
+      <input type="text" id="join-code-input" placeholder="z.B. ABC123XY" autocapitalize="none" style="flex:1;">
+      <button class="btn btn-success" onclick="joinByCode()">Beitreten</button>
+    </div>
+    <div id="join-msg" class="share-msg"></div>
+  </div>
+
+  <button class="btn btn-secondary" style="width:100%; margin-top:12px;" onclick="closeShareDialog()">Schließen</button>
+</div>
+{% endraw %}

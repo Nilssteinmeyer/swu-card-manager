@@ -93,7 +93,7 @@ def create_app(config: AppConfig | None = None) -> Flask:
     app.config["_UPDATE_MGR"] = None
 
     # Auth: load current user/household for every request
-    from app.auth import load_current_user
+    from app.auth import can_edit, load_current_user
     from app.auth.routes import bp as auth_bp
 
     app.before_request(lambda: load_current_user(app))
@@ -744,6 +744,10 @@ def _register_routes(app: Flask) -> None:
 
         Body: {card_id, count?, is_foil?, language?}
         """
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten dürfen Karten hinzufügen"}), 403
         body = request.get_json(silent=True) or {}
         card_id = (body.get("card_id") or "").strip()
         if not card_id:

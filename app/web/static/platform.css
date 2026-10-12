@@ -482,3 +482,60 @@ input[type="number"], input[type="search"], select, textarea {
 @media (prefers-reduced-motion: reduce) {
   .camera-hud.scanning::after { animation: none; top: 50%; }
 }
+
+
+/* ---- Sammlung teilen: Dialog -------------------------------------------- */
+.share-backdrop {
+  position: fixed; inset: 0; z-index: 450;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0; transition: opacity 0.2s;
+}
+.share-backdrop.visible { opacity: 1; }
+.share-dialog {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 451;
+  background: var(--surface);
+  border-radius: 18px 18px 0 0;
+  padding: 8px 16px calc(var(--safe-bottom) + 16px);
+  transform: translateY(100%);
+  transition: transform 0.25s ease-out;
+  max-height: 85dvh; overflow-y: auto;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+}
+.share-dialog.visible { transform: translateY(0); }
+@media (min-width: 900px) {
+  .share-dialog {
+    left: 50%; right: auto; bottom: auto; top: 50%;
+    transform: translate(-50%, -46%) scale(0.96);
+    width: 480px; border-radius: 18px;
+    transition: transform 0.2s ease-out;
+  }
+  .share-dialog.visible { transform: translate(-50%, -50%) scale(1); }
+}
+.share-title { font-size: 1.1rem; font-weight: 700; margin: 6px 0 14px; }
+.share-section { margin-bottom: 16px; }
+.share-subtitle { font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.share-invite-row { display: flex; gap: 8px; align-items: stretch; }
+.share-invite-row input, .share-invite-row select { min-height: 48px; }
+.share-invite-row .btn { min-height: 48px; white-space: nowrap; }
+.share-msg { font-size: 0.85rem; margin-top: 8px; min-height: 1em; }
+.share-msg.ok { color: var(--success); }
+.share-msg.err { color: var(--error); }
+.share-code-box {
+  background: var(--surface-2); border: 1px dashed var(--outline);
+  border-radius: 12px; padding: 14px; text-align: center;
+  font-size: 1.3rem; font-weight: 700; letter-spacing: 0.12em;
+  font-family: var(--mono); color: var(--primary);
+}
+.share-members .share-member {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 52px; padding: 6px 4px; border-bottom: 1px solid var(--outline-soft);
+}
+.share-member .sm-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+.share-member .sm-name { font-weight: 600; }
+.share-member .sm-role { font-size: 0.78rem; color: var(--text-muted); }
+.share-member .sm-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.share-member select { min-height: 40px; padding: 4px 8px; font-size: 0.82rem; }
+.share-member .btn-sm { min-height: 40px; min-width: 40px; }
+.role-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; background: var(--primary-bg); color: var(--primary); font-weight: 700; }
+.role-badge.r-editor { background: var(--secondary-bg); color: var(--secondary); }
+.role-badge.r-viewer { background: rgba(154, 164, 178, 0.15); color: var(--text-muted); }
