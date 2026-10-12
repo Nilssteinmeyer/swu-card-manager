@@ -1060,14 +1060,18 @@ td .badge {
 .scan-mode-switch {
   display: flex;
   align-items: center;
+  justify-content: center;   /* zentriert Label+Segment gemeinsam */
   gap: 10px;
   margin-bottom: 12px;
 }
 .scan-mode-label {
   font-size: 14px;
   color: var(--muted-fg, #9aa4b2);
+  flex: 0 0 auto;
 }
 .scan-mode-seg {
+  flex: 0 1 auto;            /* Segment behaelt Groesse, kein Verdraengen */
+  min-width: 0;
   display: inline-flex;
   background: var(--card-2, #1c2433);
   border: 1px solid var(--border, #2a3446);

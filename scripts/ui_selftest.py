@@ -93,7 +93,8 @@ async def run_state(browser, state: str, results: list):
         results.append(await _measure(page, "#invite-username-input", "Teilen: Benutzername-Eingabe"))
         # Typ-Test: 12 Zeichen muessen lesbar reinpassen
         await page.fill("#invite-username-input", "MaxMustermann12")
-        await page.wait_for_timeout(200)
+        await page.wait_for_timeout(400)  # Rendern abwarten, DANN screenshoten
+        await page.screenshot(path=str(OUT / "share_owner_filled.png"))  # gefuellt!
         m = await _measure(page, "#invite-username-input", "Teilen: Eingabe mit 15 Zeichen")
         typed = await page.evaluate("document.getElementById('invite-username-input').value")
         m["reason"] += f" | getippt: '{typed}'"
@@ -101,13 +102,9 @@ async def run_state(browser, state: str, results: list):
         results.append(await _measure(page, "#invite-role-select", "Teilen: Rollen-Auswahl"))
         results.append(await _measure(page, "#btn-invite-user", "Teilen: Einladen-Button"))
         await page.fill("#invite-username-input", "")
-        await page.screenshot(path=str(OUT / "share_owner_filled.png"))
 
     elif state == "share_guest":
-        # Gast-Sicht: als eingeloggter Owner ist das Join-Feld KORREKT versteckt.
-        # Wir pruefen: (a) Join-Bereich existiert im DOM, (b) ist als Owner unsichtbar,
-        # (c) Mitglied-Bereiche sichtbar. Ein echter Gast-Login waere schoener, aber
-        # dafuer muesste ein Zweit-Account existieren - der Dialog-Fallback genuegt.
+        # Owner-Sicht: Join-Feld versteckt + NEU: echte Verdeckungs-Pruefung
         await _login(page)
         await page.evaluate("openShareDialog()")
         await page.wait_for_timeout(600)
@@ -117,6 +114,28 @@ async def run_state(browser, state: str, results: list):
         )
         results.append({"check": "Teilen: Join-Feld korrekt versteckt (Owner)",
                         "pass": join_hidden, "reason": "OK" if join_hidden else "sichtbar?!"})
+        # Verdeckungs-Check: wird irgendein Button/Link von der Tab-Bar ueberlappt?
+        overlap = await page.evaluate("""(() => {
+            const tabbar = document.getElementById('tabbar');
+            if (!tabbar) return {checked: false};
+            const tb = tabbar.getBoundingClientRect();
+            const offenders = [];
+            document.querySelectorAll('main .btn, main button, main a.btn').forEach(el => {
+                if (el.offsetParent === null) return; // unsichtbar
+                const r = el.getBoundingClientRect();
+                if (r.bottom > tb.top + 2) {
+                    offenders.push({id: el.id || el.textContent.trim().slice(0, 25),
+                                    visible_px: Math.round(Math.max(0, tb.top - r.top))});
+                }
+            });
+            return {checked: true, top: Math.round(tb.top), offenders};
+        })()""")
+        if overlap.get("checked"):
+            bad = [o for o in overlap["offenders"] if o["visible_px"] < 44]
+            results.append({"check": "Verdeckung: Buttons nicht von Tab-Bar verdeckt",
+                            "pass": not bad,
+                            "reason": "OK" if not bad else f"{len(bad)} Element(e) verdeckt: " + "; ".join(f"{o['id']} nur {o['visible_px']}px" for o in bad[:3]),
+                            "data": overlap})
 
     elif state == "share_rename":
         await _login(page)
@@ -151,6 +170,21 @@ async def run_state(browser, state: str, results: list):
         results.append(await _measure(page, "#mode-btn-collection", "Scanner: Modus Sammlung"))
         results.append(await _measure(page, "#mode-btn-price", "Scanner: Modus Preis"))
         results.append(await _measure(page, "#start-camera-btn", "Scanner: Kamera-Start"))
+        # Verdeckung: Kamera-Start sichtbar ueber der Tab-Bar?
+        cover = await page.evaluate("""(() => {
+            const btn = document.getElementById('start-camera-btn');
+            const tabbar = document.getElementById('tabbar');
+            if (!btn || !tabbar) return {checked: false};
+            const b = btn.getBoundingClientRect();
+            const t = tabbar.getBoundingClientRect();
+            const visible = Math.round(Math.min(b.bottom, t.top) - b.top);
+            return {checked: true, visible_px: visible, btn_bottom: Math.round(b.bottom), bar_top: Math.round(t.top)};
+        })()""")
+        if cover.get("checked"):
+            results.append({"check": "Scanner: Kamera-Button nicht von Tab-Bar verdeckt",
+                            "pass": cover["visible_px"] >= 44,
+                            "reason": f"{cover['visible_px']}px sichtbar (>=44 noetig)",
+                            "data": cover})
 
     elif state == "tabbar":
         await _login(page)

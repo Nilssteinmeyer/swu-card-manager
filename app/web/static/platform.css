@@ -207,7 +207,9 @@
 /* Mobile: Content-Abstand oben/unten */
 .platform-ios .main-content,
 .platform-android .main-content {
-  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+  /* +88px statt +16px: die fixe Tab-Bar (60px) darf interaktive Elemente
+     NIE verdecken (HIG). 88px = Bar-Hoehe + 28px Luft */
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 88px);
 }
 
 /* Mobile: Topbar schlank (keine Desktop-Nav, kein Brand-Text nötig) */
@@ -396,6 +398,9 @@ input[type="number"], input[type="search"], select, textarea {
 /* Modus-Schalter: volle Breite, 44px hoch (Touch-Minimum), groessere Pills */
 .scan-mode-switch {
   width: 100%;
+  justify-content: center;
+  padding: 0 14px;
+  box-sizing: border-box;
 }
 .scan-mode-seg {
   flex: 1;
@@ -570,3 +575,16 @@ input[type="number"], input[type="search"], select, textarea {
 .role-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; background: var(--primary-bg); color: var(--primary); font-weight: 700; }
 .role-badge.r-editor { background: var(--secondary-bg); color: var(--secondary); }
 .role-badge.r-viewer { background: rgba(154, 164, 178, 0.15); color: var(--text-muted); }
+
+
+/* ---- Scanner: Kamera-Flaeche mobil so bemessen, dass Start-Button
+     IMMER ueber der Tab-Bar liegt (Vision-Fund: Button 31px verdeckt) ---- */
+.platform-ios .camera-wrap,
+.platform-android .camera-wrap {
+  aspect-ratio: auto !important;   /* fixe 3/4-Hoehe aufgeben */
+  height: min(52vh, 420px) !important; /* hoechstens 52% des Screens */
+}
+@media (max-height: 700px) {
+  .platform-ios .camera-wrap,
+  .platform-android .camera-wrap { height: 44vh !important; }
+}
