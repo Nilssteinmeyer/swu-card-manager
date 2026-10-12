@@ -1477,7 +1477,7 @@ def _register_routes(app: Flask) -> None:
         """List all model versions with metrics (admin only)."""
         from flask import g as _g
 
-        if not _g.get("user") or not _g["user"].get("is_platform_admin"):
+        if not _g.get("user") or not _g.get("user", {}).get("is_platform_admin"):
             return jsonify({"error": "Nur Plattform-Admin"}), 403
         conn = connect()
         try:
@@ -1498,7 +1498,7 @@ def _register_routes(app: Flask) -> None:
         """
         from flask import g as _g
 
-        if not _g.get("user") or not _g["user"].get("is_platform_admin"):
+        if not _g.get("user") or not _g.get("user", {}).get("is_platform_admin"):
             return jsonify({"error": "Nur Plattform-Admin"}), 403
         body = request.get_json(silent=True) or {}
         epochs = int(body.get("epochs", 5) or 5)
@@ -1587,7 +1587,7 @@ def _register_routes(app: Flask) -> None:
         """Activate a candidate/retired model (admin). Never auto-invoked."""
         from flask import g as _g
 
-        if not _g.get("user") or not _g["user"].get("is_platform_admin"):
+        if not _g.get("user") or not _g.get("user", {}).get("is_platform_admin"):
             return jsonify({"error": "Nur Plattform-Admin"}), 403
         body = request.get_json(silent=True) or {}
         model_id = (body.get("model_id") or "").strip()

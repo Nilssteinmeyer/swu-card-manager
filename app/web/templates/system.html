@@ -21,7 +21,7 @@
       </div>
 
       <!-- Actions (admin only) -->
-      <div class="flex gap-1 mb-2" data-admin-only>
+      <div class="flex gap-1 mb-2" style="flex-wrap: wrap;" data-admin-only>
         <button class="btn btn-primary" onclick="runDoctor()">🩺 Diagnose ausführen</button>
         <button class="btn btn-success" onclick="createBackup()">💾 Backup erstellen</button>
         <button class="btn" onclick="loadLogs()">📜 Logs aktualisieren</button>
@@ -229,7 +229,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=26').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=28').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

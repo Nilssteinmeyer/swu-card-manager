@@ -22,7 +22,10 @@ async function api(path, options = {}) {
     }
     return data;
   } catch (err) {
-    console.error(`API ${path} failed:`, err);
+    // Erwartete 401s auf Auth-Seiten nicht als Fehler loggen (Konsolen-Hygiene)
+    if (!(IS_AUTH_PAGE && err.message && err.message.includes("Nicht eingeloggt"))) {
+      console.error(`API ${path} failed:`, err);
+    }
     throw err;
   }
 }
@@ -554,6 +557,7 @@ function applyTheme(mode) {
 async function setTheme(mode) {
   if (!["dark", "light", "auto"].includes(mode)) return;
   applyTheme(mode);
+  localStorage.setItem("swu-theme", mode);  // Auth-Seiten-Fallback (kein Settings-Call dort)
   try {
     await api("/api/settings", { method: "POST", body: { theme: mode } });
   } catch (e) { /* Setting-Store optional */ }
@@ -566,10 +570,17 @@ function _migrateLegacyTheme() {
 
 async function initTheme() {
   let mode = "dark";
-  try {
-    const s = await api("/api/settings");
-    if (s.theme === "light" || s.theme === "dark" || s.theme === "auto") mode = s.theme;
-  } catch (e) { /* Default dark */ }
+  // Auth-Seiten: kein Settings-Call (401-Noise) - localStorage-Fallback
+  if (IS_AUTH_PAGE) {
+    mode = localStorage.getItem("swu-theme") || "dark";
+    if (mode !== "light" && mode !== "dark" && mode !== "auto") mode = "dark";
+  } else {
+    try {
+      const s = await api("/api/settings");
+      if (s.theme === "light" || s.theme === "dark" || s.theme === "auto") mode = s.theme;
+      localStorage.setItem("swu-theme", mode);
+    } catch (e) { /* Default dark */ }
+  }
   applyTheme(mode);
   // Auto-Modus: auf Systemwechsel reagieren (live)
   window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
@@ -578,9 +589,15 @@ async function initTheme() {
 }
 
 // ---- Init on page load ---------------------------------------------------
+// Auth-Seiten (login/register/reset/no-household) haben keinen Nutzerkontext:
+// /api/admin/status und /api/settings antworten dort immer 401 -> Konsolen-Noise.
+const IS_AUTH_PAGE = document.body.classList.contains("auth-body");
+
 document.addEventListener("DOMContentLoaded", () => {
   setActiveNav();
-  loadAdminState();
-  initAccountMenu();
+  if (!IS_AUTH_PAGE) {
+    loadAdminState();
+    initAccountMenu();
+  }
   initTheme();
 });

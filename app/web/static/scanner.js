@@ -553,6 +553,7 @@ async function performScan() {
     // ---- Normal mode: show popup --------------------------------------------
     if (USER_SETTINGS.haptic_on_scan && navigator.vibrate) navigator.vibrate(150);
     updateOverlay("found", "Karte erkannt!");
+    _setHudScanning(false); // Animation aus: Karte erkannt, Warten auf Nutzer
     showResultOverlay(result);
     motionBaseline = "scanned";
     // Camera stays paused while popup is shown

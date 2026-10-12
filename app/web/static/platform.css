@@ -133,6 +133,9 @@
   font-weight: 700;
   font-size: 1.05rem;
   white-space: nowrap;
+  /* Extremtest: Tap-Target war 28px hoch (Apple HIG min 44px) */
+  min-height: 44px;
+  padding: 0 4px;
 }
 .topbar-brand .logo { font-size: 1.25rem; }
 
@@ -213,7 +216,7 @@
   border: none;
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 0.72rem;
+  font-size: 0.78rem; /* Extremtest: 0.72rem=10.8px unter iOS-HIG-Minimum 11px */
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -668,7 +671,7 @@ input[type="number"], input[type="search"], select, textarea {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 22px; height: 22px; padding: 0 6px;
   border-radius: 6px;
-  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.02em;
+  font-size: 0.78rem; font-weight: 800; letter-spacing: 0.02em;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0,0,0,0.85);
   backdrop-filter: blur(4px);
@@ -687,7 +690,7 @@ input[type="number"], input[type="search"], select, textarea {
   display: inline-flex; align-items: center;
   height: 22px; padding: 0 8px;
   border-radius: 6px;
-  font-size: 0.68rem; font-weight: 800;
+  font-size: 0.78rem; font-weight: 800;  /* Extremtest: 0.7rem=10.5px < 11px */
   color: #1a1600;
   box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.4);
   background: linear-gradient(120deg, #ffe81f, #fff 45%, #b8e0ff 70%, #ffe81f);
@@ -703,4 +706,4 @@ input[type="number"], input[type="search"], select, textarea {
 :root.theme-light .ci-rarity { text-shadow: 0 1px 2px rgba(255,255,255,0.35); }
 
 /* Preis-Anzeige: Wert-Modus hervorgehoben */
-.ci-price small { color: var(--text-muted); font-size: 0.72em; }
+.ci-price small { color: var(--text-muted); font-size: 0.85em; }  /* 0.72em=9.36px < 11px Extremtest-Minimum */
