@@ -1,12 +1,48 @@
-/* =========================================================================
-   SWU Card Manager — PLATFORM-SCHICHT
+﻿/* =========================================================================
+   SWU Card Manager â€” PLATFORM-SCHICHT
    Star-Wars-Palette (Imperial Yellow / Scanner-Cyan auf Deep Space),
    Navigation: Tab-Bar (iOS/Android) vs. Topbar (Desktop), Safe-Areas.
    ========================================================================= */
 
 /* ---- Design-Tokens (M3-Rollen, Star-Wars-Palette) ------------------------ */
+/* color-scheme: dark -> iOS/Safari rendert NATIVE Steuerelemente (Select-
+   Popups, option-Listen, Autofill, Datums-Picker, Scrollbars) dunkel.
+   Ohne das zeichnet Safari sie WEISS (weisser Picker-Text auf weissem Grund). */
 :root {
-  /* Flächen */
+  color-scheme: dark;
+}
+:root.theme-light {
+  color-scheme: light;
+}
+
+/* LIGHT MODE (via <html class="theme-light">, von common.js gesetzt) */
+:root.theme-light {
+  --bg: #f2f4f8;
+  --surface: #ffffff;
+  --surface-2: #e8ecf2;
+  --surface-3: #dde3ec;
+  --outline: #c5cddb;
+  --outline-soft: #d4dae5;
+  --text: #1a2230;
+  --text-muted: #5a6678;
+  --text-dim: #7a8595;
+  --primary: #b8930a;          /* Dunkleres Gelb fuer AA-Kontrast auf weiss */
+  --on-primary: #ffffff;
+  --primary-container: #f5e6a8;
+  --on-primary-container: #3d3505;
+  --primary-bg: rgba(184, 147, 10, 0.12);
+  --secondary: #0077b6;
+  --secondary-bg: rgba(0, 119, 182, 0.1);
+  --error: #c53030;
+  --error-bg: rgba(197, 48, 48, 0.1);
+  --success: #15803d;
+  --success-bg: rgba(21, 128, 61, 0.1);
+}
+:root.theme-light body,
+:root.theme-light .topbar { background: var(--surface); }
+
+:root {
+  /* FlÃ¤chen */
   --bg: #0a0e14;
   --surface: #10151f;
   --surface-2: #161d2b;
@@ -31,7 +67,7 @@
   --success-bg: rgba(63, 217, 138, 0.12);
   --purple: #bc8cff;
   --orange: #f0883e;
-  /* Kompatibilität mit bestehendem CSS (alte Namen zeigen auf neue Rollen) */
+  /* KompatibilitÃ¤t mit bestehendem CSS (alte Namen zeigen auf neue Rollen) */
   --bg-card: var(--surface);
   --bg-elevated: var(--surface-3);
   --bg-hover: var(--surface-2);
@@ -183,7 +219,7 @@
 }
 .tab-item .tab-icon { font-size: 1.45rem; line-height: 1; }
 .tab-item.active { color: var(--primary); }
-/* iOS: gefüllter Zustand über Farbe; Android: Pill-Indikator */
+/* iOS: gefÃ¼llter Zustand Ã¼ber Farbe; Android: Pill-Indikator */
 .platform-android .tab-item.active .tab-icon {
   background: var(--primary-container);
   border-radius: 999px;
@@ -212,7 +248,7 @@
   padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 88px);
 }
 
-/* Mobile: Topbar schlank (keine Desktop-Nav, kein Brand-Text nötig) */
+/* Mobile: Topbar schlank (keine Desktop-Nav, kein Brand-Text nÃ¶tig) */
 .platform-ios .topbar-nav,
 .platform-android .topbar-nav { display: none; }
 .platform-ios .account-area,
@@ -337,6 +373,27 @@
 .platform-desktop .account-area { display: block; }
 
 /* ---- Account-Dropdown (Desktop, FIX: nicht mehr geclippt) ---------------- */
+/* Explizite Farben statt Vererbung: Safari/Buttons erben color nicht
+   automatisch - ohne das koennen .ad-item-Buttons weiss auf weiss landen. */
+.account-dd .ad-item,
+.account-dd button {
+  color: var(--text);
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  border: none;
+  width: 100%;
+}
+.account-dd .ad-item:hover,
+.account-dd .ad-item:active {
+  background: var(--surface-2);
+}
+.account-dd .ad-name { color: var(--text); }
+.account-dd .ad-role { color: var(--text-muted); }
+.account-dd .ad-value { color: var(--text-muted); }
+.account-dd { background: var(--surface-3); color: var(--text); }
+
 .account-menu { position: static; }
 .account-dd {
   position: fixed;

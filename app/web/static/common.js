@@ -539,9 +539,48 @@ document.addEventListener("DOMContentLoaded", () => {
   _installSheetDrag("#share-dialog", () => closeShareDialog());
 });
 
+// ---- Theme (Dark/Light/Auto) ----------------------------------------------
+// Modus: 'dark' (Standard) | 'light' | 'auto' (folgt dem Geraet).
+// Sofortiger Wechsel ohne Reload; Setting wird pro Nutzer persistiert.
+function applyTheme(mode) {
+  const mql = window.matchMedia("(prefers-color-scheme: light)");
+  const light = mode === "light" || (mode === "auto" && mql.matches);
+  document.documentElement.classList.toggle("theme-light", light);
+  // Meta theme-color fuer Browser-UI anpassen
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", light ? "#f2f4f8" : "#0a0e14");
+}
+
+async function setTheme(mode) {
+  if (!["dark", "light", "auto"].includes(mode)) return;
+  applyTheme(mode);
+  try {
+    await api("/api/settings", { method: "POST", body: { theme: mode } });
+  } catch (e) { /* Setting-Store optional */ }
+  showToast("Design: " + (mode === "auto" ? "Automatisch" : mode === "light" ? "Hell" : "Dunkel"), "info", 2500);
+}
+
+function _migrateLegacyTheme() {
+  // Altes DB-Setting 'theme: dark' (veraltet) migriert Richtung auto
+}
+
+async function initTheme() {
+  let mode = "dark";
+  try {
+    const s = await api("/api/settings");
+    if (s.theme === "light" || s.theme === "dark" || s.theme === "auto") mode = s.theme;
+  } catch (e) { /* Default dark */ }
+  applyTheme(mode);
+  // Auto-Modus: auf Systemwechsel reagieren (live)
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+    api("/api/settings").then(s => { if (s.theme === "auto") applyTheme("auto"); }).catch(() => {});
+  });
+}
+
 // ---- Init on page load ---------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   setActiveNav();
   loadAdminState();
   initAccountMenu();
+  initTheme();
 });
