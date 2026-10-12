@@ -90,11 +90,23 @@
       </div>
 
       <div class="card">
-        <div class="card-title flex-center-between" style="cursor:pointer;" id="export-toggle" onclick="toggleSection('export-body', 'export-arrow')">
-          <span>📤 Export / Import</span>
-          <span id="export-arrow" class="collapse-arrow">▶</span>
+        <div class="card-title flex-center-between" style="cursor:pointer;" id="tools-toggle" onclick="toggleSection('tools-body', 'tools-arrow')">
+          <span>🧰 Werkzeuge</span>
+          <span id="tools-arrow" class="collapse-arrow">▶</span>
         </div>
-        <div id="export-body" class="collapsible-body hidden">
+        <div id="tools-body" class="collapsible-body hidden">
+          <div class="setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+            <label style="font-weight:600;">Preise anzeigen</label>
+            <select id="price-display-mode" style="max-width:220px;" onchange="applyPriceDisplayMode(this.value)">
+              <option value="value">Karten × Preis (Wert)</option>
+              <option value="price">Nur Kartenpreis</option>
+              <option value="none">Keine Preise</option>
+            </select>
+          </div>
+          <div class="setting-desc" style="margin-bottom:12px;">
+            „Karten × Preis" zeigt den Wert deiner Exemplare (Anzahl berücksichtigt), „Nur Kartenpreis" den Einzel-Preis der Karte.
+          </div>
+
           <div class="setting-desc" style="margin-bottom:8px;">
             Exportiere deine Sammlung als CSV (für Tabellen) oder JSON (vollständiger Restore).
             Import fügt Karten hinzu (merge) — für einen Restore der exportierten Datei nutze den Backend-Modus "replace".
@@ -223,6 +235,23 @@
       return params.toString();
     }
 
+    // ---- Preis-Anzeige-Modus (persistiert pro Nutzer) ------------------------
+    let PRICE_DISPLAY_MODE = "value"; // default: Karten × Preis (Wert)
+    async function initPriceDisplayMode() {
+      try {
+        const s = await api("/api/settings");
+        const m = s.price_display_mode;
+        PRICE_DISPLAY_MODE = ["value", "price", "none"].includes(m) ? m : "value";
+      } catch (e) { /* default */ }
+      const sel = document.getElementById("price-display-mode");
+      if (sel) sel.value = PRICE_DISPLAY_MODE;
+    }
+    async function applyPriceDisplayMode(mode) {
+      PRICE_DISPLAY_MODE = ["value", "price", "none"].includes(mode) ? mode : "value";
+      try { await api("/api/settings", { method: "POST", body: { price_display_mode: PRICE_DISPLAY_MODE } }); } catch (e) {}
+      loadCollection();
+    }
+
     async function loadCollection() {
       const grid = document.getElementById("collection-grid");
       grid.innerHTML = '<div class="spinner"></div>';
@@ -240,19 +269,40 @@
           return;
         }
         grid.innerHTML = data.items.map(item => {
-          // Price display: foil entries use foil trend, normal use trend
+          // ---- Badges: Foil + Rarity (C/U/R/S/L) ----
+          const isFoil = !!item.is_foil;
+          const rarityKey = (item.rarity || "").toLowerCase();
+          const rarityLetter = { common: "C", uncommon: "U", rare: "R", special: "S", legendary: "L" }[rarityKey] || "";
+          const badgesHtml = `
+            <div class="ci-badges">
+              ${rarityLetter ? `<span class="ci-rarity r-${rarityKey}" title="${escapeHtml(item.rarity || "")}">${rarityLetter}</span>` : ""}
+              ${isFoil ? '<span class="ci-foil" title="Foil-Version">✦ FOIL</span>' : ""}
+            </div>`;
+          // ---- Preis nach Anzeige-Modus (value=Karten×Preis, price=Einzel, none=aus) ----
           let priceHtml = "";
-          const isFoil = item.is_foil;
-          const trend = isFoil ? item.price_foil_trend : item.price_trend;
-          if (trend != null) {
-            const cls = isFoil ? "ci-price foil" : "ci-price";
-            priceHtml = `<div class="${cls}">${trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</div>`;
+          if (PRICE_DISPLAY_MODE === "value" || PRICE_DISPLAY_MODE === "price") {
+            // Foil-Preis wenn da, sonst Normal-Preis (mit Hinweis) statt gar nichts
+            let trend = isFoil ? (item.price_foil_trend != null ? item.price_foil_trend : item.price_trend) : item.price_trend;
+            if (isFoil && item.price_foil_trend == null && trend != null) {
+              priceHtml = `<div class="${isFoil ? "ci-price foil" : "ci-price"}" title="Kein Foil-Preis verfügbar - Normal-Preis">${trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}<small> (normal)</small></div>`;
+            } else if (trend != null) {
+              const cls = isFoil ? "ci-price foil" : "ci-price";
+              if (PRICE_DISPLAY_MODE === "value" && item.count > 1) {
+                const value = trend * item.count;
+                priceHtml = `<div class="${cls}">${value.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}<small> (${item.count}×)</small></div>`;
+              } else {
+                priceHtml = `<div class="${cls}">${trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</div>`;
+              }
+            }
           }
           return `
           <div class="collection-item clickable" onclick="showCardDetail('${escapeHtml(item.card_id)}')">
-            ${item.front_art_path
-              ? `<img class="ci-image" src="${cardImageUrl(item.card_id)}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\'placeholder-image\\'>🃏</div>'">`
-              : '<div class="placeholder-image">🃏</div>'}
+            <div class="ci-image-wrap">
+              ${item.front_art_path
+                ? `<img class="ci-image" src="${cardImageUrl(item.card_id)}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\\\placeholder-image\\\\>🃏</div>'">`
+                : '<div class="placeholder-image">🃏</div>'}
+              ${badgesHtml}
+            </div>
             <div class="ci-name">${escapeHtml(item.name)}</div>
             <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}</div>
             ${priceHtml}
@@ -515,16 +565,17 @@
       if (e.key === "Escape") closeCardModal();
     });
 
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
       loadFilters();
       loadStats();
+      await initPriceDisplayMode();
       loadCollection();
     });
   </script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=24').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=25').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

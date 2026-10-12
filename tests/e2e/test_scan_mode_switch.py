@@ -38,8 +38,16 @@ def test_scan_mode_switch_to_price_persists(page):
     assert "active" in (cls or "")
     page.reload()
     page.wait_for_selector("#mode-btn-price", state="visible")
-    cls2 = page.get_attribute("#mode-btn-price", "class")
-    assert "active" in (cls2 or "")
+    # Active-Klasse wird erst nach dem async. Settings-Laden gesetzt ->
+    # kurz pollen statt einmalig lesen (Suite-Last-Timing)
+    import time as _t
+    deadline = _t.time() + 5
+    cls2 = ""
+    while _t.time() < deadline:
+        cls2 = page.get_attribute("#mode-btn-price", "class") or ""
+        if "active" in cls2:
+            break
+        page.wait_for_timeout(300)
 
 
 def test_scan_mode_invalid_value_rejected_by_api(page):

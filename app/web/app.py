@@ -824,12 +824,16 @@ def _register_routes(app: Flask) -> None:
                        cards.card_number, cards.rarity, cards.type,
                        cards.aspects, cards.traits, cards.cost, cards.power,
                        cards.hp, cards.front_art_path,
-                       pr.trend AS price_trend, pr.foil_trend AS price_foil_trend,
-                       pr.low AS price_low, pr.updated_at AS price_updated
+                       COALESCE(pr.trend, tcg.market_normal) AS price_trend,
+                       COALESCE(pr.foil_trend, tcg.market_foil) AS price_foil_trend,
+                       COALESCE(pr.low, tcg.low_normal) AS price_low,
+                       CASE WHEN pr.idProduct IS NOT NULL THEN pr.updated_at
+                            ELSE tcg.updated_at END AS price_updated
                 FROM collection col
                 JOIN cards ON col.card_id = cards.card_id
                 LEFT JOIN card_mkm_map m ON m.card_id = col.card_id
                 LEFT JOIN card_prices pr ON pr.idProduct = m.idProduct
+                LEFT JOIN tcg_prices tcg ON tcg.card_id = col.card_id
                 WHERE col.household_id = ?
             """
             params: list[Any] = [_hh()]

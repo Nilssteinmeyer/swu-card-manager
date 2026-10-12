@@ -1,9 +1,9 @@
 /* SWU Card Manager — Service Worker v21
    Cache-first fuer versionierte Assets, network-first fuer Seiten.
    Update-Strategie: bei neuem SW sofort aktivieren + alte Caches killen. */
-const CACHE_NAME = "swu-manager-v24";
+const CACHE_NAME = "swu-manager-v25";
 const APP_SHELL = [
-  "/static/style.css?v=21",
+  "/static/style.css?v=22",
   "/static/platform.css?v=5",
   "/static/common.js?v=16",
   "/static/scanner.js?v=16",
