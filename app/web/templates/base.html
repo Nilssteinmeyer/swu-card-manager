@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="de" class="platform-{{ platform }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>{% block title %}SWU Card Manager{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css?v=20">
+  <link rel="stylesheet" href="/static/platform.css?v=2">
+  <link rel="manifest" href="/static/manifest.json?v=1">
+  <meta name="theme-color" content="#0a0e14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SWU Manager">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% block body %}{% endblock %}
+<script src="/static/common.js?v=15"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

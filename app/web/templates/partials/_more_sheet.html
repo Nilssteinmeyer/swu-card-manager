@@ -1,0 +1,22 @@
+{% raw %}<!-- „Mehr"-Bottom-Sheet (Mobile): Account + seltenere Bereiche.
+     Wird von common.js mit den echten Account-Daten befüllt. -->
+<div class="more-sheet-backdrop" id="more-backdrop" hidden onclick="toggleMoreSheet(false)"></div>
+<div class="more-sheet" id="more-sheet" role="dialog" aria-modal="true" aria-label="Mehr Optionen" hidden>
+  <div class="sheet-handle"></div>
+  <div class="sheet-account" id="sheet-account"><!-- von common.js befüllt --></div>
+
+  <nav class="sheet-links" aria-label="Weitere Bereiche">
+    <a class="sheet-link" href="/settings">
+      <span class="sl-icon">⚙️</span><span>Einstellungen</span>
+    </a>
+    <a class="sheet-link admin-only" href="/sets" data-admin-only>
+      <span class="sl-icon">📦</span><span>Sets &amp; Preise</span>
+    </a>
+    <a class="sheet-link admin-only" href="/system" data-admin-only>
+      <span class="sl-icon">🔧</span><span>System</span>
+    </a>
+  </nav>
+
+  <div class="sheet-actions" id="sheet-actions"><!-- von common.js befüllt: teilen/wechseln/abmelden --></div>
+</div>
+{% endraw %}

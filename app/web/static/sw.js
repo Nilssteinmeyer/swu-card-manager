@@ -1,9 +1,10 @@
 /* SWU Card Manager — Service Worker
    Caches the app shell (CSS/JS/icons) for offline loading and fast startup.
    Network-first for pages, cache-first for static assets. */
-const CACHE_NAME = "swu-manager-v1";
+const CACHE_NAME = "swu-manager-v20";
 const APP_SHELL = [
   "/static/style.css",
+  "/static/platform.css",
   "/static/common.js",
   "/static/manifest.json",
   "/static/icons/icon-192.png",

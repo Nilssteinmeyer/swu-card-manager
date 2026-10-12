@@ -99,6 +99,11 @@ def create_app(config: AppConfig | None = None) -> Flask:
     app.before_request(lambda: load_current_user(app))
     app.register_blueprint(auth_bp)
 
+    # Platform-Klasse fuer alle Templates (ios | android | desktop)
+    @app.context_processor
+    def _inject_platform():
+        return {"platform": detect_platform(request.headers.get("User-Agent", ""))}
+
     _register_routes(app)
 
     # -- SMTP configuration (Go-Live Phase 5) ------------------------------------
@@ -277,6 +282,16 @@ def _scan_rate_limited() -> bool:
         return True
     _scan_window.append(now)
     return False
+
+
+def detect_platform(ua: str) -> str:
+    """Erkennt die Plattform aus dem User-Agent: ios | android | desktop."""
+    ua = (ua or "").lower()
+    if "iphone" in ua or "ipad" in ua or "ipod" in ua:
+        return "ios"
+    if "android" in ua:
+        return "android"
+    return "desktop"
 
 
 def _hh() -> int:

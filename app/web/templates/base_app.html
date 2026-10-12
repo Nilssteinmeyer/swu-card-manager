@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title or "SWU Card Manager" }} — SWU Card Manager{% endblock %}
+
+{% block body %}
+<div class="app-shell">
+  {% include "partials/_topbar.html" %}
+  {% include "partials/_tabbar.html" %}
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% include "partials/_more_sheet.html" %}
+{% endblock %}

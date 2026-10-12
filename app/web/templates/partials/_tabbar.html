@@ -1,0 +1,25 @@
+{% raw %}<!-- Bottom Tab Bar (Mobile: iOS + Android) — 5 Hauptbereiche.
+     Desktop: ausgeblendet (Navigation oben). Safe-Area wird in platform.css gehandhabt. -->
+<nav class="tabbar" id="tabbar" aria-label="Hauptnavigation (unten)">
+  <a class="tab-item" href="/" data-tab="/">
+    <span class="tab-icon">📊</span>
+    <span class="tab-label">Start</span>
+  </a>
+  <a class="tab-item" href="/collection" data-tab="/collection">
+    <span class="tab-icon">🗂️</span>
+    <span class="tab-label">Sammlung</span>
+  </a>
+  <a class="tab-item tab-scanner" href="/scanner" data-tab="/scanner">
+    <span class="tab-icon">📷</span>
+    <span class="tab-label">Scanner</span>
+  </a>
+  <a class="tab-item" href="/wishlist" data-tab="/wishlist">
+    <span class="tab-icon">⭐</span>
+    <span class="tab-label">Wunsch</span>
+  </a>
+  <button class="tab-item tab-more" type="button" onclick="toggleMoreSheet(true)" aria-haspopup="dialog">
+    <span class="tab-icon">⚙️</span>
+    <span class="tab-label">Mehr</span>
+  </button>
+</nav>
+{% endraw %}

@@ -144,14 +144,18 @@ def test_unauthenticated_redirect(page):
 
 
 def test_dashboard_shows_account_menu(page):
+    """Account-Dropdown (Desktop-UI, Redesign): Button + Abmelden erreichbar."""
     _register(page, "dashuser", "dash@example.com", "geheim123")
+    page.set_viewport_size({"width": 1400, "height": 900})
     page.goto(f"{BASE}/")
-    page.wait_for_selector("#account-btn")
-    assert "dashuser" in page.inner_text("#account-btn")
-    # account dropdown opens
-    page.click("#account-btn")
-    page.wait_for_selector("#account-dropdown:not(.hidden)")
-    assert "Abmelden" in page.inner_text("#account-dropdown")
+    page.wait_for_selector("#account-dd-btn")
+    assert "dashuser" in page.inner_text("#account-dd-btn")
+    # Dropdown oeffnet (position:fixed am Body - nicht mehr geclippt)
+    page.click("#account-dd-btn")
+    page.wait_for_selector("#account-dd:not(.hidden)")
+    dd_box = page.locator("#account-dd").bounding_box()
+    assert dd_box and dd_box["width"] > 100, "Dropdown unsichtbar/geclippt"
+    assert "Abmelden" in page.inner_text("#account-dd")
 
 
 def test_manual_add_card_flow(page):

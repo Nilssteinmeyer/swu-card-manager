@@ -1,0 +1,30 @@
+{% raw %}<!-- Obere Leiste: Brand links, Account rechts (Desktop: + alle Nav-Items).
+     Mobile: nur Brand + Account-Icon — Navigation lebt in der Tab-Bar unten. -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="topbar-brand" href="/">
+      <span class="logo">🃏</span>
+      <span class="brand-name">SWU Manager</span>
+    </a>
+
+    <!-- Desktop-Navigation (nur sichtbar ab 900px) -->
+    <nav class="topbar-nav" aria-label="Hauptnavigation">
+      <ul class="nav-desktop">
+        <li><a href="/" data-nav="/">📊 <span class="label">Dashboard</span></a></li>
+        <li><a href="/scanner" data-nav="/scanner">📷 <span class="label">Scanner</span></a></li>
+        <li><a href="/collection" data-nav="/collection">🗂️ <span class="label">Sammlung</span></a></li>
+        <li><a href="/wishlist" data-nav="/wishlist">⭐ <span class="label">Wishlist</span></a></li>
+        <li data-admin-only><a href="/sets" data-nav="/sets">📦 <span class="label">Sets</span></a></li>
+        <li><a href="/settings" data-nav="/settings">⚙️ <span class="label">Einstellungen</span></a></li>
+        <li data-admin-only><a href="/system" data-nav="/system">🔧 <span class="label">System</span></a></li>
+      </ul>
+    </nav>
+
+    <!-- Account: Desktop = Dropdown (fixiert, nicht geclippt), Mobile = öffnet More-Sheet -->
+    <div class="account-area" id="account-menu"></div>
+    <button class="account-trigger" id="account-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+      <span class="avatar">👤</span>
+    </button>
+  </div>
+</header>
+{% endraw %}

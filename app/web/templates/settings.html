@@ -1,34 +1,7 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Einstellungen — SWU Card Manager</title>
-  <link rel="stylesheet" href="/static/style.css?v=11">
-  <link rel="manifest" href="/static/manifest.json?v=1">
-  <meta name="theme-color" content="#0a0e14">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="SWU Manager">
-  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-</head>
-<body>
-  <div class="app-shell">
-    <nav class="navbar">
-      <div class="navbar-brand"><span class="logo">🃏</span><span>SWU Manager</span></div>
-      <div class="account-menu" id="account-menu"></div>
-            <ul class="navbar-nav">
-        <li><a href="/"><span class="icon">📊</span><span class="label">Dashboard</span></a></li>
-        <li><a href="/scanner"><span class="icon">📷</span><span class="label">Scanner</span></a></li>
-        <li><a href="/collection"><span class="icon">🗂️</span><span class="label">Sammlung</span></a></li>
-        <li><a href="/wishlist"><span class="icon">⭐</span><span class="label">Wishlist</span></a></li>
-        <li data-admin-only><a href="/sets"><span class="icon">📦</span><span class="label">Sets</span></a></li>
-        <li><a href="/settings"><span class="icon">⚙️</span><span class="label">Einstellungen</span></a></li>
-        <li data-admin-only><a href="/system"><span class="icon">🔧</span><span class="label">System</span></a></li>
-      </ul>
-    </nav>
+{% extends "base_app.html" %}
+{% block title %}Einstellungen{% endblock %}
 
-    <main class="main-content">
+{% block content %}
       <h1 class="mb-2">⚙️ Einstellungen</h1>
 
       <!-- Rolle -->
@@ -250,10 +223,9 @@
         <button class="btn btn-success btn-large" id="btn-save-settings">💾 Speichern</button>
         <button class="btn btn-secondary btn-large" id="btn-reset-settings">↺ Zurücksetzen</button>
       </div>
-    </main>
-  </div>
+{% endblock %}
 
-  <script src="/static/common.js"></script>
+{% block scripts %}
   <script>
     async function loadSettings() {
       const data = await api("/api/settings");
@@ -393,5 +365,4 @@
       });
     }
   </script>
-</body>
-</html>
+{% endblock %}

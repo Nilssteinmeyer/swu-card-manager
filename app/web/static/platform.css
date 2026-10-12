@@ -1,0 +1,378 @@
+/* =========================================================================
+   SWU Card Manager — PLATFORM-SCHICHT
+   Star-Wars-Palette (Imperial Yellow / Scanner-Cyan auf Deep Space),
+   Navigation: Tab-Bar (iOS/Android) vs. Topbar (Desktop), Safe-Areas.
+   ========================================================================= */
+
+/* ---- Design-Tokens (M3-Rollen, Star-Wars-Palette) ------------------------ */
+:root {
+  /* Flächen */
+  --bg: #0a0e14;
+  --surface: #10151f;
+  --surface-2: #161d2b;
+  --surface-3: #1c2536;
+  --outline: #2a3446;
+  --outline-soft: #1d2739;
+  /* Text */
+  --text: #e8ecf4;
+  --text-muted: #9aa4b2;
+  --text-dim: #6e7887;
+  /* Rollen */
+  --primary: #ffe81f;             /* Imperial Yellow */
+  --on-primary: #1a1600;
+  --primary-container: #3d3505;
+  --on-primary-container: #ffe81f;
+  --primary-bg: rgba(255, 232, 31, 0.12);
+  --secondary: #4dd8ff;           /* Scanner-HUD Cyan */
+  --secondary-bg: rgba(77, 216, 255, 0.12);
+  --error: #ff5a52;
+  --error-bg: rgba(255, 90, 82, 0.12);
+  --success: #3fd98a;
+  --success-bg: rgba(63, 217, 138, 0.12);
+  --purple: #bc8cff;
+  --orange: #f0883e;
+  /* Kompatibilität mit bestehendem CSS (alte Namen zeigen auf neue Rollen) */
+  --bg-card: var(--surface);
+  --bg-elevated: var(--surface-3);
+  --bg-hover: var(--surface-2);
+  --border: var(--outline);
+  --accent: var(--primary);
+  --accent-hover: #fff06b;
+  --accent-bg: var(--primary-bg);
+  --green: var(--success);
+  --green-bg: var(--success-bg);
+  --red: var(--error);
+  --red-bg: var(--error-bg);
+  --yellow: #e8c819;
+  --yellow-bg: var(--primary-bg);
+  --muted: var(--text-muted);
+  --muted-fg: var(--text-muted);
+  --fg: var(--text);
+  --surface2: var(--surface-2);
+  --card: var(--surface);
+  /* Metriken */
+  --touch-min: 48px;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 18px;
+  --tabbar-h: 60px;
+  --topbar-h: 52px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- App-Shell-Grundlayout ---------------------------------------------- */
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Topbar (alle Plattformen; Inhalt je Plattform anders sichtbar) ------ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(16, 21, 31, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--outline-soft);
+  padding-top: var(--safe-top);
+}
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--topbar-h);
+  padding: 0 14px;
+}
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+.topbar-brand .logo { font-size: 1.25rem; }
+
+/* Desktop-Navigation (versteckt auf Mobile) */
+.topbar-nav { display: none; }
+.nav-desktop {
+  display: flex;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  margin-left: auto;
+}
+.nav-desktop a {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  height: var(--topbar-h);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.92rem;
+  border-bottom: 2.5px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.nav-desktop a:hover { color: var(--text); background: var(--surface-2); }
+.nav-desktop a.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* Account-Bereich */
+.account-area { margin-left: auto; }
+.nav-desktop ~ .account-area { margin-left: 12px; }
+.account-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--outline);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: 1.15rem;
+}
+
+/* ---- Tab-Bar (iOS + Android, unten fixiert) ------------------------------ */
+.tabbar {
+  display: none; /* Desktop: aus; Mobile: an (siehe unten) */
+}
+.platform-ios .tabbar,
+.platform-android .tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 300;
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  height: calc(var(--tabbar-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: rgba(16, 21, 31, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--outline-soft);
+}
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 44px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.72rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-item .tab-icon { font-size: 1.45rem; line-height: 1; }
+.tab-item.active { color: var(--primary); }
+/* iOS: gefüllter Zustand über Farbe; Android: Pill-Indikator */
+.platform-android .tab-item.active .tab-icon {
+  background: var(--primary-container);
+  border-radius: 999px;
+  padding: 4px 14px;
+}
+/* Scanner-Tab hervorgehoben (Kernaktion) */
+.tab-scanner .tab-icon {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: 999px;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -16px;
+  box-shadow: 0 4px 14px rgba(255, 232, 31, 0.35);
+  font-size: 1.4rem;
+}
+
+/* Mobile: Content-Abstand oben/unten */
+.platform-ios .main-content,
+.platform-android .main-content {
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+}
+
+/* Mobile: Topbar schlank (keine Desktop-Nav, kein Brand-Text nötig) */
+.platform-ios .topbar-nav,
+.platform-android .topbar-nav { display: none; }
+.platform-ios .account-area,
+.platform-android .account-area { display: none; } /* Account lebt im Mehr-Sheet */
+
+/* ---- Mehr-Sheet (Bottom Sheet, Mobile) ----------------------------------- */
+.more-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.more-sheet-backdrop.visible { opacity: 1; }
+.more-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 401;
+  background: var(--surface);
+  border-radius: 18px 18px 0 0;
+  padding: 8px 16px calc(var(--safe-bottom) + 16px);
+  transform: translateY(100%);
+  transition: transform 0.25s ease-out;
+  max-height: 80dvh;
+  overflow-y: auto;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+}
+.more-sheet.visible { transform: translateY(0); }
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--outline);
+  margin: 6px auto 14px;
+}
+.sheet-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px 16px;
+  border-bottom: 1px solid var(--outline-soft);
+}
+.sheet-account .sa-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--primary-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+.sheet-account .sa-name { font-weight: 700; font-size: 1rem; }
+.sheet-account .sa-role { font-size: 0.8rem; color: var(--text-muted); }
+.sheet-links { padding: 8px 0; }
+.sheet-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 4px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.98rem;
+  border-radius: var(--radius-sm);
+}
+.sheet-link:active { background: var(--surface-2); }
+.sheet-link .sl-icon { font-size: 1.25rem; width: 28px; text-align: center; }
+.sheet-actions { border-top: 1px solid var(--outline-soft); padding-top: 8px; }
+.sheet-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  width: 100%;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.98rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.sheet-action:active { background: var(--surface-2); }
+.sheet-action.danger { color: var(--error); }
+
+/* ---- Desktop-Breakpoint: Topbar-Nav an, Tabbar aus ----------------------- */
+@media (min-width: 900px) {
+  .topbar-nav { display: block; }
+  .platform-ios .topbar-nav,
+  .platform-android .topbar-nav { display: block; }
+  .platform-ios .account-area,
+  .platform-android .account-area { display: block; }
+  .account-trigger { display: none; }
+  .platform-ios .tabbar,
+  .platform-android .tabbar { display: none; }
+  .platform-ios .main-content,
+  .platform-android .main-content { padding-bottom: 32px; }
+}
+
+/* Desktop-Klasse explizit (falls UA desktop): Tabbar nie */
+.platform-desktop .tabbar { display: none; }
+.platform-desktop .topbar-nav { display: block; }
+.platform-desktop .account-area { display: block; }
+
+/* ---- Account-Dropdown (Desktop, FIX: nicht mehr geclippt) ---------------- */
+.account-menu { position: static; }
+.account-dd {
+  position: fixed;
+  top: calc(var(--topbar-h) + var(--safe-top) + 6px);
+  right: 12px;
+  background: var(--surface-3);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  min-width: 240px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  z-index: 500;
+  overflow: hidden;
+}
+.account-dd .ad-header { padding: 14px 16px; border-bottom: 1px solid var(--outline-soft); }
+.account-dd .ad-name { font-weight: 700; font-size: 0.95rem; }
+.account-dd .ad-role { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+.account-dd .ad-section { padding: 10px 16px 4px; font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.account-dd .ad-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 16px;
+  font-size: 0.92rem;
+  cursor: pointer;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+}
+.account-dd .ad-item:hover { background: var(--surface-2); }
+.account-dd .ad-item .ad-value { color: var(--text-muted); font-size: 0.8rem; }
+.account-dd .ad-item.danger { color: var(--error); }
+
+/* ---- Feinschliff: Touch-Ziele global auf Minimum ------------------------- */
+.btn { min-height: 44px; }
+.tab-item { min-height: 48px; }
+input[type="text"], input[type="password"], input[type="email"],
+input[type="number"], input[type="search"], select, textarea {
+  min-height: 44px;
+}
+
+/* Android: Ripple-Optik (einfach) + kein Tap-Highlight */
+.platform-android * { -webkit-tap-highlight-color: transparent; }
+.platform-android .sheet-link:active,
+.platform-android .sheet-action:active {
+  background: radial-gradient(circle at center, var(--surface-3) 0%, var(--surface-2) 70%);
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .more-sheet, .more-sheet-backdrop, .tab-item, .nav-desktop a { transition: none; }
+}
