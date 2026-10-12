@@ -39,6 +39,17 @@ swu_card_manager/
 
 ## Schnellstart
 
+### Variante 1: Geführter Installer (empfohlen)
+
+Doppelklick auf **`installer.bat`** — der Installer führt durch alles:
+
+- **[1] LOKAL** (~2 Min): App im Heimnetz, iPhone im WLAN. Kein Admin, keine Konten.
+- **[2] INTERNET** (~30–45 Min): Erreichbar unter `https://swu-cardscanner.duckdns.org` — mit Gmail-Konto (E-Mail-Versand), DuckDNS-Domain, Router-Freigabe, Caddy mit echtem Let's-Encrypt-Zertifikat.
+
+Abbruch jederzeit möglich (STRG+C) — der Installer merkt sich den Fortschritt (`config/setup_state.json`) und macht beim nächsten Start weiter. Details: `docs/OPERATIONS.md`.
+
+### Variante 2: Direktstart (ohne Installer)
+
 ```bat
 :: Windows: Doppelklick auf start_web.bat, oder:
 cd swu_card_manager
@@ -49,6 +60,8 @@ python -m app web --host 0.0.0.0 --port 8765
 Dann im Browser öffnen:
 - Am PC: `https://localhost:8765`
 - Am Handy (gleiches WLAN): `https://<PC-IP>:8765` — Zertifikat-Warnung einmalig bestätigen (iOS: „Details" → „Diese Website besuchen")
+
+**Betriebsmodi:** `config/production.yaml` → `server.deployment_mode` (`local` = Heimnetz, Standard | `internet` = nur localhost hinter Caddy). Umschalten ausschließlich über `python scripts/switch_mode.py internet|local` (prüft Voraussetzungen: DuckDNS-Token, SMTP, Caddy, DNS).
 
 ## Erkennungs-Pipeline
 
