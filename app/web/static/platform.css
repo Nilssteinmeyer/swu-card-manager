@@ -514,9 +514,26 @@ input[type="number"], input[type="search"], select, textarea {
 .share-title { font-size: 1.1rem; font-weight: 700; margin: 6px 0 14px; }
 .share-section { margin-bottom: 16px; }
 .share-subtitle { font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-.share-invite-row { display: flex; gap: 8px; align-items: stretch; }
-.share-invite-row input, .share-invite-row select { min-height: 48px; }
-.share-invite-row .btn { min-height: 48px; white-space: nowrap; }
+/* Eingabezeile: Mobile gestapelt - Input bekommt die GANZE Zeile.
+   Fix fuer: Eingabefeld nur 119px breit / Text abgeschnitten (iOS). */
+.share-invite-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.share-invite-row input[type="text"] {
+  flex: 1 1 100%;
+  width: 100% !important;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 48px;
+  font-size: 16px; /* iOS zoom-Vermeidung */
+}
+.share-invite-row select { flex: 2 1 0; min-height: 48px; min-width: 0; }
+.share-invite-row .btn { flex: 1 1 0; min-height: 48px; white-space: nowrap; }
+@media (min-width: 900px) {
+  .share-invite-row input[type="text"] { flex: 2 1 0; }
+  .share-invite-row select { flex: 1 1 0; }
+}
+/* Login/Auth: Buttons auf Touch-Minimum */
+.auth-card .btn { min-height: 48px; font-size: 1rem; }
+#join-code-input { font-size: 16px; }
 .share-msg { font-size: 0.85rem; margin-top: 8px; min-height: 1em; }
 .share-msg.ok { color: var(--success); }
 .share-msg.err { color: var(--error); }
