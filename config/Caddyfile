@@ -1,0 +1,34 @@
+# Caddyfile — SWU Card Manager (Go-Live Phase 6)
+# Caddy ist der EINZIGE Eingang: TLS 1.3, automatische Let's-Encrypt-Zertifikate
+# ueber die DuckDNS-Domain. Die App selbst lauscht nur noch auf 127.0.0.1:8443.
+
+swu-cardscanner.duckdns.org {
+	# Zertifikate von Let's Encrypt (DuckDNS: DNS-01 nicht noetig, HTTP-01 reicht)
+	# Wichtig bei DuckDNS: Caddy muss auf Port 80+443 lauschen und die Domain
+	# muss auf die oeffentliche IP zeigen ( scripts/duckdns_update.py).
+	encode gzip
+
+	# Security-Header (Doppelschutz zur App; Caddy ueberschreibt nicht die App-Header)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self)"
+	}
+
+	# Client-BODY-Limit: 15 MB (Scan-Fotos sind ~1-2 MB)
+	request_body {
+		max_size 15MB
+	}
+
+	# Statische Dateien direkt ausliefern (Caddy ist schneller als Flask)
+	# und den Rest an die Flask-App proxyen
+	reverse_proxy 127.0.0.1:8443
+
+	log {
+		output file C:/Users/LLM/Desktop/TCG-Cardscannprojekt/swu_card_manager/logs/caddy_access.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+	}
+}

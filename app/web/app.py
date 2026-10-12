@@ -101,6 +101,36 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
     _register_routes(app)
 
+    # -- SMTP configuration (Go-Live Phase 5) ------------------------------------
+    # Reads config/production.yaml section `mail`; the SMTP password NEVER comes
+    # from a file - only from the environment variable SWU_SMTP_PASSWORD.
+    try:
+        from app.auth import mail as _mail
+        import os as _os
+        import yaml as _yaml
+
+        _cfg_path = Path(__file__).resolve().parents[2] / "config" / "production.yaml"
+        if _cfg_path.exists():
+            with open(_cfg_path, encoding="utf-8") as _f:
+                _prod = _yaml.safe_load(_f) or {}
+            _mail_cfg = _prod.get("mail") or {}
+            if _mail_cfg.get("host"):
+                _mail.configure(
+                    host=_mail_cfg["host"],
+                    port=int(_mail_cfg.get("port", 587)),
+                    user=_mail_cfg.get("user", ""),
+                    password=_os.environ.get("SWU_SMTP_PASSWORD", ""),
+                    sender=_mail_cfg.get("user", ""),
+                    use_tls=bool(_mail_cfg.get("use_tls", True)),
+                )
+                log.info(
+                    "SMTP configured from production.yaml (host=%s, user=%s)",
+                    _mail_cfg["host"], _mail_cfg.get("user", ""),
+                    extra={"event": "smtp_configured"},
+                )
+    except Exception as _e:  # SMTP config is optional - app runs in local mode
+        log.warning("SMTP config could not be loaded: %s", _e, extra={"event": "smtp_config_error"})
+
     # -- Route protection: everything except auth/static requires login ---------
     _PUBLIC_PATHS = {
         "/login", "/register", "/reset", "/verify-email", "/no-household",
@@ -1382,6 +1412,31 @@ def _register_routes(app: Flask) -> None:
             return row["value"] == "true"
         finally:
             conn.close()
+
+    @app.route("/api/admin/mail/test", methods=["POST"])
+    def api_admin_mail_test():
+        """Admin-only: send a test mail via the configured SMTP server."""
+        if not (g.get("user") or {}).get("is_platform_admin"):
+            return jsonify({"error": "Nur Plattform-Admin"}), 403
+        from app.auth import mail as mail_mod
+
+        body = request.get_json(silent=True) or {}
+        to = body.get("to") or (g.user or {}).get("email") or ""
+        if not to or "@" not in to:
+            return jsonify({"error": "Bitte gültige Empfänger-Adresse angeben"}), 400
+        sent = mail_mod.send_email(
+            to=to,
+            subject="SWU Card Manager — Testmail",
+            body_text=(
+                "Das ist eine Testmail deines SWU Card Managers. "
+                "Wenn du das liest, funktioniert der E-Mail-Versand. "
+                "Gesendet: " + _now_iso()
+            ),
+        )
+        if sent:
+            return jsonify({"ok": True, "to": to, "mode": "smtp"})
+        return jsonify({"ok": False, "to": to, "mode": "local",
+                        "error": "SMTP nicht konfiguriert oder Versand fehlgeschlagen (siehe Log)"}), 503
 
     @app.route("/api/admin/status")
     def api_admin_status():

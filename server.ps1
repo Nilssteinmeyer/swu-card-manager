@@ -36,4 +36,15 @@ if ($existing) {
 
 Write-Host "== Starte SWU Card Manager =="
 Set-Location $projectDir
-& "$projectDir\.venv\Scripts\python.exe" -m app.web --host 0.0.0.0 --port $port
+# Bind-Host: LAN-Modus (Standard, iPhone direkt) oder Caddy-Modus (nur localhost,
+# Caddy ist der einzige Eingang). Ueber app_host in config/production.yaml steuerbar.
+$prodYaml = Join-Path $projectDir "config\production.yaml"
+$bindHost = "0.0.0.0"
+if (Test-Path $prodYaml) {
+    try {
+        $yaml = Get-Content $prodYaml -Raw | ConvertFrom-Yaml -ErrorAction Stop
+        if ($yaml.server.app_host) { $bindHost = $yaml.server.app_host }
+    } catch { }
+}
+Write-Host "== Bind-Host: $bindHost (Port $port) =="
+& "$projectDir\.venv\Scripts\python.exe" -m app.web --host $bindHost --port $port
