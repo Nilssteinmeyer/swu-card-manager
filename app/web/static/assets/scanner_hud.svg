@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" preserveAspectRatio="none">
+  <!-- Scanner-HUD: Targeting-Ecken (gelbe Klammern) -->
+  <g fill="none" stroke="#ffe81f" stroke-width="3" opacity="0.85" stroke-linecap="round">
+    <path d="M8,36 V12 H32"/>
+    <path d="M268,12 H292 V36"/>
+    <path d="M292,364 V388 H268"/>
+    <path d="M32,388 H8 V364"/>
+  </g>
+  <g fill="none" stroke="#ffe81f" stroke-width="2" opacity="0.35">
+    <path d="M8,200 H26 M274,200 H292"/>
+    <path d="M150,12 V20 M150,380 V388"/>
+  </g>
+</svg>

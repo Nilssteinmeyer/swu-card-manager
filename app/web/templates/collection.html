@@ -231,7 +231,12 @@
         const data = await api(`/api/collection?${qs}`);
         document.getElementById("coll-count").textContent = data.count;
         if (data.items.length === 0) {
-          grid.innerHTML = '<p class="text-muted text-center">Keine Karten gefunden.</p>';
+          grid.innerHTML = `<div class="empty-state">
+            <img src="/static/assets/empty_droid.svg" alt="">
+            <div class="es-title">Deine Sammlung ist noch leer</div>
+            <div class="es-text">Scanne deine erste Karte mit dem Scanner oder füge sie manuell hinzu.</div>
+            <a class="btn btn-primary" href="/scanner" style="min-height:48px;">📷 Jetzt scannen</a>
+          </div>`;
           return;
         }
         grid.innerHTML = data.items.map(item => {

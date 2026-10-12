@@ -41,7 +41,11 @@
       try {
         const data = await api("/api/wishlist");
         if (data.items.length === 0) {
-          grid.innerHTML = '<p class="text-muted text-center">Noch keine Karten auf der Wishlist. Suche oben nach Karten, die du kaufen möchtest.</p>';
+          grid.innerHTML = `<div class="empty-state">
+            <img src="/static/assets/empty_holocard.svg" alt="">
+            <div class="es-title">Noch keine Karten auf der Wishlist</div>
+            <div class="es-text">Suche oben nach Karten, die du kaufen möchtest — dein Droid merkt sie sich.</div>
+          </div>`;
           return;
         }
         grid.innerHTML = data.items.map(item => `

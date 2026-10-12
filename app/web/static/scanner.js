@@ -480,6 +480,7 @@ async function performScan() {
 
   // Capture frame BEFORE scan starts
   scanInProgress = true;
+  document.getElementById("camera-hud")?.classList.add("scanning");
   updateOverlay("scanning", "Scan läuft...");
 
   // Freeze camera preview if enabled in settings (not in bulk mode — camera keeps running)
@@ -513,7 +514,8 @@ async function performScan() {
         bulkEl.textContent = `⚡ ${bulkSessionCount} Karten in dieser Session — ${result.card_name} (${(result.confidence * 100).toFixed(1)}%)`;
       }
       if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
-      updateOverlay("found", "Karte erkannt!");
+      document.getElementById("camera-hud")?.classList.remove("scanning");
+    updateOverlay("found", "Karte erkannt!");
       // auto-confirm in the background (no popup)
       api("/api/scan/confirm", {
         method: "POST",
@@ -546,6 +548,7 @@ async function performScan() {
     motionBaseline = "scanned";
     // Camera stays paused while popup is shown
   } catch (err) {
+    document.getElementById("camera-hud")?.classList.remove("scanning");
     updateOverlay("error", `Scan-Fehler: ${err.message}`);
     scanInProgress = false;
     motionBaseline = "ready"; // Allow retry

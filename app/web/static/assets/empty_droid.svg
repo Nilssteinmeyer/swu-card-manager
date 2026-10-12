@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+  <!-- SWU Empty State: Droid vor leerem Regal (freundlich, generisch) -->
+  <defs>
+    <radialGradient id="droidGlow" cx="50%" cy="42%" r="60%">
+      <stop offset="0%" stop-color="#4dd8ff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#4dd8ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="120" cy="118" r="100" fill="url(#droidGlow)"/>
+
+  <!-- Regal -->
+  <g stroke="#2a3446" stroke-width="6" fill="none">
+    <path d="M40,170 H200"/>
+    <path d="M52,170 V196 M188,170 V196 M40,196 H200" stroke-width="4" opacity="0.7"/>
+  </g>
+
+  <!-- Droid: runder Kopf, Auge, Körper -->
+  <g>
+    <circle cx="120" cy="92" r="40" fill="#161d2b" stroke="#2a3446" stroke-width="5"/>
+    <circle cx="120" cy="92" r="14" fill="#0a0e14" stroke="#4dd8ff" stroke-width="3.5"/>
+    <circle cx="120" cy="92" r="5" fill="#4dd8ff"/>
+    <rect x="102" y="128" width="36" height="14" fill="#1c2536" stroke="#2a3446" stroke-width="3"/>
+    <rect x="94" y="140" width="52" height="26" rx="8" fill="#161d2b" stroke="#2a3446" stroke-width="5"/>
+    <circle cx="105" cy="153" r="3" fill="#ffe81f"/>
+    <circle cx="135" cy="153" r="3" fill="#ffe81f"/>
+  </g>
+
+  <!-- Frage-Gedanke: wo sind die Karten? -->
+  <g font-family="system-ui, sans-serif" font-weight="700">
+    <circle cx="178" cy="52" r="16" fill="#1c2536" stroke="#2a3446" stroke-width="3"/>
+    <text x="178" y="59" font-size="20" fill="#ffe81f" text-anchor="middle">?</text>
+    <circle cx="152" cy="66" r="4" fill="#2a3446"/>
+  </g>
+</svg>

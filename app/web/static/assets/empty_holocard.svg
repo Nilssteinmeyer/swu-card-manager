@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+  <!-- SWU Empty State: Droid mit Holokarte (Wunschliste) -->
+  <defs>
+    <radialGradient id="holoGlow" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#ffe81f" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#ffe81f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="120" cy="118" r="100" fill="url(#holoGlow)"/>
+
+  <!-- Droid (seitlich, schaut auf Holokarte) -->
+  <g transform="translate(-34,0)">
+    <circle cx="86" cy="98" r="36" fill="#161d2b" stroke="#2a3446" stroke-width="5"/>
+    <circle cx="86" cy="98" r="12" fill="#0a0e14" stroke="#4dd8ff" stroke-width="3"/>
+    <circle cx="86" cy="98" r="4.5" fill="#4dd8ff"/>
+    <rect x="72" y="130" width="28" height="12" fill="#1c2536" stroke="#2a3446" stroke-width="3"/>
+    <rect x="64" y="140" width="44" height="24" rx="8" fill="#161d2b" stroke="#2a3446" stroke-width="5"/>
+  </g>
+
+  <!-- Holo-Karte (schwebend, projiziert) -->
+  <g transform="translate(126,64) rotate(8)">
+    <rect x="0" y="0" width="64" height="90" rx="8" fill="none" stroke="#ffe81f" stroke-width="3" opacity="0.9" stroke-dasharray="7 5"/>
+    <circle cx="32" cy="34" r="13" fill="none" stroke="#ffe81f" stroke-width="2.5" opacity="0.75"/>
+    <rect x="12" y="58" width="40" height="5" rx="2.5" fill="#ffe81f" opacity="0.55"/>
+    <rect x="16" y="70" width="32" height="5" rx="2.5" fill="#ffe81f" opacity="0.35"/>
+  </g>
+  <!-- Projektionsstrahl -->
+  <path d="M92,150 L126,96 L184,96" fill="none" stroke="#ffe81f" stroke-width="2" opacity="0.3" stroke-dasharray="3 6"/>
+</svg>
