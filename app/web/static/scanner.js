@@ -38,7 +38,32 @@ let USER_SETTINGS = {
   bulk_scan_mode: false,
   bulk_min_confidence: 0.85,
   scan_language: "de",
+  scan_mode: "collection",   // "collection" | "price"
 };
+
+// ---- Scan-Modus (Sammlung / Preis) ------------------------------------------
+let scanMode = "collection";
+
+function setScanMode(mode) {
+  scanMode = mode === "price" ? "price" : "collection";
+  // UI-Buttons umschalten
+  const btnCol = document.getElementById("mode-btn-collection");
+  const btnPrice = document.getElementById("mode-btn-price");
+  if (btnCol) {
+    btnCol.classList.toggle("active", scanMode === "collection");
+    btnCol.setAttribute("aria-selected", scanMode === "collection");
+  }
+  if (btnPrice) {
+    btnPrice.classList.toggle("active", scanMode === "price");
+    btnPrice.setAttribute("aria-selected", scanMode === "price");
+  }
+  // Persistieren (fire-and-forget)
+  api("/api/settings", { method: "POST", body: { scan_mode: scanMode } }).catch(() => {});
+  // Hinweis anzeigen, wenn der Preis-Modus frisch aktiviert wird
+  if (scanMode === "price") {
+    showToast("Preis-Modus: Karten werden nur angezeigt, nicht zur Sammlung hinzugefügt", "info", 3500);
+  }
+}
 
 // Language of the card currently shown in the scan overlay ("de" | "en")
 let scanCardLanguage = "de";
@@ -183,6 +208,18 @@ async function loadUserSettings() {
     USER_SETTINGS.bulk_scan_mode = parseBool(s.bulk_scan_mode);
     USER_SETTINGS.scan_language = s.scan_language || s.card_language || "de";
     USER_SETTINGS.bulk_min_confidence = (parseInt_(s.bulk_min_confidence, 85) || 85) / 100;
+    // Scan-Modus aus den Settings (collection | price)
+    scanMode = s.scan_mode === "price" ? "price" : "collection";
+    const btnCol = document.getElementById("mode-btn-collection");
+    const btnPrice = document.getElementById("mode-btn-price");
+    if (btnCol) {
+      btnCol.classList.toggle("active", scanMode === "collection");
+      btnCol.setAttribute("aria-selected", scanMode === "collection");
+    }
+    if (btnPrice) {
+      btnPrice.classList.toggle("active", scanMode === "price");
+      btnPrice.setAttribute("aria-selected", scanMode === "price");
+    }
     // Bulk session counter
     if (typeof bulkSessionCount === "number") {
       document.getElementById("bulk-session-counter")?.classList.toggle("hidden", !USER_SETTINGS.bulk_scan_mode);
@@ -260,6 +297,12 @@ async function initScanner() {
   }
   if (confirmBtn) confirmBtn.addEventListener("click", () => confirmScan(true));
   if (rejectBtn) rejectBtn.addEventListener("click", () => confirmScan(false));
+  const priceOkBtn = document.getElementById("btn-price-ok");
+  if (priceOkBtn) priceOkBtn.addEventListener("click", async () => {
+    // Preis-Modus: Bestaetigung an das Backend (verwirft Foto, kein Sammlungs-Eintrag),
+    // Overlay bleibt offen damit der Preis lesbar bleibt.
+    await confirmScan(true);
+  });
   const cancelBtn = document.getElementById("btn-cancel");
   if (cancelBtn) cancelBtn.addEventListener("click", () => cancelScan());
   const qtyMinus = document.getElementById("btn-qty-minus");
@@ -580,6 +623,43 @@ function showResultOverlay(result) {
 
   overlay.style.display = "flex";
 
+  // ---- Modus-abhaengige Anzeige -------------------------------------------
+  const priceInfo = document.getElementById("scan-price-info");
+  const btnConfirm = document.getElementById("btn-confirm");
+  const btnReject = document.getElementById("btn-reject");
+  const btnCancel = document.getElementById("btn-cancel");
+  const btnPriceOk = document.getElementById("btn-price-ok");
+  const foilArea = document.querySelector(".scan-result-foil");
+  if (scanMode === "price") {
+    // PREIS-Modus: keine Menge/Foil, andere Buttons, Preis anzeigen
+    if (foilArea) foilArea.classList.add("hidden");
+    if (btnConfirm) btnConfirm.classList.add("hidden");
+    if (btnPriceOk) btnPriceOk.classList.remove("hidden");
+    if (btnReject) btnReject.textContent = "✗ Falsche Karte";
+    if (btnCancel) btnCancel.textContent = "↩ Weiter scannen";
+    if (priceInfo) {
+      priceInfo.classList.remove("hidden");
+      priceInfo.innerHTML = '<span class="price-muted">Preise werden geladen...</span>';
+      loadPriceForCard(best.card_id, false);
+    }
+    const foilToggle = document.getElementById("price-foil-toggle");
+    if (foilToggle) {
+      foilToggle.classList.remove("hidden");
+      const foilCb = document.getElementById("price-foil-checkbox");
+      if (foilCb) foilCb.checked = false;
+    }
+  } else {
+    // SAMMLUNGS-Modus: alles wie bisher
+    if (foilArea) foilArea.classList.remove("hidden");
+    if (btnConfirm) btnConfirm.classList.remove("hidden");
+    if (btnPriceOk) btnPriceOk.classList.add("hidden");
+    if (btnReject) btnReject.textContent = "✗ Nein, falsche Karte";
+    if (btnCancel) btnCancel.textContent = "↩ Abbrechen";
+    if (priceInfo) priceInfo.classList.add("hidden");
+    const foilToggle = document.getElementById("price-foil-toggle");
+    if (foilToggle) foilToggle.classList.add("hidden");
+  }
+
   const candList = document.getElementById("candidate-list");
   if (result.candidates && result.candidates.length > 1) {
     let html = '<div class="cand-title">Alternative Kandidaten:</div>';
@@ -616,6 +696,48 @@ function selectCandidate(cardId, name, subtitle, setId, cardNumber) {
   document.getElementById("candidate-list").innerHTML = "";
 }
 
+
+
+// ---- Preis-Modus: Preis zur erkannten Karte laden ---------------------------
+async function loadPriceForCard(cardId, isFoil) {
+  const el = document.getElementById("scan-price-info");
+  if (!el || !cardId) return;
+  try {
+    const data = await api(`/api/card/${encodeURIComponent(cardId)}`);
+    const price = data.price;
+    if (!price || (price.trend == null && price.foil_trend == null)) {
+      el.innerHTML = '<span class="price-muted">⚠️ Kein Cardmarket-Preis für diese Karte<br><small>MKM-Preis-CSV importieren (Sets-Seite, Admin)</small></span>';
+      return;
+    }
+    const fmt = (v) => (v == null ? "—" : `${Number(v).toFixed(2)} €`);
+    const mainTrend = isFoil && price.foil_trend != null ? price.foil_trend : price.trend;
+    const foilTrend = price.foil_trend != null ? fmt(price.foil_trend) : "—";
+    el.innerHTML = `
+      <div class="price-main">💰 ${fmt(mainTrend)}${isFoil ? " <small>(Foil)</small>" : ""}</div>
+      <div class="price-row"><span>Foil-Trend</span><span>${foilTrend}</span></div>
+      <div class="price-row"><span>LOW</span><span>${fmt(price.low)}</span></div>
+      <div class="price-row"><span>Stand</span><span class="price-muted">${escapeHtml((price.updated_at || "").replace("T", " ").slice(0, 16))}</span></div>
+      <div class="price-muted" style="margin-top:6px;">Quelle: Cardmarket (Trend)</div>
+    `;
+  } catch (err) {
+    el.innerHTML = `<span class="price-muted">Preis konnte nicht geladen werden: ${escapeHtml(err.message)}</span>`;
+  }
+}
+
+// Preis-Modus: Overlay schliessen OHNE Sammlungs-Eintrag
+function closePriceScan() {
+  hideResultOverlay();
+  lastScanResult = null;
+  lastScanPhoto = null;
+  scanInProgress = false;
+  motionBaseline = null;
+  prevFrame = null;
+  const video = document.getElementById("camera-video");
+  if (video && isScanning) {
+    video.play();
+    updateOverlay("searching", "Suche nach Karte...");
+  }
+}
 function hideResultOverlay() {
   const overlay = document.getElementById("scan-result-overlay");
   if (overlay) overlay.style.display = "none";
@@ -633,38 +755,48 @@ async function confirmScan(confirmed) {
   const isFoil = foilCheckbox ? foilCheckbox.checked : false;
 
   try {
+    const priceMode = scanMode === "price";
     const result = await api("/api/scan/confirm", {
       method: "POST",
       body: {
         scan_id: lastScanResult.scan_id,
         confirmed: confirmed,
         card_id: cardId,
-        add_to_collection: confirmed,
+        add_to_collection: confirmed && !priceMode,  // Preis-Modus: kein Eintrag
         is_foil: isFoil,
         quantity: confirmed ? scanQuantity : 1,
         language: scanCardLanguage,
-        photo: confirmed ? lastScanPhoto : null,  // Only send photo on confirm
+        photo: (confirmed && !priceMode) ? lastScanPhoto : null,  // Foto nur fuer Sammlung
       },
     });
 
     if (confirmed) {
-      const foilText = isFoil ? " (Foil)" : "";
-      showToast(`"${lastScanResult.card_name}"${foilText} hinzugefügt ✓`, "success");
-      if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
-      // Show the undo bar with the confirmed card
-      showUndoBar(lastScanResult.card_name || cardId, result.undo_id);
+      if (scanMode === "price") {
+        showToast(`Preis für "${lastScanResult.card_name}" angezeigt 💰`, "info");
+        if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
+        // Preis-Modus: Overlay bleibt offen (Preis sichtbar), keine Undo-Bar
+      } else {
+        const foilText = isFoil ? " (Foil)" : "";
+        showToast(`"${lastScanResult.card_name}"${foilText} hinzugefügt ✓`, "success");
+        if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
+        // Show the undo bar with the confirmed card
+        showUndoBar(lastScanResult.card_name || cardId, result.undo_id);
+      }
     } else {
       showToast("Verworfen — Foto gelöscht", "info");
       if (USER_SETTINGS.haptic_on_reject && navigator.vibrate) navigator.vibrate(200);
     }
 
-    // Hide overlay and resume scanning
-    hideResultOverlay();
-    lastScanResult = null;
-    lastScanPhoto = null;
-    scanInProgress = false;
-    motionBaseline = null;
-    prevFrame = null;
+    // Hide overlay and resume scanning (Preis-Modus: Overlay bleibt offen,
+    // damit der Preis gelesen werden kann - naechster Scan startet ueber cancel/Weiter)
+    if (scanMode !== "price") {
+      hideResultOverlay();
+      lastScanResult = null;
+      lastScanPhoto = null;
+      scanInProgress = false;
+      motionBaseline = null;
+      prevFrame = null;
+    }
 
     // Resume camera
     const video = document.getElementById("camera-video");

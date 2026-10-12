@@ -47,6 +47,21 @@
         <span class="text-muted" id="undo-info" style="font-size:13px;"></span>
       </div>
 
+      <!-- Scan-Modus: Sammlung oder Preis -->
+      <div class="scan-mode-switch" id="scan-mode-switch">
+        <span class="scan-mode-label">Modus:</span>
+        <div class="scan-mode-seg" role="tablist" aria-label="Scan-Modus">
+          <button type="button" class="scan-mode-btn active" id="mode-btn-collection"
+                  onclick="setScanMode('collection')" role="tab" aria-selected="true">
+            📦 <span>Sammlung</span>
+          </button>
+          <button type="button" class="scan-mode-btn" id="mode-btn-price"
+                  onclick="setScanMode('price')" role="tab" aria-selected="false">
+            💰 <span>Preis</span>
+          </button>
+        </div>
+      </div>
+
       <div class="scanner-container">
         <!-- Camera -->
         <div class="camera-wrap" id="camera-wrap">
@@ -95,6 +110,13 @@
               <div class="scan-result-sub" id="result-sub"></div>
               <div class="scan-result-meta" id="result-meta"></div>
               <div class="scan-result-confidence" id="result-confidence"></div>
+              <div class="scan-price-info hidden" id="scan-price-info"></div>
+              <div class="price-foil-toggle hidden" id="price-foil-toggle" style="margin-top:8px; display:flex; align-items:center; gap:6px; font-size:13px;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="price-foil-checkbox" onchange="loadPriceForCard((lastScanResult?.candidates?.[0] || {}).card_id, this.checked)">
+                  ✨ Foil-Preis anzeigen
+                </label>
+              </div>
             </div>
             <div class="scan-result-foil">
               <div class="quantity-control">
@@ -106,6 +128,7 @@
             </div>
             <div class="scan-result-actions">
               <button class="btn btn-success btn-large" id="btn-confirm">✓ Ja, richtige Karte</button>
+              <button class="btn btn-success btn-large hidden" id="btn-price-ok">💰 Preis ansehen</button>
               <button class="btn btn-danger btn-large" id="btn-reject">✗ Nein, falsche Karte</button>
               <button class="btn btn-secondary btn-large" id="btn-cancel">↩ Abbrechen</button>
             </div>
@@ -121,7 +144,7 @@
   </div>
 
   <script src="/static/common.js"></script>
-  <script src="/static/scanner.js?v=14"></script>
+  <script src="/static/scanner.js?v=15"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

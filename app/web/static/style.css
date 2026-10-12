@@ -1054,3 +1054,71 @@ td .badge {
 .account-dropdown .ad-item:hover { background: var(--surface2); }
 .account-dropdown .ad-item span.ad-value { color: var(--muted); font-size: 12px; }
 .account-dropdown .ad-section { padding: 8px 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
+
+
+/* ---- Scan-Modus-Umschalter (Sammlung / Preis) --------------------------- */
+.scan-mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.scan-mode-label {
+  font-size: 14px;
+  color: var(--muted-fg, #9aa4b2);
+}
+.scan-mode-seg {
+  display: inline-flex;
+  background: var(--card-2, #1c2433);
+  border: 1px solid var(--border, #2a3446);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+}
+.scan-mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted-fg, #9aa4b2);
+  padding: 8px 18px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.scan-mode-btn.active {
+  background: var(--accent, #3b82f6);
+  color: #fff;
+}
+.scan-mode-btn:not(.active):hover {
+  color: var(--fg, #e6e9ef);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Preis-Info im Scan-Overlay */
+.scan-price-info {
+  margin-top: 10px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.scan-price-info .price-main {
+  font-size: 20px;
+  font-weight: 700;
+  color: #4ade80;
+}
+.scan-price-info .price-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.scan-price-info .price-row span:last-child {
+  font-weight: 600;
+}
+.scan-price-info .price-muted {
+  color: var(--muted-fg, #9aa4b2);
+  font-size: 12px;
+}

@@ -611,9 +611,10 @@ def _register_routes(app: Flask) -> None:
                         )
                         conn.commit()
 
-                # Save the photo for training ONLY on confirm
+                # Save the photo for training ONLY on confirm AND collection add
+                # (price-mode scans are pure lookups - no training data pollution)
                 saved_photo_path = ""
-                if photo_data:
+                if photo_data and add_to_collection:
                     import base64 as b64mod
                     import time as _time
                     images_dir = app.config["_SWU_CFG"].path("images_dir")
@@ -2202,6 +2203,7 @@ def _register_routes(app: Flask) -> None:
         conn = connect()
         try:
             settings = dict(_DEFAULT_SETTINGS)
+            settings.setdefault("scan_mode", "collection")
             cur = conn.execute("SELECT key, value FROM settings")
             for row in cur.fetchall():
                 settings[row["key"]] = row["value"]
@@ -2212,6 +2214,13 @@ def _register_routes(app: Flask) -> None:
     @app.route("/api/settings", methods=["POST"])
     def api_save_settings():
         body = request.get_json(silent=True) or {}
+        # Enum-artige Schluessel validieren statt blind zu speichern
+        _ENUM_SETTINGS = {"scan_mode": ("collection", "price")}
+        for key, allowed in _ENUM_SETTINGS.items():
+            if key in body and str(body[key]) not in allowed:
+                return jsonify({
+                    "error": f"Ungueltiger Wert fuer '{key}'. Erlaubt: {', '.join(allowed)}",
+                }), 400
         conn = connect()
         try:
             for key, value in body.items():
