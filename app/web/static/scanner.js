@@ -68,6 +68,13 @@ function setScanMode(mode) {
 // Language of the card currently shown in the scan overlay ("de" | "en")
 let scanCardLanguage = "de";
 
+// ---- HUD-Scanline zentral steuern -------------------------------------------
+function _setHudScanning(on) {
+  const hud = document.getElementById("camera-hud");
+  if (!hud) return;
+  hud.classList.toggle("scanning", !!on);
+}
+
 // ---- Camera controls: torch + zoom (hardware with digital fallback) ---------
 let activeVideoTrack = null;
 let hwZoomCaps = null;      // {min, max, step} when the device supports hardware zoom
@@ -326,6 +333,7 @@ function changeQty(delta) {
 
 function cancelScan() {
   // Just close the popup, don't add or delete anything
+  _setHudScanning(false); // Nutzer bricht ab -> Animation sofort stoppen
   hideResultOverlay();
   lastScanResult = null;
   lastScanPhoto = null;
@@ -386,6 +394,7 @@ async function startCamera() {
 function stopCamera() {
   if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
   isScanning = false;
+  _setHudScanning(false); // Scanline aus - Kamera ist komplett gestoppt
   _teardownCameraControls();
   if (videoStream) { videoStream.getTracks().forEach((t) => t.stop()); videoStream = null; }
   const video = document.getElementById("camera-video");
@@ -480,7 +489,7 @@ async function performScan() {
 
   // Capture frame BEFORE scan starts
   scanInProgress = true;
-  document.getElementById("camera-hud")?.classList.add("scanning");
+  _setHudScanning(true);
   updateOverlay("scanning", "Scan läuft...");
 
   // Freeze camera preview if enabled in settings (not in bulk mode — camera keeps running)
@@ -514,7 +523,7 @@ async function performScan() {
         bulkEl.textContent = `⚡ ${bulkSessionCount} Karten in dieser Session — ${result.card_name} (${(result.confidence * 100).toFixed(1)}%)`;
       }
       if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
-      document.getElementById("camera-hud")?.classList.remove("scanning");
+      _setHudScanning(false);
     updateOverlay("found", "Karte erkannt!");
       // auto-confirm in the background (no popup)
       api("/api/scan/confirm", {
@@ -548,7 +557,7 @@ async function performScan() {
     motionBaseline = "scanned";
     // Camera stays paused while popup is shown
   } catch (err) {
-    document.getElementById("camera-hud")?.classList.remove("scanning");
+    _setHudScanning(false);
     updateOverlay("error", `Scan-Fehler: ${err.message}`);
     scanInProgress = false;
     motionBaseline = "ready"; // Allow retry
@@ -757,6 +766,7 @@ async function loadPriceForCard(cardId, isFoil) {
 
 // Preis-Modus: Overlay schliessen OHNE Sammlungs-Eintrag
 function closePriceScan() {
+  _setHudScanning(false);
   hideResultOverlay();
   lastScanResult = null;
   lastScanPhoto = null;

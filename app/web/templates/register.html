@@ -16,8 +16,9 @@
       <input type="text" id="username-input" autocomplete="username" autocapitalize="none">
     </div>
     <div class="form-group">
-      <label>E-Mail</label>
-      <input type="email" id="email-input" autocomplete="email" autocapitalize="none">
+      <label>E-Mail <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+      <input type="email" id="email-input" autocomplete="email" autocapitalize="none" placeholder="für Passwort-Zurücksetzen (online-Modus)">
+      <small class="text-muted" style="font-size:12px; display:block; margin-top:4px;">Ohne E-Mail einfach leer lassen — im Heimnetz nicht nötig.</small>
     </div>
     <div class="form-group">
       <label>Passwort (min. 8 Zeichen)</label>
@@ -42,6 +43,12 @@
       const password = document.getElementById("password-input").value;
       const errEl = document.getElementById("reg-error");
       errEl.classList.add("hidden");
+      // E-Mail-Format nur pruefen, wenn ueberhaupt etwas eingegeben wurde
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        errEl.textContent = "Ungültige E-Mail-Adresse (oder ganz leer lassen).";
+        errEl.classList.remove("hidden");
+        return;
+      }
       document.getElementById("btn-register").disabled = true;
       try {
         const resp = await fetch("/api/auth/register", {
@@ -51,8 +58,10 @@
         });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || "Registrierung fehlgeschlagen");
-        let msg = "Konto erstellt! 🎉";
-        if (data.email_sent === false) {
+        let msg = "Konto erstellt! 🎉 Du bist direkt einsatzbereit.";
+        if (!email) {
+          msg += "<br><small class=\"text-muted\">Ohne E-Mail: Passwort-Zurücksetzen nur über den Admin möglich.</small>";
+        } else if (data.email_sent === false) {
           msg += "<br><br><b>Lokaler Modus (noch kein E-Mail-Server):</b><br>Bestätigungs-Link: <a href='/verify-email?token=" + (data.verify_token_local || "") + "'>E-Mail jetzt bestätigen</a>";
         }
         document.getElementById("reg-success-text").innerHTML = msg;

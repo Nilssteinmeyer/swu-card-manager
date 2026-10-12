@@ -1,12 +1,13 @@
-/* SWU Card Manager — Service Worker
-   Caches the app shell (CSS/JS/icons) for offline loading and fast startup.
-   Network-first for pages, cache-first for static assets. */
-const CACHE_NAME = "swu-manager-v20";
+/* SWU Card Manager — Service Worker v21
+   Cache-first fuer versionierte Assets, network-first fuer Seiten.
+   Update-Strategie: bei neuem SW sofort aktivieren + alte Caches killen. */
+const CACHE_NAME = "swu-manager-v21";
 const APP_SHELL = [
-  "/static/style.css",
-  "/static/platform.css",
-  "/static/common.js",
-  "/static/manifest.json",
+  "/static/style.css?v=20",
+  "/static/platform.css?v=2",
+  "/static/common.js?v=15",
+  "/static/scanner.js?v=16",
+  "/static/manifest.json?v=1",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",
 ];
@@ -15,7 +16,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
-  self.skipWaiting();
+  self.skipWaiting(); // neuer SW uebernimmt SOFORT
 });
 
 self.addEventListener("activate", (event) => {
@@ -24,15 +25,14 @@ self.addEventListener("activate", (event) => {
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
     )
   );
-  self.clients.claim();
+  self.clients.claim(); // offene Tabs sofort uebernehmen
 });
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  // only handle same-origin GET
   if (event.request.method !== "GET" || url.origin !== self.location.origin) return;
 
-  // Cache-first for static assets
+  // Versionierte Static-Assets: cache-first (vom Server mit ?v= eindeutig)
   if (url.pathname.startsWith("/static/")) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
@@ -47,7 +47,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first for pages and API (collection data must be fresh)
-  // Do NOT cache /api/ responses.
+  // API nie cachen
   if (url.pathname.startsWith("/api/")) return;
+  // Seiten (HTML): network-first mit Cache-Fallback (offline)
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+  }
 });

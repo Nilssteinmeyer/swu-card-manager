@@ -131,7 +131,12 @@ def api_register():
 
     if not _USERNAME_RE.match(username):
         return jsonify({"error": "Benutzername: 3–30 Zeichen, nur Buchstaben/Zahlen/._-"}), 400
-    if not _EMAIL_RE.match(email):
+    # E-Mail ist OPTIONAL (lokaler Modus): ohne Angabe wird eine interne
+    # Platzhalter-Adresse generiert (einmalig pro Username, nie extern genutzt).
+    email_optional = not email
+    if email_optional:
+        email = f"{username}@local.invalid"
+    elif not _EMAIL_RE.match(email):
         return jsonify({"error": "Ungültige E-Mail-Adresse"}), 400
     if len(password) < 8:
         return jsonify({"error": "Passwort: mindestens 8 Zeichen"}), 400
@@ -151,15 +156,21 @@ def api_register():
         else:
             create_household(conn, f"{username}s Sammlung", user_id)
 
-        # email verification token (local mode: logged / shown in UI)
-        token = create_email_verification(conn, user_id)
-        sent = mail.send_email(
-            email,
-            "SWU Card Manager — E-Mail bestätigen",
-            f"Hallo {username}!\n\nBitte bestätige deine E-Mail:\n"
-            f"https://{'localhost:8765'}/verify-email?token={token}\n\n"
-            f"(Lokaler Modus: Token auch im Server-Log.)",
-        )
+        # E-Mail-Verifikation nur bei echten Adressen (lokale Platzhalter nie)
+        token = None
+        sent = False
+        if not email_optional:
+            token = create_email_verification(conn, user_id)
+            sent = mail.send_email(
+                email,
+                "SWU Card Manager — E-Mail bestätigen",
+                f"Hallo {username}!\n\nBitte bestätige deine E-Mail:\n"
+                f"https://{'localhost:8765'}/verify-email?token={token}\n\n"
+                f"(Lokaler Modus: Token auch im Server-Log.)",
+            )
+        else:
+            # Platzhalter-Adresse gilt direkt als verifiziert (kein Mailversand)
+            mark_email_verified(conn, user_id)
 
         session_token = create_session(conn, user_id, remember=False)
         session[SESSION_COOKIE] = session_token
@@ -273,6 +284,7 @@ def api_me():
             "display_name": g.user.get("display_name"),
             "is_platform_admin": bool(g.user.get("is_platform_admin")),
             "email_verified": bool(g.user.get("email_verified")),
+            "email": g.user.get("email"),
         },
         "households": households,
         "active_household_id": g.household["household_id"] if g.get("household") else None,

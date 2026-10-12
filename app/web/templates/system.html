@@ -229,7 +229,10 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+        navigator.serviceWorker.register('/static/sw.js?v=21').then(reg => {
+              // Sofort pruefen ob ein neuer SW existiert
+              reg.update().catch(() => {});
+            }).catch(() => {});
       });
     }
   </script>
