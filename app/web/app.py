@@ -396,6 +396,9 @@ def _register_routes(app: Flask) -> None:
         try:
             # Dashboard shows ONLY collection stats — no training/reference data
             hh = _hh()
+            # Name der aktiven Sammlung (fuer Dashboard-Titel)
+            hh_row = conn.execute("SELECT name FROM households WHERE household_id = ?", (hh,)).fetchone()
+            household_name = hh_row["name"] if hh_row else None
             collection_total = repo.get_collection_count(conn, hh)
             collection_unique = repo.get_unique_collection_count(conn, hh)
             scans_today = repo.get_scan_count_today(conn, hh)
@@ -439,6 +442,7 @@ def _register_routes(app: Flask) -> None:
             foil_count = cur.fetchone()[0]
 
             return jsonify({
+                "household_name": household_name,
                 "collection_total": collection_total,
                 "collection_unique": collection_unique,
                 "scans_today": scans_today,

@@ -6,8 +6,15 @@
   <div class="sheet-handle"></div>
   <div class="share-title">👥 Sammlung teilen</div>
 
-  <!-- Owner-Bereich: Einladen per Name -->
+  <!-- Owner-Bereich: Umbenennen + Einladen -->
   <div class="share-section" id="share-owner-area">
+    <div class="share-subtitle">Sammlungsname</div>
+    <div class="share-invite-row" style="margin-bottom:6px;">
+      <input type="text" id="rename-input" placeholder="Neuer Name" maxlength="60" autocapitalize="none">
+      <button class="btn btn-secondary" onclick="renameHousehold()">Umbenennen</button>
+    </div>
+    <div id="rename-msg" class="share-msg" style="margin-bottom:10px;"></div>
+
     <div class="share-subtitle">Person einladen (Benutzername)</div>
     <div class="share-invite-row">
       <input type="text" id="invite-username-input" placeholder="Benutzername eingeben…" autocapitalize="none" >

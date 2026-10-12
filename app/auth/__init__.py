@@ -209,6 +209,22 @@ def join_household_by_code(conn, invite_code: str, user_id: int, role: str = "ed
     return {"ok": True, "household_id": household["household_id"], "name": household["name"]}
 
 
+def rename_household(conn, household_id: int, name: str, actor_user_id: int) -> dict[str, Any]:
+    """Owner benennt die Sammlung um."""
+    name = (name or "").strip()
+    if not name or len(name) > 60:
+        return {"ok": False, "error": "Name: 1-60 Zeichen erforderlich"}
+    actor = get_membership(conn, household_id, actor_user_id)
+    if not actor or actor["role"] != "owner":
+        return {"ok": False, "error": "Nur Admins (Owner) dürfen die Sammlung umbenennen"}
+    conn.execute(
+        "UPDATE households SET name = ? WHERE household_id = ?",
+        (name, household_id),
+    )
+    conn.commit()
+    return {"ok": True, "name": name}
+
+
 def add_member_by_username(conn, household_id: int, username: str, role: str, inviter_user_id: int) -> dict[str, Any]:
     """Owner/Admin laedt einen bestehenden User per Benutzernamen direkt ein."""
     if role not in ("viewer", "editor", "owner"):

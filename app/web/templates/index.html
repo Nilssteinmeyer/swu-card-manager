@@ -2,7 +2,7 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-      <h1 class="mb-2">Dashboard</h1>
+      <h1 class="mb-2" id="dashboard-title">Dashboard</h1>
 
       <div class="stat-grid" id="stat-grid">
         <div class="stat-card green">
@@ -71,6 +71,10 @@
     async function loadDashboard() {
       try {
         const data = await api("/api/dashboard");
+
+        // Sammlungsname als Titel (Fallback: Dashboard)
+        const titleEl = document.getElementById("dashboard-title");
+        if (titleEl && data.household_name) titleEl.textContent = data.household_name;
 
         // Collection stats ONLY — no reference/training data
         document.getElementById("stat-collection-total").textContent = data.collection_total.toLocaleString();

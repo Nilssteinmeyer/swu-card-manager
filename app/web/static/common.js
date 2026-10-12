@@ -331,7 +331,11 @@ async function refreshShareDialog() {
     }
   }
 
-  if (isOwner) await loadShareMembers();
+  if (isOwner) {
+    const renameInput = document.getElementById("rename-input");
+    if (renameInput && household && !renameInput.value) renameInput.value = household.name || "";
+    await loadShareMembers();
+  }
 }
 
 async function loadShareMembers() {
@@ -361,6 +365,29 @@ async function loadShareMembers() {
       </div>`).join("");
   } catch (e) {
     listEl.innerHTML = `<span class="text-muted">${escapeHtml(e.message)}</span>`;
+  }
+}
+
+async function renameHousehold() {
+  const input = document.getElementById("rename-input");
+  const msgEl = document.getElementById("rename-msg");
+  const name = (input.value || "").trim();
+  msgEl.textContent = ""; msgEl.className = "share-msg";
+  if (!name) { msgEl.textContent = "Name eingeben."; msgEl.classList.add("err"); return; }
+  try {
+    const resp = await fetch("/api/auth/household/rename", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Fehler");
+    msgEl.textContent = "✓ Umbenannt!";
+    msgEl.classList.add("ok");
+    showToast("Sammlung heißt jetzt: " + name, "success");
+    ME = null; // Neu laden beim naechsten Dialog-Oeffnen
+    setTimeout(() => window.location.reload(), 700);
+  } catch (e) {
+    msgEl.textContent = "✗ " + e.message; msgEl.classList.add("err");
   }
 }
 
@@ -437,6 +464,80 @@ async function joinByCode() {
     msgEl.textContent = "✗ " + e.message; msgEl.classList.add("err");
   }
 }
+
+// ---- iOS-uebliches Drag-toDismiss an allen Bottom-Sheets -------------------
+// Nutzer erwartet: am dickeren Balken (Handle) nach unten ziehen schliesst das
+// Sheet - wie in jeder iOS-App. Implementiert: Pointer-Events (Touch+Maus),
+// 1:1-Folge waehrend des Ziehens, Schliessen ab 80px oder schneller Bewegung.
+function _installSheetDrag(sheetSel, closeFn) {
+  const sheet = document.querySelector(sheetSel);
+  if (!sheet || sheet.dataset.dragInstalled) return;
+  sheet.dataset.dragInstalled = "1";
+
+  let startY = 0, curY = 0, dragging = false, startT = 0;
+  const THRESHOLD = 80;   // px: darunter schliesst es
+  const VELOCITY = 0.5;   // px/ms: schnelles Runterziehen schliesst ebenfalls
+
+  const handle = sheet.querySelector(".sheet-handle") || sheet;
+
+  function onStart(e) {
+    // Nur oben beginnen (Handle ODER obere 60px vom Sheet-Rand)
+    const r = sheet.getBoundingClientRect();
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    const onHandle = e.target.closest && e.target.closest(".sheet-handle");
+    if (!onHandle && y - r.top > 60) return; // mitten im Inhalt: normales Scrollen
+    dragging = true;
+    startY = y; startT = Date.now();
+    curY = 0;
+    sheet.style.transition = "none";
+    if (e.cancelable) e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    curY = y - startY;
+    if (curY > 0) {
+      sheet.style.transform = "translateY(" + curY + "px)";
+      sheet.style.opacity = String(Math.max(0.4, 1 - curY / 400));
+      if (e.cancelable) e.preventDefault();
+    }
+  }
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transition = "";
+    sheet.style.opacity = "";
+    const dur = Date.now() - startT;
+    const fast = dur > 0 && (curY / dur) > VELOCITY && curY > 20;
+    if (curY > THRESHOLD || fast) {
+      sheet.style.transform = "";
+      closeFn();
+    } else {
+      sheet.style.transform = "";
+    }
+  }
+
+  handle.addEventListener("touchstart", onStart, { passive: false });
+  sheet.addEventListener("touchstart", onStart, { passive: false });
+  sheet.addEventListener("touchmove", onMove, { passive: false });
+  sheet.addEventListener("touchend", onEnd);
+  sheet.addEventListener("touchcancel", onEnd);
+  // Desktop-Unterstützung (Maus)
+  sheet.addEventListener("mousedown", (e) => {
+    const r = sheet.getBoundingClientRect();
+    if (e.clientY - r.top > 60) return;
+    const mv = (ev) => onMove(ev);
+    const up = () => { onEnd(); document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); };
+    onStart(e);
+    document.addEventListener("mousemove", mv);
+    document.addEventListener("mouseup", up);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  _installSheetDrag("#more-sheet", () => toggleMoreSheet(false));
+  _installSheetDrag("#share-dialog", () => closeShareDialog());
+});
 
 // ---- Init on page load ---------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {

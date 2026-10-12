@@ -118,6 +118,31 @@ async def run_state(browser, state: str, results: list):
         results.append({"check": "Teilen: Join-Feld korrekt versteckt (Owner)",
                         "pass": join_hidden, "reason": "OK" if join_hidden else "sichtbar?!"})
 
+    elif state == "share_rename":
+        await _login(page)
+        await page.evaluate("openShareDialog()")
+        await page.wait_for_timeout(900)
+        await page.screenshot(path=str(OUT / "share_rename.png"))
+        results.append(await _measure(page, "#rename-input", "Teilen: Umbenennen-Feld"))
+        # Groesse nach Typen von 20 Zeichen
+        await page.fill("#rename-input", "Die Allererste Mega Sammlung")
+        await page.wait_for_timeout(200)
+        m = await _measure(page, "#rename-input", "Teilen: Umbenennen mit 27 Zeichen")
+        typed = await page.evaluate("document.getElementById('rename-input').value")
+        m["reason"] += f" | getippt: '{typed}'"
+        results.append(m)
+        # Handle-Touchzone pruefen
+        hz = await page.evaluate("""(() => {
+            const h = document.querySelector('#share-dialog .sheet-handle');
+            const z = getComputedStyle(h, '::before');
+            return {zoneH: parseFloat(z.height), touch: getComputedStyle(h).touchAction};
+        })()""")
+        results.append({"check": "Share-Handle Touch-Zone",
+                        "pass": hz["zoneH"] >= 44 and hz["touch"] == "none",
+                        "reason": f"Zone {hz['zoneH']}px, touch-action {hz['touch']}"})
+        await page.fill("#rename-input", "")
+        await page.screenshot(path=str(OUT / "share_rename_filled.png"))
+
     elif state == "scanner":
         await _login(page)
         await page.goto(f"{BASE}/scanner", wait_until="networkidle")
@@ -148,7 +173,7 @@ async def run_state(browser, state: str, results: list):
 
 
 async def main():
-    states = sys.argv[1:] or ["login", "share_owner", "share_guest", "scanner", "tabbar"]
+    states = sys.argv[1:] or ["login", "share_owner", "share_guest", "share_rename", "scanner", "tabbar"]
     results: list[dict] = []
     async with async_playwright() as p:
         browser = await p.chromium.launch()

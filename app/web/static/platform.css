@@ -243,11 +243,25 @@
 }
 .more-sheet.visible { transform: translateY(0); }
 .sheet-handle {
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
   background: var(--outline);
   margin: 6px auto 14px;
+  /* iOS-Griffgefuehl: grosser Touch-Bereich rund um den Balken */
+  position: relative;
+  cursor: grab;
+  touch-action: none; /* Browser-Scroll greift nicht rein, Drag uebernimmt JS */
+}
+.sheet-handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 140px;
+  height: 44px;  /* Touch-Ziel >= 44px */
+  /* unsichtbar, nur Trefferflaeche */
 }
 .sheet-account {
   display: flex;

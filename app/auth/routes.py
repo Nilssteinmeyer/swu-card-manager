@@ -17,6 +17,7 @@ from flask import (
 from app.auth import (
     SESSION_COOKIE,
     add_member_by_username,
+    rename_household,
     can_edit,
     consume_email_verification,
     consume_password_reset,
@@ -364,6 +365,26 @@ def api_household_invite_code():
     try:
         household = get_household(conn, g.household["household_id"])
         return jsonify({"code": household["invite_code"]})
+    finally:
+        conn.close()
+
+
+@bp.route("/api/auth/household/rename", methods=["POST"])
+@login_required
+def api_household_rename():
+    """Owner benennt die aktive Sammlung um."""
+    if g.get("household") is None:
+        return jsonify({"error": "Keine aktive Sammlung"}), 400
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name or len(name) > 60:
+        return jsonify({"error": "Name: 1-60 Zeichen erforderlich"}), 400
+    conn = connect()
+    try:
+        result = rename_household(
+            conn, g.household["household_id"], name, g.user["user_id"]
+        )
+        return jsonify(result), 200 if result.get("ok") else 403
     finally:
         conn.close()
 
