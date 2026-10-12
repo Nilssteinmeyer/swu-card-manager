@@ -38,15 +38,41 @@ REQUEST_DELAY_S = 0.6  # courtesy delay between set downloads
 # Matching is done on the normalised display name of our sets table too,
 # so unknown new sets still work if the names align.
 _GROUP_TO_SET: dict[str, str] = {
+    # Hauptssets (exakte TCGplayer-Gruppennamen -> unsere set_id)
     "spark of rebellion": "SOR",
     "shadows of the galaxy": "SHD",
-    "twin suns": "TWI",
+    "twin suns": "TS26",
+    "twilight of the republic": "TWI",
     "jump to lightspeed": "JTL",
     "legends of the force": "LOF",
     "homeworlds": "HMW",
     "ashes of the empire": "ASH",
-    "sector and regional promos": "SEC",
-    "icons 2027 edition": "ICONS",
+    "a lawless time": "LAW",
+    "secrets of power": "SEC",
+    "icons 2027 edition": "IC27",
+    "intro battle: hoth": "IBH",
+    # Promos / Specials
+    "2024 convention exclusive": "C24",
+    "2025 convention exclusive": "C25",
+    "2026 convention exclusive": "C26",
+    "2025 gift box": "G25",
+    "gamegenic promos": "GG",
+    "judge promos": "J24",
+    "prerelease promos": "PSOR",
+    "event exclusive promos": "ESHD",
+    "organized play promos": "SOROP",
+    "sector and regional promos: season 1": "P25",
+    "sector and regional promos: season 2": "P26",
+    # Weekly Play Promos je Set (Suffix-Variante wird separat gematcht)
+    "spark of rebellion: weekly play promos": "SOROP",
+    "shadows of the galaxy: weekly play promos": "SHDOP",
+    "twilight of the republic: weekly play promos": "TWIOP",
+    "jump to lightspeed: weekly play promos": "JTLOP",
+    "legends of the force: weekly play promos": "LOFOP",
+    "homeworlds: weekly play promos": "HMWP",
+    "ashes of the empire - weekly play promos": "ASHOP",
+    "a lawless time: weekly play promos": "LAWP",
+    "secrets of power: weekly play promos": "SECOP",
 }
 
 

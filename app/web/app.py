@@ -2305,6 +2305,27 @@ def main() -> None:
     else:
         print("  (Recognition engine loads lazily on first scan.)", flush=True)
 
+    # TCGplayer-Preise im Hintergrund aktuell halten (einmal je Server-Start;
+    # taeglich zusaetzlich via Task SWU-TCG-Price-Sync). Laeuft asynchron -
+    # der Server ist sofort verfuegbar, Preise kommen nach ~30-60 s dazu.
+    import threading as _threading
+
+    def _bg_tcg_sync():
+        try:
+            import subprocess as _sp
+            import sys as _sys
+            _sp.run(
+                [_sys.executable, str(Path(__file__).resolve().parents[2] / "scripts" / "tcg_sync.py")],
+                timeout=600,
+                capture_output=True,
+            )
+        except Exception as _e:  # noqa: BLE001 - Preis-Sync darf den Start nie blocken
+            log.warning("Hintergrund-TCG-Sync fehlgeschlagen: %s", _e)
+
+    if not _os2.environ.get("SWU_SKIP_WARMUP"):
+        _threading.Thread(target=_bg_tcg_sync, daemon=True).start()
+        print("  TCG-Preis-Sync im Hintergrund gestartet.", flush=True)
+
     # Determine SSL cert paths
     project_root = Path(__file__).resolve().parent.parent.parent
     cert_path = project_root / "ssl" / "cert.pem"
