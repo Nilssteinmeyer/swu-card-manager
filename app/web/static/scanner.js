@@ -707,20 +707,48 @@ async function loadPriceForCard(cardId, isFoil) {
   if (!el || !cardId) return;
   try {
     const data = await api(`/api/card/${encodeURIComponent(cardId)}`);
-    const price = data.price;
-    if (!price || (price.trend == null && price.foil_trend == null)) {
-      el.innerHTML = '<span class="price-muted">⚠️ Kein Cardmarket-Preis für diese Karte<br><small>MKM-Preis-CSV importieren (Sets-Seite, Admin)</small></span>';
+    const mkm = data.price;                 // Cardmarket (falls CSV importiert)
+    const tcg = data.price_tcg;             // TCGplayer (Sync via Sets-Seite)
+    const fmt = (v) => (v == null ? "—" : `${Number(v).toFixed(2)} €`);
+
+    // Hauptpreis: Cardmarket bevorzugt, sonst TCGplayer
+    let mainTrend = null, mainSource = null, foilTrend = null, low = null, updated = null;
+    if (mkm && (mkm.trend != null || mkm.foil_trend != null)) {
+      mainTrend = isFoil && mkm.foil_trend != null ? mkm.foil_trend : mkm.trend;
+      mainSource = "Cardmarket";
+      foilTrend = mkm.foil_trend;
+      low = mkm.low;
+      updated = mkm.updated_at;
+    } else if (tcg && (tcg.market_normal != null || tcg.market_foil != null)) {
+      mainTrend = isFoil && tcg.market_foil != null ? tcg.market_foil : tcg.market_normal;
+      mainSource = "TCGplayer";
+      foilTrend = tcg.market_foil;
+      low = isFoil ? tcg.low_foil : tcg.low_normal;
+      updated = tcg.updated_at;
+    }
+
+    if (mainTrend == null) {
+      el.innerHTML = '<span class="price-muted">⚠️ Für diese Karte liegt kein Preis vor.<br><small>Kardmarket-CSV importieren oder TCGplayer-Sync starten (Sets-Seite, Admin)</small></span>';
       return;
     }
-    const fmt = (v) => (v == null ? "—" : `${Number(v).toFixed(2)} €`);
-    const mainTrend = isFoil && price.foil_trend != null ? price.foil_trend : price.trend;
-    const foilTrend = price.foil_trend != null ? fmt(price.foil_trend) : "—";
+
+    // Zweitquelle als Zusatzzeile (wenn beide vorhanden)
+    let secondRow = "";
+    if (mkm && tcg && tcg.market_normal != null && mainSource === "Cardmarket") {
+      const t = isFoil ? tcg.market_foil : tcg.market_normal;
+      secondRow = `<div class="price-row"><span>TCGplayer</span><span>${fmt(t)}</span></div>`;
+    } else if (mkm && tcg && mkm.trend != null && mainSource === "TCGplayer") {
+      const t = isFoil ? mkm.foil_trend : mkm.trend;
+      secondRow = `<div class="price-row"><span>Cardmarket</span><span>${fmt(t)}</span></div>`;
+    }
+
     el.innerHTML = `
       <div class="price-main">💰 ${fmt(mainTrend)}${isFoil ? " <small>(Foil)</small>" : ""}</div>
-      <div class="price-row"><span>Foil-Trend</span><span>${foilTrend}</span></div>
-      <div class="price-row"><span>LOW</span><span>${fmt(price.low)}</span></div>
-      <div class="price-row"><span>Stand</span><span class="price-muted">${escapeHtml((price.updated_at || "").replace("T", " ").slice(0, 16))}</span></div>
-      <div class="price-muted" style="margin-top:6px;">Quelle: Cardmarket (Trend)</div>
+      <div class="price-row"><span>Quelle</span><span>${mainSource}${isFoil ? " (Foil)" : ""}</span></div>
+      <div class="price-row"><span>Foil-Trend</span><span>${fmt(foilTrend)}</span></div>
+      ${secondRow}
+      <div class="price-row"><span>LOW</span><span>${fmt(low)}</span></div>
+      <div class="price-row"><span>Stand</span><span class="price-muted">${escapeHtml((updated || "").replace("T", " ").slice(0, 16))}</span></div>
     `;
   } catch (err) {
     el.innerHTML = `<span class="price-muted">Preis konnte nicht geladen werden: ${escapeHtml(err.message)}</span>`;

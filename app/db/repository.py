@@ -532,6 +532,16 @@ def get_price_for_card(conn: sqlite3.Connection, card_id: str) -> dict[str, Any]
     return dict(row) if row else None
 
 
+def get_tcg_price_for_card(conn: sqlite3.Connection, card_id: str) -> dict[str, Any] | None:
+    """TCGplayer-Preis fuer eine Karte (aus tcg_prices)."""
+    cur = conn.execute(
+        "SELECT * FROM tcg_prices WHERE card_id = ?",
+        (card_id,),
+    )
+    row = cur.fetchone()
+    return dict(row) if row else None
+
+
 def upsert_card_mkm_map(conn: sqlite3.Connection, card_id: str, idProduct: int) -> None:
     """Map a card_id to an MKM product id.
 

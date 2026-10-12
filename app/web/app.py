@@ -1758,9 +1758,10 @@ def _register_routes(app: Flask) -> None:
             owned = cur.fetchone()
             card["owned_count"] = owned["c"]
             card["owned_foil_count"] = owned["f"]
-            # price
+            # price: Cardmarket (falls importiert) + TCGplayer (Fallback/parallel)
             price = repo.get_price_for_card(conn, card_id)
             card["price"] = price
+            card["price_tcg"] = repo.get_tcg_price_for_card(conn, card_id)
             # set name
             cur = conn.execute("SELECT full_name FROM sets WHERE set_id = ?", (card.get("set_id"),))
             row = cur.fetchone()
@@ -1771,12 +1772,25 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/card/<card_id>/price")
     def api_card_price(card_id: str):
+        """Preis fuer eine Karte: Cardmarket bevorzugt, TCGplayer als Fallback.
+        Antwort enthaelt 'source': 'cardmarket' | 'tcgplayer'."""
         conn = connect()
         try:
             price = repo.get_price_for_card(conn, card_id)
-            if price is None:
-                return jsonify({"error": "Kein Preis für diese Karte"}), 404
-            return jsonify(price)
+            if price is not None:
+                out = dict(price)
+                out["source"] = "cardmarket"
+                return jsonify(out)
+            tcg = repo.get_tcg_price_for_card(conn, card_id)
+            if tcg is not None and tcg.get("market_normal") is not None:
+                return jsonify({
+                    "trend": tcg.get("market_normal"),
+                    "foil_trend": tcg.get("market_foil"),
+                    "low": tcg.get("low_normal"),
+                    "updated_at": tcg.get("updated_at"),
+                    "source": "tcgplayer",
+                })
+            return jsonify({"error": "Kein Preis für diese Karte"}), 404
         finally:
             conn.close()
 
