@@ -5,8 +5,8 @@ param(
     [switch]$Restart
 )
 
-$port = 8765
 $projectDir = "C:\Users\LLM\Desktop\TCG-Cardscannprojekt\swu_card_manager"
+$port = 8765  # Fallback; wird unten aus config/production.yaml gelesen
 
 if ($Restart) {
     Write-Host "== Stoppe alle app.web-Instanzen =="
@@ -44,6 +44,7 @@ if (Test-Path $prodYaml) {
     try {
         $yaml = Get-Content $prodYaml -Raw | ConvertFrom-Yaml -ErrorAction Stop
         if ($yaml.server.app_host) { $bindHost = $yaml.server.app_host }
+        if ($yaml.server.app_port) { $port = [int]$yaml.server.app_port }
     } catch { }
 }
 Write-Host "== Bind-Host: $bindHost (Port $port) =="

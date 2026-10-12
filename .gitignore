@@ -35,3 +35,4 @@ ssl/
 Thumbs.db
 venv/
 tools/
+config/setup_state.json

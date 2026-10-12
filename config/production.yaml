@@ -8,9 +8,13 @@
 # ============================================================================
 
 server:
-  # Interne Ports (Caddy haelt 443/80 extern und proxyt hierher)
-  app_host: "127.0.0.1"        # NUR localhost — Caddy ist der einzige Eingang
-  app_port: 8443
+  # Betriebsmodus: "local" (Heimnetz, Standard) | "internet" (Caddy+DuckDNS)
+  # Umschalten NUR ueber scripts/switch_mode.py (prueft Voraussetzungen).
+  deployment_mode: "local"
+  # Interne Ports: local = 0.0.0.0:8765 (iPhone direkt im WLAN)
+  #               internet = 127.0.0.1:8443 (Caddy ist der einzige Eingang)
+  app_host: "0.0.0.0"
+  app_port: 8765
   # Oeffentlicher Name (Go-Live Phase 6)
   public_domain: "swu-cardscanner.duckdns.org"
 
