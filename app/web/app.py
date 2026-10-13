@@ -2174,8 +2174,106 @@ def _register_routes(app: Flask) -> None:
                                (deck_id, _hh())).fetchone()
             if not row:
                 return jsonify({"error": "Deck nicht gefunden"}), 404
-            st.add_card_to_deck_list(conn, deck_id, card_id, menge=menge, zone=zone)
+            try:
+                st.add_card_to_deck_list(conn, deck_id, card_id, menge=menge, zone=zone)
+            except ValueError as ve:
+                return jsonify({"error": str(ve)}), 400
             return jsonify({"added": True})
+        finally:
+            conn.close()
+
+    @app.route("/api/decks/<int:deck_id>/import", methods=["POST"])
+    def api_deck_import(deck_id: int):
+        """Deckliste importieren (Bauplan, keine physischen Kopien).
+
+        Akzeptiert:
+        - Text: '2x Luke Skywalker (SOR-005)' pro Zeile (Limitless/SWUDB-Text-Export)
+        - SWUDB-JSON: {"leader":..., "deck":[...]} oder Karten-Array
+        - SWU-Set-Codes: SOR-005
+        Unbekannte Zeilen werden zurueckgemeldet (TCG-Stacked-Muster:
+        Round-Trip mit Fehler-Report statt still verwerfen).
+        """
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        raw = (body.get("list") or "").strip()
+        if not raw:
+            return jsonify({"error": "list erforderlich"}), 400
+        conn = connect()
+        try:
+            row = conn.execute("SELECT 1 FROM decks WHERE deck_id = ? AND household_id = ?",
+                               (deck_id, _hh())).fetchone()
+            if not row:
+                return jsonify({"error": "Deck nicht gefunden"}), 404
+            import json as _json
+            import re as _re
+
+            lines: list[tuple[int, str]] = []
+            # SWUDB-JSON?
+            if raw.startswith("{") or raw.startswith("["):
+                try:
+                    data = _json.loads(raw)
+                    cards = data.get("deck") if isinstance(data, dict) else data
+                    if isinstance(cards, list):
+                        for entry in cards:
+                            if isinstance(entry, dict):
+                                nm = entry.get("name") or entry.get("title") or ""
+                                qty = int(entry.get("quantity") or entry.get("count") or 1)
+                                setcode = entry.get("set") or entry.get("setCode") or ""
+                                num = entry.get("number") or entry.get("cardNumber") or ""
+                                label = f"{nm} ({setcode}-{num})" if setcode and num else nm
+                                if nm:
+                                    lines.append((qty, label))
+                except Exception:
+                    return jsonify({"error": "Ungültiges JSON"}), 400
+            else:
+                for ln in raw.splitlines():
+                    ln = ln.strip()
+                    if not ln:
+                        continue
+                    m = _re.match(r"^(\d+)\s*[x×]?\s+(.+)$", ln)
+                    if m:
+                        lines.append((int(m.group(1)), m.group(2).strip()))
+                    else:
+                        lines.append((1, ln))
+            if not lines:
+                return jsonify({"error": "Keine Karten erkannt"}), 400
+
+            added, unknown = [], []
+            for qty, label in lines:
+                # 1) Set-Code-Muster 'SOR-005'
+                m = _re.search(r"([A-Z]{3,4})-(\d{1,3})", label)
+                card = None
+                if m:
+                    card = conn.execute(
+                        "SELECT card_id FROM cards WHERE set_id = ? AND card_number = ?",
+                        (m.group(1), m.group(2)),
+                    ).fetchone()
+                if not card:
+                    # 2) Namens-Suche (exakt, dann LIKE)
+                    nm = _re.sub(r"\s*\(.*\)$", "", label).strip()
+                    card = conn.execute(
+                        "SELECT card_id FROM cards WHERE name = ? OR name_de = ? COLLATE NOCASE",
+                        (nm, nm),
+                    ).fetchone()
+                if not card:
+                    nm2 = nm.replace("'", "''")
+                    card = conn.execute(
+                        f"SELECT card_id FROM cards WHERE name LIKE ? OR name_de LIKE ? LIMIT 1",
+                        (f"%{nm[:40]}%", f"%{nm[:40]}%"),
+                    ).fetchone()
+                if not card:
+                    unknown.append(label)
+                    continue
+                try:
+                    st.add_card_to_deck_list(conn, deck_id, card["card_id"], menge=qty, zone="maindeck")
+                    added.append({"card_id": card["card_id"], "menge": qty})
+                except ValueError as ve:
+                    unknown.append(f"{label} ({ve})")
+            conn.commit()
+            return jsonify({"added": len(added), "unknown": unknown})
         finally:
             conn.close()
 

@@ -244,9 +244,27 @@ def rename_deck(conn: sqlite3.Connection, deck_id: int, name: str,
 
 def add_card_to_deck_list(conn: sqlite3.Connection, deck_id: int, card_id: str,
                           menge: int = 1, zone: str = "maindeck") -> bool:
-    """Deckliste (Bauplan) erweitern — berührt KEINE physischen Kopien."""
+    """Deckliste (Bauplan) erweitern — berührt KEINE physischen Kopien.
+
+    SWU-Regeln (Fifth-Trooper/Regelwerk): max 3 Kopien derselben Karte
+    global ueber Maindeck+Sideboard kombiniert; Sideboard max 10 Karten.
+    """
     if zone not in ("maindeck", "sideboard"):
         zone = "maindeck"
+    # Global-Limit: bestehende Menge in BEIDEN Zonen + neue <= 3
+    row = conn.execute(
+        "SELECT COALESCE(SUM(menge), 0) AS m FROM deck_cards WHERE deck_id = ? AND card_id = ?",
+        (deck_id, card_id),
+    ).fetchone()
+    if int(row["m"]) + menge > 3:
+        raise ValueError(f"Maximal 3 Kopien von dieser Karte erlaubt (global Main+Sideboard)")
+    if zone == "sideboard":
+        sb = conn.execute(
+            "SELECT COALESCE(SUM(menge), 0) AS m FROM deck_cards WHERE deck_id = ? AND zone = 'sideboard'",
+            (deck_id,),
+        ).fetchone()
+        if int(sb["m"]) + menge > 10:
+            raise ValueError("Sideboard darf maximal 10 Karten enthalten")
     cur = conn.execute(
         """INSERT INTO deck_cards (deck_id, card_id, menge, zone)
            VALUES (?, ?, ?, ?)

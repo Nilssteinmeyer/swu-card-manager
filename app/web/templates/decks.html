@@ -104,18 +104,38 @@
           ${cards.length ? `
           <div class="table-wrap" style="max-height:40vh; overflow-y:auto; margin-bottom:12px;">
             <table>
-              <thead><tr><th>Karte</th><th>Plan</th><th>In Box</th><th>Fehlt</th></tr></thead>
               <tbody>
-              ${cards.map(c => `
-                <tr>
-                  <td>${escapeHtml(c.name_de || c.name)} <span class="text-muted" style="font-size:11px;">${escapeHtml(c.set_id)} #${escapeHtml(c.card_number)}</span></td>
-                  <td>${c.menge}×</td>
-                  <td>${c.in_deck_box}</td>
-                  <td>${c.fehlt > 0 ? `<b style="color:var(--orange)">${c.fehlt}</b>` : "✓"}</td>
-                </tr>`).join("")}
+              ${["maindeck", "sideboard"].map(zone => {
+                const zc = cards.filter(c => c.zone === zone);
+                if (!zc.length) return "";
+                return `<tr><td colspan="4" style="font-weight:700; padding-top:8px;">${zone === "maindeck" ? "🃏 Maindeck" : "📋 Sideboard"}</td></tr>` +
+                  zc.map(c => `
+                    <tr>
+                      <td>${escapeHtml(c.name_de || c.name)} <span class="text-muted" style="font-size:11px;">${escapeHtml(c.set_id)} #${escapeHtml(c.card_number)}</span></td>
+                      <td>${c.menge}×</td>
+                      <td>${c.in_deck_box}</td>
+                      <td>${c.fehlt > 0 ? `<b style="color:var(--orange)">${c.fehlt}</b>` : "✓"}</td>
+                    </tr>`).join("");
+              }).join("")}
               </tbody>
             </table>
           </div>` : '<p class="text-muted" style="font-size:13px; margin-bottom:12px;">Noch keine Karten im Deck — scanne Karten im Deck-Modus oder füge sie aus der Sammlung hinzu.</p>'}
+          <div class="flex gap-1 mb-2">
+            <input type="text" id="deck-add-search" class="setting-input" style="flex:1; min-width:140px; text-align:left;" placeholder="Karte fürs Deck suchen…">
+            <select id="deck-add-zone" style="max-width:110px;">
+              <option value="maindeck">Maindeck</option>
+              <option value="sideboard">Sideboard</option>
+            </select>
+            <button class="btn btn-primary" id="btn-deck-add-search" style="min-height:44px;">🔍</button>
+          </div>
+          <!-- Decklisten-Import (SWUDB-JSON / Text mit '2x Name (SET-123)') -->
+          <details style="margin-bottom:10px;">
+            <summary style="cursor:pointer; font-weight:600; padding:6px 0;">📥 Deckliste importieren</summary>
+            <textarea id="deck-import-input" rows="4" placeholder="2x Luke Skywalker (SOR-005)&#10;1 Darth Vader, Dark Lord of the Sith&#10;&#10;oder SWUDB-JSON hier einfügen" style="width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px; font-size:13px; margin-top:6px;"></textarea>
+            <button class="btn btn-secondary" style="width:100%; min-height:40px; margin-top:6px;" onclick="deckImport(${deckId})">Importieren</button>
+            <div id="deck-import-status" class="setting-desc" style="margin-top:4px;"></div>
+          </details>
+          <div id="deck-add-results" class="mb-2"></div>
           <div class="flex gap-1" style="flex-wrap:wrap;">
             <button class="btn btn-primary" style="flex:1; min-height:44px;" onclick="scanToDeck(${deckId})">📷 Karten scannen</button>
             ${d.karten_in_box > 0 ? `<button class="btn btn-secondary" style="flex:1; min-height:44px;" onclick="resolveDeck(${deckId}, ${d.karten_in_box})">🔓 Auflösen (${d.karten_in_box})</button>` : ""}
@@ -127,6 +147,61 @@
         document.getElementById("deck-detail").classList.remove("hidden");
       } catch (err) {
         showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function deckAddSearch(deckId) {
+      const q = document.getElementById("deck-add-search").value.trim();
+      const zone = document.getElementById("deck-add-zone").value;
+      const el = document.getElementById("deck-add-results");
+      if (!q) { el.innerHTML = ""; return; }
+      try {
+        const data = await api(`/api/cards/search?q=${encodeURIComponent(q)}&limit=8`);
+        if (!data.items || !data.items.length) { el.innerHTML = '<p class="text-muted" style="font-size:12px;">Keine Karten gefunden.</p>'; return; }
+        el.innerHTML = data.items.map(c => `
+          <div class="search-result-row">
+            <span class="sr-name">${escapeHtml(c.name)} ${c.subtitle ? `<span class="text-muted">${escapeHtml(c.subtitle)}</span>` : ""}</span>
+            <span class="sr-meta">${escapeHtml(c.set_id)} #${escapeHtml(c.card_number)}</span>
+            <button class="btn btn-sm btn-secondary" onclick="deckAddCard(${deckId}, '${escapeHtml(c.card_id)}', '${zone}', false)" title="Nur Deckliste (Bauplan)">📋 Plan</button>
+            <button class="btn btn-sm btn-success" onclick="deckAddCard(${deckId}, '${escapeHtml(c.card_id)}', '${zone}', true)" title="Physisch zuweisen (freie Kopie in die Deck-Box)">📦 Physisch</button>
+          </div>`).join("");
+      } catch (err) { el.innerHTML = `<p class="text-muted" style="font-size:12px;">${escapeHtml(err.message)}</p>`; }
+    }
+
+    async function deckAddCard(deckId, cardId, zone, physical) {
+      try {
+        if (physical) {
+          const r = await api(`/api/decks/${deckId}/assign`, { method: "POST", body: { card_id: cardId, menge: 1 } });
+          showToast(`„${r.deck}" — Karte in die Deck-Box 📦`, "success");
+        } else {
+          await api(`/api/decks/${deckId}/cards`, { method: "POST", body: { card_id: cardId, menge: 1, zone } });
+          showToast(`Zur Deckliste hinzugefügt (${zone === "sideboard" ? "Sideboard" : "Maindeck"}) ✓`, "success");
+        }
+        document.getElementById("deck-add-results").innerHTML = "";
+        document.getElementById("deck-add-search").value = "";
+        openDeckDetail(deckId);
+        loadDecks();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function deckImport(deckId) {
+      const list = document.getElementById("deck-import-input").value.trim();
+      const statusEl = document.getElementById("deck-import-status");
+      if (!list) { statusEl.textContent = "Bitte Deckliste einfügen."; return; }
+      statusEl.textContent = "Importiere…";
+      try {
+        const r = await api(`/api/decks/${deckId}/import`, { method: "POST", body: { list } });
+        let msg = `✓ ${r.added} Karten importiert`;
+        if (r.unknown && r.unknown.length) msg += ` · ${r.unknown.length} nicht erkannt: ${r.unknown.slice(0, 3).join(", ")}${r.unknown.length > 3 ? "…" : ""}`;
+        statusEl.textContent = msg;
+        showToast(`${r.added} Karten ins Deck importiert ✓`, "success");
+        openDeckDetail(deckId);
+        loadDecks();
+      } catch (err) {
+        statusEl.textContent = `✗ ${err.message}`;
+        showToast(`Import fehlgeschlagen: ${err.message}`, "error");
       }
     }
 
@@ -180,6 +255,16 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       loadDecks();
+    });
+    // Such-Button: deckId aus dem aktuell offenen Sheet holen
+    document.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "btn-deck-add-search") {
+        const btn = document.querySelector("#deck-detail-body button[onclick^='scanToDeck']");
+        if (btn) {
+          const m = btn.getAttribute("onclick").match(/scanToDeck\((\d+)/);
+          if (m) deckAddSearch(parseInt(m[1], 10));
+        }
+      }
     });
   </script>
 {% endblock %}

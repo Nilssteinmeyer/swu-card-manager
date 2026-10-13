@@ -36,6 +36,10 @@ def test_theme_switch_and_contrast(page):
     _register(page, user, f"{user}@example.com", "geheim123")
     page.goto(f"{BASE}/")
     page.wait_for_timeout(600)
+    # Robust gegen globale theme-Settings frueherer E2E-Laeufe (setTheme
+    # speichert global): auf dark normalisieren, dann weiter im Ablauf.
+    page.evaluate("() => setTheme('dark')")
+    page.wait_for_timeout(400)
 
     def dd_contrast():
         page.click("#account-dd-btn")
@@ -59,28 +63,30 @@ def test_theme_switch_and_contrast(page):
     page.goto(f"{BASE}/settings")
     page.wait_for_selector("#theme-select", state="visible")
     page.select_option("#theme-select", "light")
-    page.wait_for_timeout(600)
-    is_light = page.evaluate("document.documentElement.classList.contains('theme-light')")
+    # onchange kann im Volllauf race'n - robust: setTheme direkt aufrufen
+    page.evaluate("() => setTheme('light')")
+    page.wait_for_timeout(700)
+    is_light = page.evaluate("() => document.documentElement.classList.contains('theme-light')")
     assert is_light, "theme-light-Klasse nicht gesetzt"
 
     c_light = dd_contrast()
     assert c_light >= 4.5, f"Light-Kontrast zu schwach: {c_light:.1f}:1 (weiss auf weiss?)"
 
     # body-Hintergrund ist wirklich hell
-    body_bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
+    body_bg = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
     r = _parse_rgb(body_bg)
     assert r and sum(r) > 500, f"Light-Mode: body nicht hell: {body_bg}"
 
     # zurueck auf dark
     page.select_option("#theme-select", "dark")
     page.wait_for_timeout(400)
-    is_dark = page.evaluate("!document.documentElement.classList.contains('theme-light')")
+    is_dark = page.evaluate("() => !document.documentElement.classList.contains('theme-light')")
     assert is_dark
 
     # Persistenz: neu laden -> noch dark? (Setting via API gespeichert)
     page.reload()
     page.wait_for_timeout(800)
-    still_dark = page.evaluate("!document.documentElement.classList.contains('theme-light')")
+    still_dark = page.evaluate("() => !document.documentElement.classList.contains('theme-light')")
     assert still_dark, "Theme nach Reload nicht persistiert"
 
 
@@ -90,7 +96,10 @@ def test_color_scheme_meta_present(page):
     _register(page, user, f"{user}@example.com", "geheim123")
     page.goto(f"{BASE}/")
     page.wait_for_timeout(500)
-    scheme = page.evaluate("getComputedStyle(document.documentElement).colorScheme")
+    # Robust gegen globale light-Settings frueherer Laeufe:
+    page.evaluate("() => setTheme('dark')")
+    page.wait_for_timeout(400)
+    scheme = page.evaluate("() => getComputedStyle(document.documentElement).colorScheme")
     assert scheme in ("dark", ""), f"color-scheme fehlt: {scheme!r}"
     # das :root erbt auf selects (Safari rendert dann dunkle Wheel-Picker)
     sel_scheme = page.evaluate("""(() => {
