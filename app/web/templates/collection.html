@@ -138,8 +138,8 @@
 
 {% block scripts %}
 <!-- Add card modal -->
-    <div id="add-modal" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this) closeAddModal()">
-      <div class="card" style="max-width:560px; width:100%; max-height:88vh; overflow-y:auto; position:relative; padding:20px;">
+    <div id="add-modal" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;" onclick="if(event.target===this) closeAddModal()">
+      <div class="card" style="max-width:560px; width:100%; position:relative; padding:20px; margin:auto;">
         <button class="btn btn-sm" style="position:absolute; top:10px; right:10px; z-index:2;" onclick="closeAddModal()">✕</button>
         <div class="card-title" style="margin-bottom:12px;">➕ Karte hinzufügen
         <div class="flex gap-1 mb-2">
@@ -185,8 +185,8 @@
 
     <!-- Card detail modal -->
         </div>
-<div id="card-modal" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this) closeCardModal()">
-      <div class="card" id="card-modal-content" style="max-width:700px; width:100%; max-height:88vh; overflow-y:auto; position:relative; padding:20px;">
+<div id="card-modal" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;" onclick="if(event.target===this) closeCardModal()">
+      <div class="card" id="card-modal-content" style="max-width:700px; width:100%; position:relative; padding:20px; margin:auto;">
         <button class="btn btn-sm" style="position:absolute; top:10px; right:10px; z-index:2;" onclick="closeCardModal()">✕</button>
         <div id="card-modal-body"></div>
       </div>

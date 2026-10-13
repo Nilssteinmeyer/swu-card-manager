@@ -265,7 +265,7 @@
 .more-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 400;
+  z-index: 1050; /* Ueber Modalen (z-index 1000): Move/Split-Sheets aus dem Karten-Detail muessen sichtbar sein */
   background: rgba(0, 0, 0, 0.55);
   opacity: 0;
   transition: opacity 0.2s;
@@ -277,7 +277,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 401;
+  z-index: 1051; /* Ueber Modal-Overlays (1000) und Backdrop (1050) */
   background: var(--surface);
   border-radius: 18px 18px 0 0;
   padding: 8px 16px calc(var(--safe-bottom) + 16px);
