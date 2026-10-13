@@ -567,9 +567,22 @@
               ${textBlock("Kartentext", card.front_text_de || card.front_text)}
               ${textBlock("Epic Action", card.epic_action_de || card.epic_action)}
             </div>
+          </div>
+          <div class="flex gap-1" style="margin-top:12px; flex-wrap:wrap;">
+            <button class="btn btn-secondary" style="min-height:44px;" onclick="merkenFromCardDetail('${encodeURIComponent(card.card_id)}')">❤️ Auf Merkliste</button>
           </div>`;
       } catch (err) {
         body.innerHTML = `<p class="text-muted">\u2717 ${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    async function merkenFromCardDetail(cardIdEnc) {
+      const cardId = decodeURIComponent(cardIdEnc);
+      try {
+        const res = await api("/api/wishlist/add", { method: "POST", body: { card_id: cardId, count: 1 } });
+        showToast(res.merged ? "Bereits gemerkt — Menge +1" : "Zur Merkliste hinzugefügt ❤️", "success");
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
       }
     }
 
@@ -591,7 +604,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=33').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=34').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

@@ -25,6 +25,10 @@
           <div class="stat-value" id="stat-foil">—</div>
           <div class="stat-label">Foil-Karten</div>
         </div>
+        <div class="stat-card blue" onclick="location.href='/wishlist'" style="cursor:pointer;">
+          <div class="stat-value" id="stat-wl">—</div>
+          <div class="stat-label">Merkliste ❤️ (unter Ziel)</div>
+        </div>
         <div class="stat-card yellow">
           <div class="stat-value" id="stat-scans">—</div>
           <div class="stat-label">Scans heute</div>
@@ -94,6 +98,13 @@
           document.getElementById("stat-collection-value-usd").textContent = "—";
         }
         document.getElementById("stat-foil").textContent = (data.foil_count || 0).toLocaleString();
+        // Merkliste-Kachel (Beschaffungs-Cockpit-Bruecke)
+        try {
+          const wl = await api("/api/wishlist/summary");
+          const under = wl.under_target_count || 0;
+          document.getElementById("stat-wl").textContent =
+            wl.count > 0 ? `${wl.count}${under > 0 ? " (" + under + " ✓)" : ""}` : "0";
+        } catch (e) { document.getElementById("stat-wl").textContent = "—"; }
         document.getElementById("stat-scans").textContent = data.scans_today.toLocaleString();
         document.getElementById("stat-recognition").textContent = `${(data.recognition_rate * 100).toFixed(1)}%`;
 
@@ -137,7 +148,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=33').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=34').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

@@ -312,6 +312,25 @@ async function initScanner() {
   });
   const cancelBtn = document.getElementById("btn-cancel");
   if (cancelBtn) cancelBtn.addEventListener("click", () => cancelScan());
+  // Falsch gescannte Karte direkt merken (kein Foto, kein Sammlungs-Eintrag)
+  const wlBtn = document.getElementById("btn-wishlist");
+  if (wlBtn) wlBtn.addEventListener("click", async () => {
+    const src = lastScanResult;
+    if (!src) return;
+    const cardId = src.card_id || (src.candidates && src.candidates[0] && src.candidates[0].card_id);
+    if (!cardId) return;
+    const foil = !!(document.getElementById("is-foil-checkbox") && document.getElementById("is-foil-checkbox").checked);
+    try {
+      const res = await api("/api/wishlist/add", { method: "POST", body: { card_id: cardId, count: 1, is_foil: foil } });
+      showToast(res.merged
+        ? `"${src.card_name}" bereits gemerkt — Menge +1`
+        : `"${src.card_name}" zur Merkliste hinzugefügt ❤️`, "success");
+      if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
+    } catch (err) {
+      showToast(`Merkliste-Fehler: ${err.message}`, "error");
+    }
+    cancelScan();
+  });
   const qtyMinus = document.getElementById("btn-qty-minus");
   const qtyPlus = document.getElementById("btn-qty-plus");
   if (qtyMinus) qtyMinus.addEventListener("click", () => changeQty(-1));

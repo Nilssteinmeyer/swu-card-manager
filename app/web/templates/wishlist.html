@@ -1,70 +1,377 @@
 {% extends "base_app.html" %}
-{% block title %}Wishlist{% endblock %}
+{% block title %}Merkliste{% endblock %}
 
 {% block content %}
-      <h1 class="mb-2">⭐ Wishlist</h1>
+      <h1 class="mb-2">❤️ Merkliste</h1>
 
-      <div class="flex gap-1 mb-2" style="flex-wrap:wrap;">
-        <input type="text" id="wl-search" class="setting-input" style="width:200px; text-align:left;" placeholder="Karte suchen...">
-        <button class="btn btn-primary" id="btn-wl-search">🔍 Suchen</button>
+      <!-- Kopf-Statistik (Beschaffungs-Cockpit) -->
+      <div id="wl-stats" class="stat-grid mb-2">
+        <div class="stat-card"><div class="stat-value" id="wl-count">—</div><div class="stat-label">Karten gemerkt</div></div>
+        <div class="stat-card blue"><div class="stat-value" id="wl-total">—</div><div class="stat-label">Gesamt (je Quelle)</div></div>
+        <div class="stat-card green"><div class="stat-value" id="wl-target">—</div><div class="stat-label">Unter Zielpreis</div></div>
       </div>
-      <div id="wl-search-results" class="mb-2"></div>
 
-      <div class="flex gap-1 mb-2" data-admin-only>
-        <button class="btn btn-success" id="btn-wl-export-mkm" onclick="exportWantslist()">📤 Zur MKM-Wantslist exportieren</button>
-      </div>
-      <div id="wl-export-status" class="setting-desc mb-2"></div>
-
-      <!-- Deck pricing -->
-      <div class="card mb-2">
-        <div class="card-title">🧮 Deck-Preisrechner</div>
-        <div class="setting-desc" style="margin-bottom:8px;">
-          Füge eine Deckliste ein (eine Karte pro Zeile, z.B. „2x Luke Skywalker (SOR-005)"). Der Rechner zeigt Cardmarket-Preise und was dir fehlt.
+      <!-- Unter-Reiter: Karten | Deck-Rechner | Export -->
+      <div class="scan-mode-switch" id="wl-tabs" style="margin-bottom:12px;">
+        <div class="scan-mode-seg" role="tablist" aria-label="Merkliste-Bereiche">
+          <button type="button" class="scan-mode-btn active" id="wl-tab-cards" role="tab" aria-selected="true">❤️ Karten</button>
+          <button type="button" class="scan-mode-btn" id="wl-tab-deck" role="tab" aria-selected="false">🧮 Deck-Rechner</button>
+          <button type="button" class="scan-mode-btn" id="wl-tab-export" data-admin-only role="tab" aria-selected="false">📤 Export</button>
         </div>
-        <textarea id="deck-input" rows="5" style="width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:10px; font-size:14px;" placeholder="2x Luke Skywalker (SOR-005)&#10;1 Darth Vader, Dark Lord of the Sith&#10;3 Wookiee Guerilla"></textarea>
-        <div class="flex gap-1 mt-2">
-          <button class="btn btn-primary" id="btn-deck-price">💰 Preise berechnen</button>
-        </div>
-        <div id="deck-results" class="mt-2"></div>
       </div>
 
-      <div id="wishlist-grid" class="collection-grid">
-        <div class="spinner"></div>
-        <p class="text-muted">Lade Wishlist...</p>
+      <!-- ================= TAB: Karten ================= -->
+      <div id="wl-panel-cards">
+        <div class="flex gap-1 mb-2" style="flex-wrap:wrap;">
+          <input type="text" id="wl-search" class="setting-input" style="flex:1; min-width:180px; text-align:left;" placeholder="Karte suchen und merken...">
+          <button class="btn btn-primary" id="btn-wl-search">🔍 Suchen</button>
+        </div>
+        <div id="wl-search-results" class="mb-2"></div>
+
+        <div class="card mb-2">
+          <div class="card-title flex-center-between" style="cursor:pointer;" id="wl-filter-toggle" onclick="toggleSection('wl-filter-body', 'wl-filter-arrow')">
+            <span>⚙️ Sortierung &amp; Filter</span>
+            <span id="wl-filter-arrow" class="collapse-arrow">▶</span>
+          </div>
+          <div id="wl-filter-body" class="collapsible-body hidden">
+            <div class="filter-bar">
+              <div class="form-group">
+                <label>Sortieren nach</label>
+                <select id="wl-sort">
+                  <option value="added">Zuletzt hinzugefügt</option>
+                  <option value="price_asc">Preis (aufsteigend)</option>
+                  <option value="price_desc">Preis (absteigend)</option>
+                  <option value="target_dist">Zielpreis-Distanz</option>
+                  <option value="priority">Priorität</option>
+                  <option value="set">Set</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Set</label>
+                <select id="wl-f-set"><option value="">Alle</option></select>
+              </div>
+              <div class="form-group">
+                <label>Variante</label>
+                <select id="wl-f-foil">
+                  <option value="">Alle</option>
+                  <option value="foil">Nur Foil</option>
+                  <option value="normal">Nur Normal</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Priorität</label>
+                <select id="wl-f-priority">
+                  <option value="">Alle</option>
+                  <option value="1">Must-have</option>
+                  <option value="2">Normal</option>
+                  <option value="3">Nice-to-have</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Preise</label>
+                <select id="wl-f-priced">
+                  <option value="">Alle</option>
+                  <option value="priced">Nur mit Preis</option>
+                  <option value="under">Nur unter Zielpreis</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex gap-1 mt-1">
+              <button class="btn btn-primary" id="btn-wl-apply">Anwenden</button>
+              <button class="btn" id="btn-wl-reset">↺ Zurücksetzen</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-1 mb-2" style="justify-content:flex-end; align-items:center;">
+          <span class="text-muted" style="font-size:12px;">Ansicht:</span>
+          <button class="btn btn-sm" id="btn-wl-view-grid" title="Karten-Grid">▦ Grid</button>
+          <button class="btn btn-sm" id="btn-wl-view-list" title="Kompakte Liste">☰ Liste</button>
+        </div>
+        <div id="wishlist-grid" class="collection-grid">
+          <div class="spinner"></div>
+          <p class="text-muted">Lade Merkliste...</p>
+        </div>
+      </div>
+
+      <!-- ================= TAB: Deck-Rechner ================= -->
+      <div id="wl-panel-deck" class="hidden">
+        <div class="card mb-2">
+          <div class="card-title">🧮 Deck-Preisrechner</div>
+          <div class="setting-desc" style="margin-bottom:8px;">
+            Füge eine Deckliste ein (eine Karte pro Zeile, z.B. „2x Luke Skywalker (SOR-005)“). Der Rechner zeigt Preise und was dir fehlt — fehlende Karten kannst du direkt auf die Merkliste legen.
+          </div>
+          <textarea id="deck-input" rows="5" style="width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:10px; font-size:14px;" placeholder="2x Luke Skywalker (SOR-005)&#10;1 Darth Vader, Dark Lord of the Sith&#10;3 Wookiee Guerilla"></textarea>
+          <div class="flex gap-1 mt-2">
+            <button class="btn btn-primary" id="btn-deck-price">💰 Preise berechnen</button>
+          </div>
+          <div id="deck-results" class="mt-2"></div>
+        </div>
+      </div>
+
+      <!-- ================= TAB: Export ================= -->
+      <div id="wl-panel-export" class="hidden">
+        <div class="card mb-2">
+          <div class="card-title">📤 Export</div>
+          <div class="setting-desc" style="margin-bottom:10px;">
+            CSV für Tabellen (Karte, Menge, Foil, Sprache, Zielpreis, aktueller Preis mit Quelle) oder Export in deine Cardmarket-Wantslist (Foil, Sprache und Zielpreis werden übernommen).
+          </div>
+          <div class="flex gap-1 mb-2" style="flex-wrap:wrap;">
+            <a class="btn btn-sm btn-secondary" href="/api/wishlist/export?format=csv">📥 CSV-Export</a>
+            <button class="btn btn-sm btn-success" id="btn-wl-export-mkm" onclick="exportWantslist()">📤 Zur MKM-Wantslist</button>
+          </div>
+          <div id="wl-export-status" class="setting-desc"></div>
+        </div>
+      </div>
+
+      <!-- ==== Karten-Detail-Sheet (Merklisten-Aktionen) ==== -->
+      <div id="wl-detail" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:flex-end; justify-content:center;" onclick="if(event.target===this) closeWlDetail()">
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px 16px 0 0; width:100%; max-width:560px; max-height:88vh; overflow-y:auto; padding:16px; position:relative;">
+          <button class="btn btn-sm" style="position:absolute; top:8px; right:8px; z-index:2; min-width:44px; min-height:44px; font-size:18px;" onclick="closeWlDetail()" aria-label="Schließen">✕</button>
+          <div id="wl-detail-body"></div>
+        </div>
       </div>
 {% endblock %}
 
 {% block scripts %}
   <script>
+    // ---- Zustand --------------------------------------------------------------
+    let WL_ITEMS = [];
+    let WL_VIEW = "grid";            // 'grid' | 'list'
+    const WL_PRIORITIES = { 1: "🔥 Must-have", 2: "Normal", 3: "Nice-to-have" };
+
+    const fmtPrice = (v, cur) => v != null
+      ? v.toLocaleString("de-DE", { style: "currency", currency: cur || "EUR" })
+      : "—";
+    const srcLabel = s => s === "cardmarket" ? "MKM" : s === "tcgplayer" ? "TCG" : "";
+
+    // ---- Laden + Rendern ------------------------------------------------------
     async function loadWishlist() {
       const grid = document.getElementById("wishlist-grid");
       try {
         const data = await api("/api/wishlist");
-        if (data.items.length === 0) {
-          grid.innerHTML = `<div class="empty-state">
-            <img src="/static/assets/empty_holocard.svg" alt="">
-            <div class="es-title">Noch keine Karten auf der Wishlist</div>
-            <div class="es-text">Suche oben nach Karten, die du kaufen möchtest — dein Droid merkt sie sich.</div>
-          </div>`;
-          return;
-        }
-        grid.innerHTML = data.items.map(item => `
-          <div class="collection-item">
-            ${item.front_art_path
-              ? `<img class="ci-image" src="${cardImageUrl(item.card_id)}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\'placeholder-image\\'>🃏</div>'">`
-              : '<div class="placeholder-image">🃏</div>'}
-            <div class="ci-name">${escapeHtml(item.name)}</div>
-            <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}</div>
-            ${item.price_trend != null ? `<div class="ci-price">${item.price_trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</div>` : ""}
-            <div class="ci-count">×${item.count}</div>
-            <button class="btn btn-sm btn-secondary" onclick="removeFromWishlist(${item.wishlist_id})">✕</button>
-          </div>`).join("");
+        WL_ITEMS = data.items || [];
+        renderStats(data.summary || {});
+        renderWlGrid();
       } catch (err) {
         grid.innerHTML = '<p class="text-muted">Fehler beim Laden.</p>';
-        showToast(`Load failed: ${err.message}`, "error");
+        showToast(`Laden fehlgeschlagen: ${err.message}`, "error");
       }
     }
 
+    function renderStats(s) {
+      document.getElementById("wl-count").textContent = (s.count ?? WL_ITEMS.length).toLocaleString();
+      const parts = [];
+      if (s.total_eur > 0) parts.push(fmtPrice(s.total_eur, "EUR") + " MKM");
+      if (s.total_usd > 0) parts.push(fmtPrice(s.total_usd, "USD") + " TCG");
+      document.getElementById("wl-total").textContent = parts.length ? parts.join(" · ") : "—";
+      document.getElementById("wl-target").textContent =
+        s.under_target_count > 0 ? `${s.under_target_count} ✓` : (s.with_target_count > 0 ? "0" : "—");
+    }
+
+    function wlMatchesFilters(it) {
+      const set = document.getElementById("wl-f-set").value;
+      const foil = document.getElementById("wl-f-foil").value;
+      const prio = document.getElementById("wl-f-priority").value;
+      const priced = document.getElementById("wl-f-priced").value;
+      if (set && it.set_id !== set) return false;
+      if (foil === "foil" && !it.is_foil) return false;
+      if (foil === "normal" && it.is_foil) return false;
+      if (prio && String(it.priority ?? 2) !== prio) return false;
+      if (priced === "priced" && it.price == null) return false;
+      if (priced === "under" && it.target_status !== "under_target") return false;
+      return true;
+    }
+
+    function wlSorted(items) {
+      const sort = document.getElementById("wl-sort").value;
+      const arr = [...items];
+      if (sort === "price_asc") arr.sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9));
+      else if (sort === "price_desc") arr.sort((a, b) => (b.price ?? -1) - (a.price ?? -1));
+      else if (sort === "target_dist") arr.sort((a, b) => (a.target_distance_pct ?? 1e9) - (b.target_distance_pct ?? 1e9));
+      else if (sort === "priority") arr.sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
+      else if (sort === "set") arr.sort((a, b) => (a.set_id + a.card_number).localeCompare(b.set_id + b.card_number));
+      return arr;
+    }
+
+    function badgeHtml(it) {
+      const rarityKey = (it.rarity || "").toLowerCase();
+      const letter = { common: "C", uncommon: "U", rare: "R", special: "S", legendary: "L" }[rarityKey] || "";
+      return `<div class="ci-badges">
+        ${letter ? `<span class="ci-rarity r-${rarityKey}" title="${escapeHtml(it.rarity || "")}">${letter}</span>` : ""}
+        ${it.is_foil ? '<span class="ci-foil" title="Foil gesucht">✦ FOIL</span>' : ""}
+      </div>`;
+    }
+
+    function targetChip(it) {
+      if (it.target_price == null) return "";
+      const cur = it.currency || (it.added_at_price_src === "mkm" ? "EUR" : "USD");
+      const t = fmtPrice(it.target_price, cur);
+      if (it.target_status === "under_target")
+        return `<div class="wl-chip ok" title="Zielpreis erreicht">✓ Ziel ${t}</div>`;
+      if (it.target_distance_pct != null)
+        return `<div class="wl-chip warn" title="Zielpreis-Distanz">Ziel ${t} · +${it.target_distance_pct}%</div>`;
+      return `<div class="wl-chip" title="Zielpreis">Ziel ${t}</div>`;
+    }
+
+    function priceLine(it) {
+      if (it.price == null) return '<div class="text-muted" style="font-size:12px;">Kein Preis</div>';
+      return `<div class="ci-price">${fmtPrice(it.price, it.currency)} <small class="ci-price-src">${srcLabel(it.price_source)}</small></div>`;
+    }
+
+    function deltaLine(it) {
+      if (it.price_delta_pct == null) return "";
+      const d = it.price_delta_pct;
+      const cls = d <= -5 ? "down" : d >= 5 ? "up" : "";
+      const arrow = d < 0 ? "↓" : "↑";
+      return `<div class="wl-delta ${cls}">${arrow} ${Math.abs(d).toFixed(0)} % seit gemerkt</div>`;
+    }
+
+    function renderWlGrid() {
+      const grid = document.getElementById("wishlist-grid");
+      const items = wlSorted(WL_ITEMS.filter(wlMatchesFilters));
+      if (items.length === 0) {
+        grid.className = "";
+        if (WL_ITEMS.length === 0) {
+          grid.innerHTML = `<div class="empty-state">
+            <img src="/static/assets/empty_holocard.svg" alt="">
+            <div class="es-title">Noch nichts gemerkt</div>
+            <div class="es-text">Merke Karten, die du kaufen willst — dein Droid beobachtet die Preise.</div>
+            <div class="flex gap-1" style="justify-content:center; flex-wrap:wrap;">
+              <a class="btn btn-sm btn-primary" href="/scanner" style="min-height:44px;">📷 Scannen &amp; merken</a>
+              <button class="btn btn-sm" onclick="document.getElementById('wl-search').focus()" style="min-height:44px;">🔍 Karte suchen</button>
+            </div>
+          </div>`;
+        } else {
+          grid.innerHTML = '<p class="text-muted">Keine Treffer für die aktuellen Filter.</p>';
+        }
+        return;
+      }
+      if (WL_VIEW === "list") {
+        grid.className = "wl-list";
+        grid.innerHTML = items.map(it => `
+          <div class="wl-row" onclick="openWlDetail(${it.wishlist_id})">
+            <div class="wl-thumb">${it.front_art_path
+              ? `<img src="${cardImageUrl(it.card_id)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+              : '<div class="placeholder-image" style="width:36px;height:36px;">🃏</div>'}</div>
+            <div class="wl-row-main">
+              <div class="wl-row-name">${escapeHtml(it.name)}${it.is_foil ? ' <span class="ci-foil" style="height:16px; font-size:0.62rem; padding:0 5px;">✦</span>' : ""}</div>
+              <div class="wl-row-meta">${escapeHtml(it.set_id)} #${escapeHtml(it.card_number)} · ${WL_PRIORITIES[it.priority ?? 2]}${it.language && it.language !== "de" ? " · " + it.language.toUpperCase() : ""}</div>
+              ${targetChip(it)}
+            </div>
+            <div class="wl-row-price">${priceLine(it)}${deltaLine(it)}<div class="wl-count">×${it.count}</div></div>
+          </div>`).join("");
+        return;
+      }
+      grid.className = "collection-grid";
+      grid.innerHTML = items.map(it => `
+        <div class="collection-item clickable" onclick="openWlDetail(${it.wishlist_id})">
+          <div class="ci-image-wrap">
+            ${it.front_art_path
+              ? `<img class="ci-image" src="${cardImageUrl(it.card_id)}" alt="${escapeHtml(it.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\\\'placeholder-image\\\\'>🃏</div>'">`
+              : '<div class="placeholder-image">🃏</div>'}
+            ${badgeHtml(it)}
+          </div>
+          <div class="ci-name">${escapeHtml(it.name)}</div>
+          <div class="ci-meta">${escapeHtml(it.set_id)} #${escapeHtml(it.card_number)} · ×${it.count}</div>
+          ${priceLine(it)}
+          ${deltaLine(it)}
+          ${targetChip(it)}
+        </div>`).join("");
+    }
+
+    // ---- Detail-Sheet (Edit: Menge, Zielpreis, Notiz, Prioritaet) -------------
+    async function openWlDetail(wishlistId) {
+      const it = WL_ITEMS.find(x => x.wishlist_id === wishlistId);
+      if (!it) return;
+      const body = document.getElementById("wl-detail-body");
+      const cur = it.currency || (it.added_at_price_src === "mkm" ? "EUR" : "USD");
+      body.innerHTML = `
+        <div style="display:flex; gap:12px; margin:12px 0 12px 0;">
+          <div style="flex:0 0 90px; max-width:90px;">
+            <img src="${cardImageUrl(it.card_id)}" alt="" style="width:100%; border-radius:8px; border:1px solid var(--border);" onerror="this.style.display='none'">
+          </div>
+          <div style="flex:1; min-width:0;">
+            <h2 style="margin:0 0 2px 0; font-size:1.1rem;">${escapeHtml(it.name)}</h2>
+            <div class="text-muted" style="font-size:12px;">${escapeHtml(it.set_id)} #${escapeHtml(it.card_number)} · ${escapeHtml(it.rarity || "")}${it.is_foil ? " · <b>Foil gesucht</b>" : ""}</div>
+            ${priceLine(it)}${deltaLine(it)}
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Menge</label>
+          <div class="flex gap-1" style="align-items:center;">
+            <button class="btn btn-sm" onclick="wlQty(${wishlistId}, -1)" style="min-width:44px; min-height:44px;">−</button>
+            <span id="wl-qty-${wishlistId}" style="font-size:1.2rem; font-weight:700; min-width:32px; text-align:center;">${it.count}</span>
+            <button class="btn btn-sm" onclick="wlQty(${wishlistId}, 1)" style="min-width:44px; min-height:44px;">+</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Zielpreis (${cur === "EUR" ? "EUR" : "USD"}) — Alarm, wenn erreicht</label>
+          <input type="number" id="wl-target-input" step="0.01" min="0" value="${it.target_price ?? ""}" placeholder="z.B. ${it.price != null ? (it.price * 0.9).toFixed(2) : "4.50"}" style="font-size:16px;">
+        </div>
+        <div class="form-group">
+          <label>Priorität</label>
+          <select id="wl-priority-input">
+            <option value="1" ${it.priority === 1 ? "selected" : ""}>🔥 Must-have</option>
+            <option value="2" ${((it.priority ?? 2) === 2) ? "selected" : ""}>Normal</option>
+            <option value="3" ${it.priority === 3 ? "selected" : ""}>Nice-to-have</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Notiz</label>
+          <input type="text" id="wl-notes-input" value="${escapeHtml(it.notes || "")}" placeholder="z.B. nur deutsch, fürs PvP-Deck" style="font-size:16px;">
+        </div>
+        <div class="flex gap-1 mt-2" style="flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="wlSave(${wishlistId})" style="flex:1; min-height:44px;">💾 Speichern</button>
+          <button class="btn btn-danger" onclick="wlRemove(${wishlistId})" style="min-height:44px;">🗑 Entfernen</button>
+        </div>`;
+      document.getElementById("wl-detail").classList.remove("hidden");
+    }
+
+    function closeWlDetail() {
+      document.getElementById("wl-detail").classList.add("hidden");
+    }
+
+    async function wlQty(wishlistId, delta) {
+      const it = WL_ITEMS.find(x => x.wishlist_id === wishlistId);
+      if (!it) return;
+      const newCount = Math.max(1, it.count + delta);
+      document.getElementById(`wl-qty-${wishlistId}`).textContent = newCount;
+      it.count = newCount;
+      try { await api("/api/wishlist/update", { method: "POST", body: { wishlist_id: wishlistId, count: newCount } }); } catch (e) {}
+    }
+
+    async function wlSave(wishlistId) {
+      const target = document.getElementById("wl-target-input").value;
+      const priority = parseInt(document.getElementById("wl-priority-input").value, 10);
+      const notes = document.getElementById("wl-notes-input").value;
+      try {
+        await api("/api/wishlist/update", { method: "POST", body: {
+          wishlist_id: wishlistId,
+          target_price: target ? parseFloat(target) : null,
+          priority, notes,
+        }});
+        showToast("Gespeichert ✓", "success");
+        closeWlDetail();
+        loadWishlist();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function wlRemove(wishlistId) {
+      const it = WL_ITEMS.find(x => x.wishlist_id === wishlistId);
+      try {
+        await api("/api/wishlist/remove", { method: "POST", body: { wishlist_id: wishlistId } });
+        closeWlDetail();
+        showToast(`"${it ? it.name : "Karte"}" von der Merkliste entfernt`, "info");
+        loadWishlist();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    // ---- Suche (Ein-Tap-Add) ----------------------------------------------------
     async function searchCards() {
       const q = document.getElementById("wl-search").value.trim();
       const resultsEl = document.getElementById("wl-search-results");
@@ -79,7 +386,7 @@
           <div class="search-result-row">
             <span class="sr-name">${escapeHtml(c.name)} ${c.subtitle ? `<span class="text-muted">${escapeHtml(c.subtitle)}</span>` : ""}</span>
             <span class="sr-meta">${escapeHtml(c.set_id)} #${escapeHtml(c.card_number)}</span>
-            <button class="btn btn-sm btn-success" onclick="addToWishlist('${escapeHtml(c.card_id)}')">+ Wishlist</button>
+            <button class="btn btn-sm btn-success" onclick="addToWishlist('${escapeHtml(c.card_id)}')">❤️ Merken</button>
           </div>`).join("");
       } catch (err) {
         resultsEl.innerHTML = `<p class="text-muted">Suche fehlgeschlagen: ${escapeHtml(err.message)}</p>`;
@@ -88,8 +395,8 @@
 
     async function addToWishlist(cardId) {
       try {
-        await api("/api/wishlist/add", { method: "POST", body: { card_id: cardId, count: 1 } });
-        showToast("Zur Wishlist hinzugefügt ✓", "success");
+        const res = await api("/api/wishlist/add", { method: "POST", body: { card_id: cardId, count: 1 } });
+        showToast(res.merged ? "Bereits gemerkt — Menge +1" : "Zur Merkliste hinzugefügt ❤️", "success");
         document.getElementById("wl-search-results").innerHTML = "";
         document.getElementById("wl-search").value = "";
         loadWishlist();
@@ -98,23 +405,14 @@
       }
     }
 
-    async function removeFromWishlist(wishlistId) {
-      try {
-        await api("/api/wishlist/remove", { method: "POST", body: { wishlist_id: wishlistId } });
-        showToast("Von Wishlist entfernt", "info");
-        loadWishlist();
-      } catch (err) {
-        showToast(`Fehler: ${err.message}`, "error");
-      }
-    }
-
+    // ---- Export ---------------------------------------------------------------
     async function exportWantslist() {
       const statusEl = document.getElementById("wl-export-status");
       statusEl.textContent = "Exportiere zu Cardmarket...";
       try {
         const result = await api("/api/mkm/wantslist/export", {
           method: "POST",
-          body: { name: "SWU Wishlist " + new Date().toLocaleDateString("de-DE") },
+          body: { name: "SWU Merkliste " + new Date().toLocaleDateString("de-DE") },
         });
         let msg = `✓ Wantslist erstellt: ${result.added} Karten exportiert`;
         if (result.failed && result.failed.length) msg += `, ${result.failed.length} fehlgeschlagen`;
@@ -127,12 +425,7 @@
       }
     }
 
-    document.getElementById("btn-wl-search").addEventListener("click", searchCards);
-    document.getElementById("wl-search").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") searchCards();
-    });
-
-    // ---- Deck pricing --------------------------------------------------------
+    // ---- Deck-Rechner + Bulk-Bruecke ------------------------------------------
     document.getElementById("btn-deck-price").addEventListener("click", async () => {
       const list = document.getElementById("deck-input").value.trim();
       const resultsEl = document.getElementById("deck-results");
@@ -141,23 +434,25 @@
       try {
         const data = await api("/api/deck/price", { method: "POST", body: { list } });
         const eur = v => v != null ? v.toLocaleString("de-DE", { style: "currency", currency: "EUR" }) : "—";
+        const missingIds = (data.items || []).filter(i => i.needed > 0 && i.card_id).map(i => i.card_id);
         let html = `
           <div class="flex gap-1 mb-2">
             <div class="stat-card blue" style="flex:1; min-width:140px;">
-              <div class="stat-value">${eur(data.total_price)}</div>
-              <div class="stat-label">Deck komplett</div>
+              <div class="stat-value">${eur(data.total_price)}</div><div class="stat-label">Deck komplett</div>
             </div>
             <div class="stat-card orange" style="flex:1; min-width:140px;">
-              <div class="stat-value">${eur(data.missing_price)}</div>
-              <div class="stat-label">Noch zu kaufen</div>
+              <div class="stat-value">${eur(data.missing_price)}</div><div class="stat-label">Noch zu kaufen</div>
             </div>
           </div>`;
-        if (data.items.length) {
+        if (missingIds.length) {
+          html += `<button class="btn btn-success mb-2" id="btn-deck-towl" style="width:100%; min-height:44px;">❤️ ${missingIds.length} fehlende Karten auf die Merkliste</button>`;
+        } else {
+          html += '<p class="text-muted" style="font-size:13px;">✓ Alle Deck-Karten sind in deiner Sammlung.</p>';
+        }
+        if (data.items && data.items.length) {
           html += `<div class="table-wrap" style="max-height:350px; overflow-y:auto;">
-            <table>
-              <thead><tr><th>Karte</th><th>Anz.</th><th>Behalten</th><th>Fehlen</th><th>Zeilenpreis</th></tr></thead>
-            <tbody>
-            ${data.items.map(i => `
+            <table><thead><tr><th>Karte</th><th>Anz.</th><th>Behalten</th><th>Fehlen</th><th>Zeilenpreis</th></tr></thead>
+            <tbody>${data.items.map(i => `
               <tr>
                 <td>${escapeHtml(i.name_de || i.name)} <span class="text-muted" style="font-size:11px;">${escapeHtml(i.card_id)}</span></td>
                 <td>${i.quantity}×</td>
@@ -165,28 +460,72 @@
                 <td>${i.needed > 0 ? `<b style="color:var(--orange)">${i.needed}</b>` : "✓"}</td>
                 <td>${eur(i.line_price)}</td>
               </tr>`).join("")}
-            </tbody>
-            </table>
+            </tbody></table>
           </div>`;
         }
         if (data.unknown_lines && data.unknown_lines.length) {
           html += `<p class="text-muted" style="font-size:12px; margin-top:6px;">Nicht erkannt: ${data.unknown_lines.map(escapeHtml).join(", ")}</p>`;
         }
         resultsEl.innerHTML = html;
+        if (missingIds.length) {
+          document.getElementById("btn-deck-towl").addEventListener("click", async () => {
+            try {
+              const res = await api("/api/wishlist/deck-missing", { method: "POST", body: { card_ids: missingIds } });
+              showToast(`${res.added} Karten gemerkt ❤️ (${res.skipped} waren schon drauf)`, "success");
+              loadWishlist();
+            } catch (err) {
+              showToast(`Fehler: ${err.message}`, "error");
+            }
+          });
+        }
       } catch (err) {
         resultsEl.innerHTML = `<p class="text-muted">✗ ${escapeHtml(err.message)}</p>`;
       }
     });
+
+    // ---- Unter-Reiter ---------------------------------------------------------
+    function switchWlTab(tab) {
+      for (const t of ["cards", "deck", "export"]) {
+        document.getElementById(`wl-panel-${t}`).classList.toggle("hidden", t !== tab);
+        document.getElementById(`wl-tab-${t}`).classList.toggle("active", t === tab);
+        document.getElementById(`wl-tab-${t}`).setAttribute("aria-selected", t === tab ? "true" : "false");
+      }
+    }
+    document.getElementById("wl-tab-cards").addEventListener("click", () => switchWlTab("cards"));
+    document.getElementById("wl-tab-deck").addEventListener("click", () => switchWlTab("deck"));
+    document.getElementById("wl-tab-export").addEventListener("click", () => switchWlTab("export"));
+
+    // ---- Filter/Sort/View-Events ---------------------------------------------
+    document.getElementById("btn-wl-search").addEventListener("click", searchCards);
+    document.getElementById("wl-search").addEventListener("keydown", (e) => { if (e.key === "Enter") searchCards(); });
+    document.getElementById("btn-wl-apply").addEventListener("click", renderWlGrid);
+    document.getElementById("btn-wl-reset").addEventListener("click", () => {
+      for (const id of ["wl-f-set", "wl-f-foil", "wl-f-priority", "wl-f-priced"]) document.getElementById(id).value = "";
+      document.getElementById("wl-sort").value = "added";
+      renderWlGrid();
+    });
+    document.getElementById("btn-wl-view-grid").addEventListener("click", () => { WL_VIEW = "grid"; renderWlGrid(); });
+    document.getElementById("btn-wl-view-list").addEventListener("click", () => { WL_VIEW = "list"; renderWlGrid(); });
+
+    // ---- Init -----------------------------------------------------------------
     document.addEventListener("DOMContentLoaded", async () => {
       await loadAdminState();
+      try {
+        const setsRes = await api("/api/sets");
+        const sel = document.getElementById("wl-f-set");
+        (setsRes.sets || []).forEach(s => {
+          const o = document.createElement("option");
+          o.value = s.set_id; o.textContent = s.set_id;
+          sel.appendChild(o);
+        });
+      } catch (e) {}
       loadWishlist();
     });
   </script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=33').then(reg => {
-              // Sofort pruefen ob ein neuer SW existiert
+        navigator.serviceWorker.register('/static/sw.js?v=34').then(reg => {
               reg.update().catch(() => {});
             }).catch(() => {});
       });

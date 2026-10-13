@@ -2074,6 +2074,37 @@ def _register_routes(app: Flask) -> None:
         finally:
             conn.close()
 
+    @app.route("/api/wishlist/export")
+    def api_wishlist_export():
+        """Merkliste als CSV (Karte, Menge, Foil, Sprache, Zielpreis, Preis+Quelle)."""
+        import csv as _csv
+        import io as _io
+
+        conn = connect()
+        try:
+            items = repo.get_wishlist(conn, _hh())
+            buf = _io.StringIO()
+            w = _csv.writer(buf, delimiter=";", lineterminator="\r\n")
+            w.writerow(["card_id", "name", "set", "nummer", "anzahl", "foil",
+                        "sprache", "prioritaet", "zielpreis", "aktueller_preis",
+                        "waehrung", "quelle", "notiz"])
+            for it in items:
+                w.writerow([
+                    it["card_id"], it.get("name", ""), it.get("set_id", ""), it.get("card_number", ""),
+                    it.get("count", 1), "ja" if it.get("is_foil") else "nein",
+                    it.get("language", "de"),
+                    {1: "Must-have", 2: "Normal", 3: "Nice-to-have"}.get(it.get("priority") or 2, "Normal"),
+                    it.get("target_price") if it.get("target_price") is not None else "",
+                    it.get("price") if it.get("price") is not None else "",
+                    it.get("currency") or "", it.get("price_source") or "",
+                    (it.get("notes") or "").replace("\n", " "),
+                ])
+            data = buf.getvalue().encode("utf-8-sig")  # Excel-freundlich (BOM)
+            return Response(data, mimetype="text/csv",
+                            headers={"Content-Disposition": "attachment; filename=swu_merkliste.csv"})
+        finally:
+            conn.close()
+
     @app.route("/api/wishlist/remove", methods=["POST"])
     def api_wishlist_remove():
         body = request.get_json(silent=True) or {}

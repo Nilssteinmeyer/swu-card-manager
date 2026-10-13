@@ -576,6 +576,55 @@ input[type="number"], input[type="search"], select, textarea {
 }
 
 
+/* ---- Merkliste v4: Zielpreis-Chips, Preis-Delta, Listen-Ansicht -------- */
+.wl-chip {
+  display: inline-block; margin-top: 3px;
+  font-size: 0.72rem; font-weight: 700;
+  padding: 2px 7px; border-radius: 999px;
+  background: var(--surface-3, #1c2330);
+  color: var(--text-muted);
+  border: 1px solid var(--outline-soft, #1d2739);
+}
+.wl-chip.ok {
+  background: rgba(63, 217, 138, 0.15);
+  color: #3fd98a;
+  border-color: rgba(63, 217, 138, 0.4);
+}
+.wl-chip.warn {
+  background: rgba(255, 232, 31, 0.12);
+  color: #ffe81f;
+  border-color: rgba(255, 232, 31, 0.35);
+}
+.wl-delta {
+  font-size: 0.7rem; color: var(--text-muted); margin-top: 1px;
+}
+.wl-delta.down { color: #3fd98a; }   /* Preis gesunken = gut fuer Kaeufer */
+.wl-delta.up { color: #ff5a52; }     /* Preis gestiegen */
+.wl-list { display: flex; flex-direction: column; gap: 6px; }
+.wl-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface, #161b22);
+  border: 1px solid var(--outline-soft, #1d2739);
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  min-height: 56px;
+}
+.wl-row:active { transform: scale(0.985); }
+.wl-thumb { flex: 0 0 36px; width: 36px; height: 36px; }
+.wl-thumb img { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; }
+.wl-row-main { flex: 1; min-width: 0; }
+.wl-row-name { font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-row-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
+.wl-row-price { text-align: right; flex-shrink: 0; }
+.wl-count {
+  display: inline-block; margin-top: 2px;
+  background: var(--primary-bg, rgba(255,232,31,0.12));
+  color: var(--primary, #ffe81f);
+  font-weight: 700; font-size: 0.72rem;
+  padding: 1px 6px; border-radius: 4px;
+}
+
 /* ---- Sammlung teilen: Dialog -------------------------------------------- */
 .share-backdrop {
   position: fixed; inset: 0; z-index: 450;
