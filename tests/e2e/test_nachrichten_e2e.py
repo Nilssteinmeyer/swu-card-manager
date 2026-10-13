@@ -132,7 +132,7 @@ def test_dm_roundtrip_zwei_kontexte(two_users):
     page_b.wait_for_timeout(1000)
     badge_b = page_b.evaluate("() => document.getElementById('msg-total-badge')?.textContent")
     assert badge_b == "1", f"Badge bei B muss 1 sein (ist {badge_b})"
-    item_unread = page_b.evaluate("() => document.querySelector('.msg-item .swipe-fg')?.style.borderLeft || ''")
+    item_unread = page_b.evaluate("() => document.querySelector('.msg-item .swipe-fg')?.style.boxShadow || ''")
     assert "accent" in item_unread, f"Unread-Item hervorgehoben (ist: {item_unread!r})"
     # B oeffnet Nachricht -> Lese-Ansicht (markiert gelesen) -> Badge sinkt
     page_b.locator(".msg-item .swipe-fg").first.click()

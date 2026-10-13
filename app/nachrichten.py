@@ -105,8 +105,8 @@ class NachrichtenRepository:
                 ORDER BY m.created_at DESC LIMIT ?""",
             (*params, limit),
         ).fetchall()
-        out = [self._decrypt_row(r) for r in rows]
-        for o in out:
+        rows_out = [self._decrypt_row(r) for r in rows]
+        for o in rows_out:
             partner = o["sender_id"] if o["receiver_id"] == user_id else o["receiver_id"]
             p = self.conn.execute(
                 "SELECT username, display_name FROM users WHERE user_id = ?", (partner,),
@@ -114,7 +114,24 @@ class NachrichtenRepository:
             o["partner_name"] = (p["display_name"] or p["username"]) if p else "?"
             o["partner_id"] = partner
             o["ungelesen"] = o["read_at"] is None and o["receiver_id"] == user_id
-        return out
+        # GRUPPIERT je Partner (Nutzer-Wunsch: KEINE Kacheln je Einzel-
+        # nachricht - 10 DMs vom selben Personen = EINE Listen-Zeile wie
+        # Apple Mail/WhatsApp). Pro Partner: neueste Nachricht + Anzahl.
+        gruppen: dict[int, dict] = {}
+        for o in rows_out:
+            pid = o["partner_id"]
+            g = gruppen.get(pid)
+            if g is None:
+                g = dict(o)
+                g["anzahl"] = 1
+                g["ungelesen_anzahl"] = 1 if o["ungelesen"] else 0
+                gruppen[pid] = g
+            else:
+                g["anzahl"] += 1
+                if o["ungelesen"]:
+                    g["ungelesen_anzahl"] += 1
+                # neueste oben: rows sind DESC - erste je Partner ist neueste
+        return list(gruppen.values())
 
     def thread(self, user_id: int, partner_id: int, limit: int = 200) -> list[dict]:
         """Beidseitiger Verlauf, chronologisch (flach, WhatsApp-Muster)."""

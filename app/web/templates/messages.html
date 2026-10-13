@@ -11,9 +11,10 @@
 
   <!-- Filter: Alle / Ungelesen / Gelesen (Nutzer-Wunsch) -->
   <div class="seg-filter" id="msg-filter" style="display:flex; gap:6px; margin-bottom:4px;">
-    <button class="btn btn-sm seg-btn active" data-filter="alle" style="flex:1; min-height:40px;">Alle</button>
-    <button class="btn btn-sm seg-btn" data-filter="ungelesen" style="flex:1; min-height:40px;">Ungelesen</button>
-    <button class="btn btn-sm seg-btn" data-filter="gelesen" style="flex:1; min-height:40px;">Gelesen</button>
+    <button class="btn btn-sm seg-btn active" data-filter="alle" style="flex:1; min-height:40px; font-size:13px;">Alle</button>
+    <button class="btn btn-sm seg-btn" data-filter="ungelesen" style="flex:1; min-height:40px; font-size:13px;">Ungelesen</button>
+    <button class="btn btn-sm seg-btn" data-filter="gelesen" style="flex:1; min-height:40px; font-size:13px;">Gelesen</button>
+    <button class="btn btn-sm seg-btn" data-filter="archiv" style="flex:1; min-height:40px; font-size:13px;">📥 Archiv</button>
   </div>
   <div class="text-muted" style="font-size:11px; margin-bottom:12px;">
     ↔️ Wischen: nach links 🗑 löschen · nach rechts 📥 archivieren · antippen zum Lesen
@@ -131,6 +132,7 @@
     if (!msgs.length) {
       const leer = CURRENT_FILTER === "ungelesen" ? "Keine ungelesenen Nachrichten 🎉"
         : CURRENT_FILTER === "gelesen" ? "Noch keine gelesenen Nachrichten"
+        : CURRENT_FILTER === "archiv" ? "Archiv ist leer — nach rechts wischen archiviert eine Nachricht"
         : "Noch keine Nachrichten";
       el.innerHTML = `<div class="empty-state" style="text-align:center; padding:40px 16px;">
         <div style="font-size:44px;">${CURRENT_FILTER === "ungelesen" ? "✅" : "📭"}</div>
@@ -145,24 +147,25 @@
       const unread = m.ungelesen;
       const zeit = new Date(m.created_at + "Z").toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
       const preview = (m.body || "").slice(0, 90);
+      const anzahl = m.anzahl > 1 ? `<span class="text-muted" style="font-size:10px; margin-left:4px;">(${m.anzahl})</span>` : "";
       return `<div class="msg-item swipe-item" data-mid="${m.message_id}" data-partner="${m.partner_id}"
-            style="position:relative; overflow:hidden; border-radius:10px; margin-bottom:6px;">
+            style="position:relative; overflow:hidden; border-bottom:1px solid var(--border);">
         <div class="swipe-bg" style="position:absolute; inset:0; display:flex; justify-content:space-between; align-items:stretch; pointer-events:none;">
-          <span style="color:var(--on-success, #fff); background:var(--success, #2e7d32); width:72px; display:flex; align-items:center; justify-content:center; border-radius:10px 0 0 10px;">📥</span>
-          <span style="color:var(--on-error, #fff); background:var(--error, #c62828); width:72px; display:flex; align-items:center; justify-content:center; border-radius:0 10px 10px 0;">🗑</span>
+          <span style="color:var(--on-success, #fff); background:var(--success, #2e7d32); width:72px; display:flex; align-items:center; justify-content:center;">📥</span>
+          <span style="color:var(--on-error, #fff); background:var(--error, #c62828); width:72px; display:flex; align-items:center; justify-content:center;">🗑</span>
         </div>
-        <div class="swipe-fg" style="position:relative; display:flex; gap:10px; align-items:center; padding:12px 10px; min-height:60px; background:var(--surface2); ${unread ? "border-left:3px solid var(--accent);" : "border-left:3px solid transparent;"}">
+        <div class="swipe-fg" style="position:relative; display:flex; gap:10px; align-items:center; padding:12px 12px; min-height:60px; background:transparent; ${unread ? "box-shadow:inset 3px 0 0 var(--accent);" : ""}">
           <span style="font-size:22px;">👤</span>
           <div style="flex:1; min-width:0;">
-            <div><b style="${unread ? "" : "font-weight:500;"}">${escapeHtml(m.partner_name)}</b>
-              ${unread ? '<span class="badge" style="font-size:10px; margin-left:4px; background:var(--error, #e53935); color:var(--on-error, #fff);">NEU</span>' : ""}</div>
-            <div class="text-muted" style="font-size:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(preview)}${m.body && m.body.length > 90 ? "…" : ""}</div>
+            <div><b style="${unread ? "" : "font-weight:500;"}">${escapeHtml(m.partner_name)}</b>${anzahl}
+              ${unread ? '<span class="badge" style="font-size:10px; margin-left:4px; background:var(--error, #e53935); color:var(--on-error, #fff);">' + (m.ungelesen_anzahl || 1) + '</span>' : ""}</div>
+            <div class="text-muted" style="font-size:12px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(preview)}${m.body && m.body.length > 90 ? "…" : ""}</div>
           </div>
           <span class="text-muted" style="font-size:11px; flex-shrink:0;">${zeit}</span>
         </div>
       </div>`;
     }).join("");
-    installSwipeActions();
+        installSwipeActions();
   }
 
   // ---------- Swipe: links=Löschen, rechts=Archivieren (iOS-Mail-Muster) ----------
@@ -178,6 +181,9 @@
           if (dx <= -THRESH) {
             await api(`/api/messages/${mid}`, { method: "DELETE" });
             showToast("Nachricht gelöscht 🗑", "info");
+          } else if (CURRENT_FILTER === "archiv") {
+            await api("/api/messages/archive", { method: "POST", body: { message_id: mid, archived: false } });
+            showToast("Zurück in die Liste ↩️", "success");
           } else {
             await api("/api/messages/archive", { method: "POST", body: { message_id: mid, archived: true } });
             showToast("Archiviert 📥", "success");
