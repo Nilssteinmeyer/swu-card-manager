@@ -2810,13 +2810,29 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/settings")
     def api_get_settings():
+        from flask import g
+
         conn = connect()
         try:
             settings = dict(_DEFAULT_SETTINGS)
             settings.setdefault("scan_mode", "collection")
+            # Globale Werte zuerst, dann nutzer-spezifische ueberschreiben
+            # (Key-Format 'u<user_id>:key' - settings.key ist PK, deshalb
+            # Praefix statt eigener Zeile; verhindert, dass ein Geraet/
+            # Nutzer das Theme ALLER sessionierten Nutzer umschreibt)
+            uid = g.get("user", {}).get("user_id") if g.get("user") else None
             cur = conn.execute("SELECT key, value FROM settings")
             for row in cur.fetchall():
-                settings[row["key"]] = row["value"]
+                k = row["key"]
+                if k.startswith("u") and ":" in k:
+                    try:
+                        row_uid, real_key = k.split(":", 1)
+                        if uid is not None and int(row_uid[1:]) == int(uid):
+                            settings[real_key] = row["value"]
+                    except (ValueError, TypeError):
+                        pass
+                else:
+                    settings[k] = row["value"]
             return jsonify(settings)
         finally:
             conn.close()
@@ -2835,13 +2851,21 @@ def _register_routes(app: Flask) -> None:
                 return jsonify({
                     "error": f"Ungueltiger Wert fuer '{key}'. Erlaubt: {', '.join(allowed)}",
                 }), 400
+        # Personenbezogene Keys pro Nutzer speichern (siehe GET-Logik)
+        from flask import g
+
+        _USER_SCOPED = {"theme", "card_language", "wl_alert_emails"}
+        uid = g.get("user", {}).get("user_id") if g.get("user") else None
         conn = connect()
         try:
             for key, value in body.items():
+                store_key = key
+                if key in _USER_SCOPED and uid:
+                    store_key = f"u{uid}:{key}"
                 conn.execute(
-                    "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now')) "
+                    "INSERT INTO settings (key, value, user_id, updated_at) VALUES (?, ?, ?, datetime('now')) "
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')",
-                    (key, str(value)),
+                    (store_key, str(value), uid),
                 )
             conn.commit()
             return jsonify({"saved": True, "count": len(body)})
