@@ -215,6 +215,7 @@ def add_to_collection(
     return_details: bool = False,
     household_id: int = 1,
     user_id: int | None = None,
+    location_id: int | None = None,
 ) -> int | dict[str, Any]:
     """Add a card to the collection. If an identical entry exists, increment count.
 
@@ -242,10 +243,18 @@ def add_to_collection(
                 "entry_created": 0,
             }
         return row["collection_id"]
+    if location_id is None:
+        # v5: neue Karten landen im Standard-Ablageort (Eingangs-Box), sofern
+        # kein Ziel angegeben - alte Freitext-Spalte 'location' bleibt unberuehrt
+        row = conn.execute(
+            "SELECT location_id FROM storage_locations WHERE household_id = ? AND is_default = 1",
+            (household_id,),
+        ).fetchone()
+        location_id = row["location_id"] if row else None
     cur = conn.execute(
-        """INSERT INTO collection (card_id, count, condition, language, variant, location, source, household_id, user_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (card_id, count, condition, language, variant, location, source, household_id, user_id),
+        """INSERT INTO collection (card_id, count, condition, language, variant, location, source, household_id, user_id, location_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (card_id, count, condition, language, variant, location, source, household_id, user_id, location_id),
     )
     conn.commit()
     if return_details:

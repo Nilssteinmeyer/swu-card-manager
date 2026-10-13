@@ -24,7 +24,7 @@ from app.core.logging import get_logger
 
 log = get_logger("db")
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def get_db_path() -> Path:
@@ -391,6 +391,56 @@ DDL_STATEMENTS = [
         FOREIGN KEY (card_id) REFERENCES cards(card_id)
     )
     """,
+    # --- Ablageorte v5: physische Aufbewahrung (Recherche: ~225 Quellen) ------
+    """
+    CREATE TABLE IF NOT EXISTS storage_locations (
+        location_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+        household_id    INTEGER NOT NULL DEFAULT 1,
+        name            TEXT NOT NULL,
+        typ             TEXT NOT NULL DEFAULT 'box',   -- standard|binder|box|deckbox|sonstige
+        sortierung      TEXT DEFAULT 'set',            -- set|aspekt|name (SWU-Community-Standards)
+        kapazitaet      INTEGER,                        -- optionale Füllstand-Warnung
+        notiz           TEXT,
+        is_default      INTEGER DEFAULT 0,              -- Standard-Ort: nie löschbar
+        is_active       INTEGER DEFAULT 1,
+        created_at      TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS decks (
+        deck_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        household_id    INTEGER NOT NULL DEFAULT 1,
+        name            TEXT NOT NULL,
+        format          TEXT DEFAULT 'premier',         -- premier|eternal|twin_suns
+        leader_card_id  TEXT,
+        base_card_id   TEXT,
+        status          TEXT DEFAULT 'geplant',          -- geplant|gebaut
+        location_id     INTEGER,                         -- Deck-Box (deckbox-Ort)
+        created_at      TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS deck_cards (
+        deck_card_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+        deck_id         INTEGER NOT NULL REFERENCES decks(deck_id) ON DELETE CASCADE,
+        card_id         TEXT NOT NULL,
+        menge           INTEGER NOT NULL DEFAULT 1,
+        zone            TEXT NOT NULL DEFAULT 'maindeck', -- maindeck|sideboard
+        UNIQUE (deck_id, card_id, zone)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS card_moves (
+        move_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        household_id    INTEGER NOT NULL DEFAULT 1,
+        collection_id   INTEGER NOT NULL REFERENCES collection(collection_id) ON DELETE CASCADE,
+        from_location_id INTEGER,
+        to_location_id  INTEGER,
+        reason          TEXT NOT NULL,   -- scan|manuell|deck_build|deck_resolve|korrektur|eingang|abgang
+        created_at      TEXT DEFAULT (datetime('now')),
+        client_event_id TEXT UNIQUE      -- Idempotenz (Offline-Queue)
+    )
+    """,
     # --- Schema migrations --------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -508,6 +558,46 @@ def _migrate(cur: sqlite3.Cursor) -> None:
         if col_name not in cols:
             cur.execute(f"ALTER TABLE wishlist ADD COLUMN {col_def}")
             log.info(f"Migration: added wishlist.{col_name}", extra={"event": "db_migration"})
+
+    # ---- Ablageorte v5: location_id auf Sammlungs-Zeilen -------------------
+    cur.execute("PRAGMA table_info(collection)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "location_id" not in cols:
+        cur.execute("ALTER TABLE collection ADD COLUMN location_id INTEGER REFERENCES storage_locations(location_id)")
+        log.info("Migration: added collection.location_id", extra={"event": "db_migration"})
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_collection_location ON collection (location_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_card_moves_household ON card_moves (household_id)"
+    )
+
+    # Standard-Ort als geschützter Seed-Datensatz (Siebel 'Protect Seed Data'):
+    # 'Sammlung (Standard)' = Eingangs-Box fuer Unsortiertes (CoolStuffInc-Muster).
+    # Pro Haushalt genau einer; bestehende Sammlungs-Zeilen (location_id NULL)
+    # werden per Journal-Grund 'eingang' dem Standard-Ort zugeordnet.
+    for hh_row in cur.execute("SELECT household_id FROM households").fetchall():
+        hh = hh_row[0]
+        cur.execute(
+            "SELECT 1 FROM storage_locations WHERE household_id = ? AND is_default = 1",
+            (hh,),
+        )
+        if not cur.fetchone():
+            cur.execute(
+                """INSERT INTO storage_locations (household_id, name, typ, sortierung, is_default)
+                   VALUES (?, 'Sammlung (Standard)', 'standard', 'set', 1)""",
+                (hh,),
+            )
+            loc_id = cur.execute(
+                "SELECT location_id FROM storage_locations WHERE household_id = ? AND is_default = 1",
+                (hh,),
+            ).fetchone()[0]
+            cur.execute(
+                "UPDATE collection SET location_id = ? WHERE household_id = ? AND location_id IS NULL",
+                (loc_id, hh),
+            )
+            log.info(f"Migration: Standard-Ort fuer Haushalt {hh} angelegt (id {loc_id})",
+                     extra={"event": "db_migration"})
 
     # Indexes for tenant-scoped queries
     cur.execute(
