@@ -625,6 +625,21 @@ input[type="number"], input[type="search"], select, textarea {
   padding: 1px 6px; border-radius: 4px;
 }
 
+/* ---- Merkliste: Alarm-Glocke + Verlauf ----------------------------------- */
+.wl-alert-badge {
+  position: absolute; top: -6px; right: -6px;
+  background: var(--error, #ff5a52); color: #fff;
+  font-size: 0.68rem; font-weight: 800;
+  min-width: 18px; height: 18px; line-height: 18px;
+  border-radius: 999px; text-align: center;
+  padding: 0 4px;
+}
+.wl-alert-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 8px 4px; border-bottom: 1px solid var(--outline-soft, #1d2739);
+}
+.wl-alert-row.unack { border-left: 3px solid var(--error, #ff5a52); padding-left: 8px; }
+
 /* ---- Sammlung teilen: Dialog -------------------------------------------- */
 .share-backdrop {
   position: fixed; inset: 0; z-index: 450;

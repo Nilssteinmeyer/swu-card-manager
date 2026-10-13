@@ -25,6 +25,14 @@
         <div class="flex gap-1 mb-2" style="flex-wrap:wrap;">
           <input type="text" id="wl-search" class="setting-input" style="flex:1; min-width:180px; text-align:left;" placeholder="Karte suchen und merken...">
           <button class="btn btn-primary" id="btn-wl-search">🔍 Suchen</button>
+          <button class="btn" id="btn-wl-alerts" title="Preis-Alarme" style="position:relative;">🔔<span id="wl-alert-badge" class="wl-alert-badge hidden"></span></button>
+        </div>
+        <div id="wl-alerts-panel" class="card mb-2 hidden">
+          <div class="card-title flex-center-between">
+            <span>🔔 Preis-Alarme</span>
+            <button class="btn btn-sm" onclick="ackAllAlerts()" style="min-height:36px;">✓ Alle quittiert</button>
+          </div>
+          <div id="wl-alerts-list"></div>
         </div>
         <div id="wl-search-results" class="mb-2"></div>
 
@@ -354,6 +362,7 @@
         showToast("Gespeichert ✓", "success");
         closeWlDetail();
         loadWishlist();
+        loadAlerts();
       } catch (err) {
         showToast(`Fehler: ${err.message}`, "error");
       }
@@ -483,6 +492,56 @@
       }
     });
 
+    // ---- Preis-Alarme (Verlauf, Keepa-Muster) ---------------------------------
+    async function loadAlerts() {
+      try {
+        const data = await api("/api/wishlist/alerts");
+        const badge = document.getElementById("wl-alert-badge");
+        if (data.unacknowledged > 0) {
+          badge.textContent = data.unacknowledged;
+          badge.classList.remove("hidden");
+        } else {
+          badge.classList.add("hidden");
+        }
+        const list = document.getElementById("wl-alerts-list");
+        if (!data.alerts.length) {
+          list.innerHTML = '<p class="text-muted" style="font-size:13px;">Noch keine Alarme. Setze einen Zielpreis auf einer Karte — dein Droid meldet sich, wenn er erreicht ist.</p>';
+          return;
+        }
+        list.innerHTML = data.alerts.map(a => `
+          <div class="wl-alert-row ${a.acknowledged ? "" : "unack"}">
+            <div>
+              <b>${escapeHtml(a.name || "Karte")}</b>
+              <span class="text-muted" style="font-size:12px;">${a.set_id || ""} #${a.card_number || ""}</span>
+            </div>
+            <div class="text-muted" style="font-size:12px; text-align:right;">
+              ${a.kind === "target_hit" ? "🎯 Zielpreis erreicht" : "📉 Preisbewegung"}
+              ${a.new_price != null ? ` · ${fmtPrice(a.new_price, "USD")}` : ""}
+              <br>${a.created_at || ""}
+            </div>
+          </div>`).join("");
+      } catch (e) {}
+    }
+
+    async function ackAllAlerts() {
+      try {
+        const data = await api("/api/wishlist/alerts?limit=100");
+        for (const a of data.alerts) {
+          if (!a.acknowledged) {
+            await api("/api/wishlist/alerts/ack", { method: "POST", body: { alert_id: a.alert_id } });
+          }
+        }
+        loadAlerts();
+        showToast("Alarme quittiert ✓", "success");
+      } catch (e) {}
+    }
+
+    document.getElementById("btn-wl-alerts").addEventListener("click", () => {
+      const panel = document.getElementById("wl-alerts-panel");
+      panel.classList.toggle("hidden");
+      if (!panel.classList.contains("hidden")) loadAlerts();
+    });
+
     // ---- Unter-Reiter ---------------------------------------------------------
     function switchWlTab(tab) {
       for (const t of ["cards", "deck", "export"]) {
@@ -520,12 +579,13 @@
         });
       } catch (e) {}
       loadWishlist();
+      loadAlerts();
     });
   </script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=34').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=35').then(reg => {
               reg.update().catch(() => {});
             }).catch(() => {});
       });

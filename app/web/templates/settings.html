@@ -33,6 +33,21 @@
         </div>
       </div>
 
+      <!-- Merkliste: Preis-Alarme -->
+      <div class="settings-section">
+        <h2 class="settings-title">🔔 Merkliste: Preis-Alarme</h2>
+        <div class="setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <label style="font-weight:600;">E-Mail-Benachrichtigung</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="set-wl-alert-emails" onchange="saveWlAlertSetting(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-desc">
+          Dein Droid prüft nach dem täglichen Preis-Sync alle Zielpreise: Erreicht eine Karte dein Ziel, bekommst du eine E-Mail (nur der erste Treffer — kein Spam). Größere Preisbewegungen fasst er als Tages-Zusammenfassung zusammen.
+        </div>
+      </div>
+
       <!-- Cardmarket-Konto (admin only) -->
       <div class="settings-section" data-admin-only id="mkm-account-section">
         <h2 class="settings-title">💳 Cardmarket-Konto <span id="mkm-account-badge" class="badge">nicht verbunden</span></h2>
@@ -342,6 +357,22 @@
       }
     });
 
+    // Merkliste-Alarme
+      async function loadWlAlertSetting() {
+        try {
+          const s = await api("/api/settings");
+          document.getElementById("set-wl-alert-emails").checked = (s.wl_alert_emails ?? "1") !== "0";
+        } catch (e) {}
+      }
+      async function saveWlAlertSetting(on) {
+        try {
+          await api("/api/settings", { method: "POST", body: { wl_alert_emails: on ? "1" : "0" } });
+          showToast(on ? "Preis-Alarme per E-Mail aktiviert ✓" : "Preis-Alarme per E-Mail aus", "info");
+        } catch (err) {
+          showToast(`Fehler: ${err.message}`, "error");
+        }
+      }
+
     document.getElementById("btn-mkm-test").addEventListener("click", async () => {
       const statusEl = document.getElementById("mkm-account-status");
       statusEl.textContent = "Teste Verbindung...";
@@ -372,12 +403,13 @@
     });
 
     loadMkmAccountStatus();
+    loadWlAlertSetting();
     loadSettings();
   </script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=34').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=35').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

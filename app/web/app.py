@@ -2074,6 +2074,20 @@ def _register_routes(app: Flask) -> None:
         finally:
             conn.close()
 
+    @app.route("/api/wishlist/watch", methods=["POST"])
+    def api_wishlist_watch():
+        """Beobachtungs-Lauf manuell starten (Admin; sonst Cron nach Preis-Sync)."""
+        if not _is_admin():
+            return jsonify({"error": "Nur Admins"}), 403
+        from app import wishlist_watch as _watch
+
+        conn = connect()
+        try:
+            results = _watch.run_all_households(conn)
+            return jsonify({"results": results})
+        finally:
+            conn.close()
+
     @app.route("/api/wishlist/export")
     def api_wishlist_export():
         """Merkliste als CSV (Karte, Menge, Foil, Sprache, Zielpreis, Preis+Quelle)."""
@@ -2413,7 +2427,11 @@ def _register_routes(app: Flask) -> None:
     def api_save_settings():
         body = request.get_json(silent=True) or {}
         # Enum-artige Schluessel validieren statt blind zu speichern
-        _ENUM_SETTINGS = {"scan_mode": ("collection", "price")}
+        _ENUM_SETTINGS = {
+            "scan_mode": ("collection", "price"),
+            "price_display_mode": ("value", "price", "none"),
+            "wl_alert_emails": ("0", "1"),
+        }
         for key, allowed in _ENUM_SETTINGS.items():
             if key in body and str(body[key]) not in allowed:
                 return jsonify({

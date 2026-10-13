@@ -59,9 +59,33 @@ def run_sync() -> int:
     return 0
 
 
+def run_wishlist_watch() -> int:
+    """Nach dem Preis-Sync: Zielpreise pruefen + Alarme (Phase 4)."""
+    from app.db.schema import connect
+    from app.wishlist_watch import run_all_households
+
+    conn = connect()
+    try:
+        results = run_all_households(conn)
+        hits = sum(len(r["hits"]) for r in results)
+        log.info("Merkliste-Watch: %s Zielpreis-Treffer", hits)
+        return 0
+    except Exception as e:  # noqa: BLE001
+        log.error("Merkliste-Watch fehlgeschlagen: %s", e)
+        return 1
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     try:
-        sys.exit(run_sync())
+        code = run_sync()
+        # Beobachtung nur nach erfolgreichem Sync (Fehler blockieren nicht)
+        try:
+            run_wishlist_watch()
+        except Exception as e:  # noqa: BLE001
+            log.error("Watch nach Sync fehlgeschlagen: %s", e)
+        sys.exit(code)
     except Exception as e:  # noqa: BLE001
         log.error("TCG-Sync fehlgeschlagen: %s", e)
         sys.exit(1)
