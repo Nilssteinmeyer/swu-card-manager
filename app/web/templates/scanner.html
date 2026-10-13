@@ -99,11 +99,18 @@
               </div>
               <label><input type="checkbox" id="is-foil-checkbox"> Foil-Version</label>
             </div>
+            <!-- Ablageort-Auswahl (v5): Ziel bleibt ueber Scans hinweg stehen -->
+            <div class="scan-location-picker">
+              <button class="btn btn-secondary" id="btn-location-pick" style="width:100%; min-height:44px;">
+                📁 <span id="location-pick-label">Sammlung (Standard)</span> ▾
+              </button>
+            </div>
             <div class="scan-result-actions">
               <button class="btn btn-success btn-large" id="btn-confirm">✓ Ja, richtige Karte</button>
               <button class="btn btn-success btn-large hidden" id="btn-price-ok">💰 Preis ansehen</button>
               <button class="btn btn-danger btn-large" id="btn-reject">✗ Nein, falsche Karte</button>
               <button class="btn btn-secondary btn-large" id="btn-wishlist">❤️ Zur Merkliste</button>
+              <button class="btn btn-secondary btn-large hidden" id="btn-to-deck">🃏 Ins Deck</button>
               <button class="btn btn-secondary btn-large" id="btn-cancel">↩ Abbrechen</button>
             </div>
           </div>
@@ -117,11 +124,11 @@
 {% endblock %}
 
 {% block scripts %}
-  <script src="/static/scanner.js?v=16"></script>
+  <script src="/static/scanner.js?v=17"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=35').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=36').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

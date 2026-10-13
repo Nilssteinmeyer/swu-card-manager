@@ -35,6 +35,7 @@ from flask_cors import CORS
 from app.core.config import AppConfig
 from app.core.logging import get_logger
 from app.db import repository as repo
+from app import storage as st
 from app.db.schema import connect, init_database
 
 log = get_logger("web")
@@ -94,6 +95,7 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
     # Auth: load current user/household for every request
     from app.auth import can_edit, load_current_user
+    from app import storage as st
     from app.auth.routes import bp as auth_bp
 
     app.before_request(lambda: load_current_user(app))
@@ -377,6 +379,10 @@ def _register_routes(app: Flask) -> None:
     def wishlist_page():
         return render_template("wishlist.html")
 
+    @app.route("/decks")
+    def decks_page():
+        return render_template("decks.html")
+
     @app.route("/sets")
     def sets_page():
         return render_template("sets.html")
@@ -593,6 +599,7 @@ def _register_routes(app: Flask) -> None:
         language = (body.get("language") or "").strip().lower()
         if language not in ("de", "en"):
             language = _get_setting("card_language", "de") or "de"
+        scan_location_id = body.get("location_id")  # v5: Ablageort vom Scanner
 
         if scan_id is None:
             return jsonify({"error": "scan_id required"}), 400
@@ -621,6 +628,7 @@ def _register_routes(app: Flask) -> None:
                         return_details=True,
                         household_id=_hh(),
                         user_id=_uid(),
+                        location_id=scan_location_id,
                     )
                     # Set is_foil flag on the newly added entry
                     if is_foil:
@@ -832,12 +840,14 @@ def _register_routes(app: Flask) -> None:
                        CASE WHEN pr.trend IS NOT NULL THEN 'EUR'
                             ELSE 'USD' END AS price_currency,
                        CASE WHEN pr.trend IS NOT NULL THEN 'cardmarket'
-                            ELSE 'tcgplayer' END AS price_source
+                            ELSE 'tcgplayer' END AS price_source,
+                       sl.name AS location_name
                 FROM collection col
                 JOIN cards ON col.card_id = cards.card_id
                 LEFT JOIN card_mkm_map m ON m.card_id = col.card_id
                 LEFT JOIN card_prices pr ON pr.idProduct = m.idProduct
                 LEFT JOIN tcg_prices tcg ON tcg.card_id = col.card_id
+                LEFT JOIN storage_locations sl ON sl.location_id = col.location_id
                 WHERE col.household_id = ?
             """
             params: list[Any] = [_hh()]
@@ -1919,6 +1929,293 @@ def _register_routes(app: Flask) -> None:
             return jsonify({"ok": False, "error": str(e)}), 500
 
     # -- Wishlist ----------------------------------------------------------------
+    # ---- Ablageorte & Decks v5 ----------------------------------------------
+    @app.route("/api/locations")
+    def api_locations():
+        conn = connect()
+        try:
+            return jsonify({"locations": st.list_locations(conn, _hh())})
+        finally:
+            conn.close()
+
+    @app.route("/api/locations", methods=["POST"])
+    def api_locations_create():
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        name = (body.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "Name erforderlich"}), 400
+        if len(name) > 60:
+            return jsonify({"error": "Name zu lang (max 60)"}), 400
+        conn = connect()
+        try:
+            loc_id = st.create_location(
+                conn, name, typ=body.get("typ") or "box", household_id=_hh(),
+                sortierung=body.get("sortierung") or "set",
+                kapazitaet=body.get("kapazitaet"), notiz=body.get("notiz"),
+            )
+            return jsonify({"location_id": loc_id, "created": True})
+        finally:
+            conn.close()
+
+    @app.route("/api/locations/<int:location_id>", methods=["POST"])
+    def api_locations_update(location_id: int):
+        """Umbenennen (auch Standard-Ort)."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        name = (body.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "Name erforderlich"}), 400
+        conn = connect()
+        try:
+            ok = st.rename_location(conn, location_id, name, household_id=_hh())
+            return jsonify({"renamed": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/locations/<int:location_id>/delete", methods=["POST"])
+    def api_locations_delete(location_id: int):
+        """Loesch-Schutz: Standard-Ort nie; belegt -> 409 mit Grund."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        conn = connect()
+        try:
+            ok, grund = st.delete_location(conn, location_id, household_id=_hh())
+            if not ok:
+                return jsonify({"error": grund, "blocked": True}), 409
+            return jsonify({"deleted": True})
+        finally:
+            conn.close()
+
+    @app.route("/api/locations/<int:location_id>/cards")
+    def api_location_cards(location_id: int):
+        """Karten eines Ablageorts."""
+        conn = connect()
+        try:
+            row = conn.execute(
+                "SELECT household_id FROM storage_locations WHERE location_id = ?",
+                (location_id,),
+            ).fetchone()
+            if not row or row["household_id"] != _hh():
+                return jsonify({"error": "Ort nicht gefunden"}), 404
+            cur = conn.execute(
+                """SELECT c.*, cards.name, cards.name_de, cards.set_id, cards.card_number,
+                          cards.rarity, cards.front_art_path
+                   FROM collection c JOIN cards ON c.card_id = cards.card_id
+                   WHERE c.location_id = ? ORDER BY cards.set_id, cards.card_number""",
+                (location_id,),
+            )
+            items = [dict(r) for r in cur.fetchall()]
+            return jsonify({"items": items, "count": len(items)})
+        finally:
+            conn.close()
+
+    @app.route("/api/collection/move", methods=["POST"])
+    def api_collection_move():
+        """Karten an Ablageort umbuchen (Journal = Undo-faehig)."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        ids = body.get("collection_ids")
+        to = body.get("to_location_id")
+        if not isinstance(ids, list) or not ids or not to:
+            return jsonify({"error": "collection_ids + to_location_id erforderlich"}), 400
+        conn = connect()
+        try:
+            moved = st.move_cards(conn, ids, int(to), reason=body.get("reason") or "manuell",
+                                  household_id=_hh(), client_event_id=body.get("client_event_id"))
+            return jsonify({"moved": moved})
+        finally:
+            conn.close()
+
+    @app.route("/api/decks")
+    def api_decks():
+        conn = connect()
+        try:
+            return jsonify({"decks": st.list_decks(conn, _hh())})
+        finally:
+            conn.close()
+
+    @app.route("/api/decks", methods=["POST"])
+    def api_decks_create():
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        name = (body.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "Name erforderlich"}), 400
+        fmt = body.get("format") or "premier"
+        if fmt not in ("premier", "eternal", "twin_suns"):
+            fmt = "premier"
+        conn = connect()
+        try:
+            deck_id = st.create_deck(conn, name, household_id=_hh(), format=fmt,
+                                     leader_card_id=body.get("leader_card_id"),
+                                     base_card_id=body.get("base_card_id"))
+            return jsonify({"deck_id": deck_id, "created": True})
+        finally:
+            conn.close()
+
+    @app.route("/api/decks/<int:deck_id>")
+    def api_deck_detail(deck_id: int):
+        conn = connect()
+        try:
+            deck = st.get_deck(conn, deck_id, _hh())
+            if not deck:
+                return jsonify({"error": "Deck nicht gefunden"}), 404
+            cards = st.get_deck_list(conn, deck_id)
+            in_box = st.location_card_count(conn, deck["location_id"])
+            return jsonify({**deck, "cards": cards, "karten_in_box": in_box})
+        finally:
+            conn.close()
+
+    @app.route("/api/decks/<int:deck_id>", methods=["POST"])
+    def api_deck_update(deck_id: int):
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        name = (body.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "Name erforderlich"}), 400
+        conn = connect()
+        try:
+            ok = st.rename_deck(conn, deck_id, name, household_id=_hh())
+            return jsonify({"renamed": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/decks/<int:deck_id>/assign", methods=["POST"])
+    def api_deck_assign(deck_id: int):
+        """Karte per Scan/Auswahl ins Deck: Kopie -> Deck-Box + Deckliste."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        card_id = (body.get("card_id") or "").strip()
+        if not card_id:
+            return jsonify({"error": "card_id erforderlich"}), 400
+        menge = int(body.get("menge", 1) or 1)
+        conn = connect()
+        try:
+            r = st.assign_card_to_deck(conn, card_id, deck_id, menge=menge,
+                                       household_id=_hh(), client_event_id=body.get("client_event_id"))
+            if not r.get("ok"):
+                return jsonify({"error": r.get("error"), "verfuegbar": r.get("verfuegbar"),
+                                "benoetigt": r.get("benoetigt")}), 409
+            return jsonify(r)
+        finally:
+            conn.close()
+
+    @app.route("/api/decks/<int:deck_id>/resolve", methods=["POST"])
+    def api_deck_resolve(deck_id: int):
+        """Deck aufloesen: Karten zurueck an Ursprungs-Ort."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        conn = connect()
+        try:
+            r = st.resolve_deck(conn, deck_id, household_id=_hh())
+            if not r.get("ok"):
+                return jsonify({"error": r.get("error")}), 404
+            return jsonify(r)
+        finally:
+            conn.close()
+
+    @app.route("/api/decks/<int:deck_id>/delete", methods=["POST"])
+    def api_deck_delete(deck_id: int):
+        """Deck loeschen (nur Liste) — blockiert bei belegter Deck-Box."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        conn = connect()
+        try:
+            ok, info = st.delete_deck(conn, deck_id, household_id=_hh())
+            if not ok:
+                err = info if isinstance(info, str) else info.get("hinweis")
+                kib = info.get("karten_in_box") if isinstance(info, dict) else None
+                return jsonify({"error": err, "karten_in_box": kib, "blocked": True}), 409
+            return jsonify({"deleted": True})
+        finally:
+            conn.close()
+
+    @app.route("/api/decks/<int:deck_id>/cards", methods=["POST"])
+    def api_deck_cards_add(deck_id: int):
+        """Deckliste (Bauplan) erweitern — ohne physische Kopien."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        card_id = (body.get("card_id") or "").strip()
+        if not card_id:
+            return jsonify({"error": "card_id erforderlich"}), 400
+        zone = body.get("zone") or "maindeck"
+        menge = int(body.get("menge", 1) or 1)
+        conn = connect()
+        try:
+            row = conn.execute("SELECT 1 FROM decks WHERE deck_id = ? AND household_id = ?",
+                               (deck_id, _hh())).fetchone()
+            if not row:
+                return jsonify({"error": "Deck nicht gefunden"}), 404
+            st.add_card_to_deck_list(conn, deck_id, card_id, menge=menge, zone=zone)
+            return jsonify({"added": True})
+        finally:
+            conn.close()
+
+    @app.route("/api/decks/<int:deck_id>/cards/remove", methods=["POST"])
+    def api_deck_cards_remove(deck_id: int):
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        card_id = (body.get("card_id") or "").strip()
+        if not card_id:
+            return jsonify({"error": "card_id erforderlich"}), 400
+        conn = connect()
+        try:
+            ok = st.remove_card_from_deck_list(conn, deck_id, card_id,
+                                               zone=body.get("zone") or "maindeck")
+            return jsonify({"removed": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/cards/<path:card_id>/where")
+    def api_card_where(card_id: str):
+        """Wo liegt die Karte? Orte + Decks + verfuegbar-Mathe."""
+        conn = connect()
+        try:
+            cur = conn.execute(
+                """SELECT l.name, l.typ, SUM(c.count) AS menge
+                   FROM collection c JOIN storage_locations l ON c.location_id = l.location_id
+                   WHERE c.card_id = ? AND c.household_id = ?
+                   GROUP BY l.location_id ORDER BY menge DESC""",
+                (card_id, _hh()),
+            )
+            orte = [dict(r) for r in cur.fetchall()]
+            decks = st.card_in_decks(conn, card_id, _hh())
+            av = st.available_count(conn, card_id, _hh())
+            return jsonify({"orte": orte, "decks": decks, "verfuegbarkeit": av})
+        finally:
+            conn.close()
+
     @app.route("/api/wishlist")
     def api_wishlist():
         conn = connect()

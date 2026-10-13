@@ -1,0 +1,185 @@
+{% extends "base_app.html" %}
+{% block title %}Decks{% endblock %}
+
+{% block content %}
+      <h1 class="mb-2">🃏 Decks</h1>
+
+      <!-- Deck-Anlage -->
+      <div class="card mb-2">
+        <div class="card-title flex-center-between">
+          <span>➕ Neues Deck</span>
+        </div>
+        <div class="flex gap-1" style="flex-wrap:wrap;">
+          <input type="text" id="new-deck-name" class="setting-input" style="flex:1; min-width:160px; text-align:left;" placeholder="z.B. Cad Bane Gelb">
+          <select id="new-deck-format" style="max-width:130px;">
+            <option value="premier">Premier</option>
+            <option value="eternal">Eternal</option>
+            <option value="twin_suns">Twin Suns</option>
+          </select>
+          <button class="btn btn-primary" id="btn-deck-create">Anlegen</button>
+        </div>
+        <div class="setting-desc" style="margin-top:6px;">
+          Jedes Deck bekommt automatisch seine eigene Deck-Box als Ablageort — gescannte Karten wandern hinein, „Auflösen“ legt sie an ihren Ursprungsort zurück.
+        </div>
+      </div>
+
+      <!-- Deck-Liste -->
+      <div id="decks-list"></div>
+
+      <!-- Deck-Detail-Sheet -->
+      <div id="deck-detail" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; display:flex; align-items:flex-end; justify-content:center;" onclick="if(event.target===this) closeDeckDetail()">
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px 16px 0 0; width:100%; max-width:560px; max-height:90vh; overflow-y:auto; padding:16px; position:relative;">
+          <button class="btn btn-sm" style="position:absolute; top:8px; right:8px; z-index:2; min-width:44px; min-height:44px; font-size:18px;" onclick="closeDeckDetail()" aria-label="Schließen">✕</button>
+          <div id="deck-detail-body"></div>
+        </div>
+      </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    let DECKS = [];
+
+    async function loadDecks() {
+      const el = document.getElementById("decks-list");
+      try {
+        const data = await api("/api/decks");
+        DECKS = data.decks || [];
+        if (!DECKS.length) {
+          el.innerHTML = `<div class="empty-state">
+            <img src="/static/assets/empty_droid.svg" alt="">
+            <div class="es-title">Noch keine Decks</div>
+            <div class="es-text">Lege dein erstes Deck an — Karten weist du per Scan oder aus der Sammlung zu.</div>
+          </div>`;
+          return;
+        }
+        el.innerHTML = DECKS.map(d => `
+          <div class="card mb-2 deck-row" data-deck="${d.deck_id}" onclick="openDeckDetail(${d.deck_id})">
+            <div class="flex items-center justify-between">
+              <div style="min-width:0;">
+                <b style="font-size:1.05rem;">${escapeHtml(d.name)}</b>
+                <div class="text-muted" style="font-size:12px;">
+                  ${d.format} · Maindeck ${d.maindeck_count}/50
+                  ${d.sideboard_count ? ` · Sideboard ${d.sideboard_count}/10` : ""}
+                </div>
+              </div>
+              <div style="text-align:right; flex-shrink:0;">
+                <div class="deck-badge ${d.karten_in_box > 0 ? "gebaut" : ""}">${d.karten_in_box > 0 ? "📦 " + d.karten_in_box : "geplant"}</div>
+              </div>
+            </div>
+          </div>`).join("");
+      } catch (err) {
+        el.innerHTML = `<p class="text-muted">Fehler beim Laden: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    // ---- Deck anlegen ----------------------------------------------------
+    document.getElementById("btn-deck-create").addEventListener("click", async () => {
+      const name = document.getElementById("new-deck-name").value.trim();
+      if (!name) { showToast("Bitte einen Namen eingeben", "error"); return; }
+      const format = document.getElementById("new-deck-format").value;
+      try {
+        await api("/api/decks", { method: "POST", body: { name, format } });
+        showToast(`Deck „${name}" angelegt 🃏`, "success");
+        document.getElementById("new-deck-name").value = "";
+        loadDecks();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    });
+
+    // ---- Deck-Detail ------------------------------------------------------
+    async function openDeckDetail(deckId) {
+      const body = document.getElementById("deck-detail-body");
+      try {
+        const d = await api(`/api/decks/${deckId}`);
+        const cards = d.cards || [];
+        const fehlend = cards.reduce((s, c) => s + c.fehlt, 0);
+        const mainCount = cards.filter(c => c.zone === "maindeck").reduce((s, c) => s + c.menge, 0);
+        const sideCount = cards.filter(c => c.zone === "sideboard").reduce((s, c) => s + c.menge, 0);
+        body.innerHTML = `
+          <h2 style="margin:8px 0 4px 0; font-size:1.2rem;">${escapeHtml(d.name)}</h2>
+          <div class="text-muted" style="font-size:12px; margin-bottom:10px;">
+            ${d.format} · Maindeck ${mainCount}/50 · Sideboard ${sideCount}/10 · ${d.karten_in_box} Karten in der Deck-Box
+          </div>
+          ${cards.length ? `
+          <div class="table-wrap" style="max-height:40vh; overflow-y:auto; margin-bottom:12px;">
+            <table>
+              <thead><tr><th>Karte</th><th>Plan</th><th>In Box</th><th>Fehlt</th></tr></thead>
+              <tbody>
+              ${cards.map(c => `
+                <tr>
+                  <td>${escapeHtml(c.name_de || c.name)} <span class="text-muted" style="font-size:11px;">${escapeHtml(c.set_id)} #${escapeHtml(c.card_number)}</span></td>
+                  <td>${c.menge}×</td>
+                  <td>${c.in_deck_box}</td>
+                  <td>${c.fehlt > 0 ? `<b style="color:var(--orange)">${c.fehlt}</b>` : "✓"}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>` : '<p class="text-muted" style="font-size:13px; margin-bottom:12px;">Noch keine Karten im Deck — scanne Karten im Deck-Modus oder füge sie aus der Sammlung hinzu.</p>'}
+          <div class="flex gap-1" style="flex-wrap:wrap;">
+            <button class="btn btn-primary" style="flex:1; min-height:44px;" onclick="scanToDeck(${deckId})">📷 Karten scannen</button>
+            ${d.karten_in_box > 0 ? `<button class="btn btn-secondary" style="flex:1; min-height:44px;" onclick="resolveDeck(${deckId}, ${d.karten_in_box})">🔓 Auflösen (${d.karten_in_box})</button>` : ""}
+          </div>
+          <div class="flex gap-1 mt-2" style="flex-wrap:wrap;">
+            <button class="btn" style="min-height:40px;" onclick="renameDeck(${deckId}, '${escapeHtml(d.name).replace(/'/g, "\\'")}')">✏️ Umbenennen</button>
+            <button class="btn btn-danger" style="min-height:40px;" onclick="deleteDeck(${deckId})">🗑 Löschen</button>
+          </div>`;
+        document.getElementById("deck-detail").classList.remove("hidden");
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    function closeDeckDetail() {
+      document.getElementById("deck-detail").classList.add("hidden");
+    }
+
+    function scanToDeck(deckId) {
+      sessionStorage.setItem("scan_target_deck", deckId);
+      closeDeckDetail();
+      location.href = "/scanner";
+    }
+
+    async function resolveDeck(deckId, karten) {
+      if (!confirm(`${karten} Karten zurück an ihre Ursprungs-Ablageorte legen und das Deck leeren?`)) return;
+      try {
+        const r = await api(`/api/decks/${deckId}/resolve`, { method: "POST", body: {} });
+        const verteilung = (r.verteilt || []).map(v => `${v.karten} → ${v.ort}`).join(", ");
+        showToast(`${r.karten} Karten zurückgelegt (${verteilung}) ✓`, "success");
+        closeDeckDetail();
+        loadDecks();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function renameDeck(deckId, alt) {
+      const name = prompt("Neuer Deck-Name:", alt);
+      if (!name || name === alt) return;
+      try {
+        await api(`/api/decks/${deckId}`, { method: "POST", body: { name } });
+        showToast("Umbenannt ✓", "success");
+        closeDeckDetail();
+        loadDecks();
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, "error");
+      }
+    }
+
+    async function deleteDeck(deckId) {
+      if (!confirm("Deck endgültig löschen? (Karten in der Deck-Box blockieren das Löschen — erst auflösen)")) return;
+      try {
+        await api(`/api/decks/${deckId}/delete`, { method: "POST", body: {} });
+        showToast("Deck gelöscht", "info");
+        closeDeckDetail();
+        loadDecks();
+      } catch (err) {
+        showToast(`${err.message}`, "error");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadDecks();
+    });
+  </script>
+{% endblock %}

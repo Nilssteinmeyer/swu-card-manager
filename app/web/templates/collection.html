@@ -95,6 +95,12 @@
           <span id="tools-arrow" class="collapse-arrow">▶</span>
         </div>
         <div id="tools-body" class="collapsible-body hidden">
+          <!-- Ablageorte (v5) -->
+          <div class="setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;">
+            <label style="font-weight:600;">📁 Ablageorte</label>
+            <button class="btn btn-sm btn-secondary" id="btn-manage-locations" style="min-height:38px;">Verwalten</button>
+          </div>
+          <div id="locations-chips" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"></div>
           <div class="setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
             <label style="font-weight:600;">Preise anzeigen</label>
             <select id="price-display-mode" style="max-width:220px;" onchange="applyPriceDisplayMode(this.value)">
@@ -309,7 +315,7 @@
               ${badgesHtml}
             </div>
             <div class="ci-name">${escapeHtml(item.name)}</div>
-            <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}</div>
+            <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}${item.location_name ? ` · <span class="ci-loc" title="${escapeHtml(item.location_name)}">📁 ${escapeHtml(item.location_name.length > 14 ? item.location_name.slice(0, 12) + "…" : item.location_name)}</span>` : ""}</div>
             ${priceHtml}
             <div class="ci-count">${isFoil ? "✨ " : ""}×${item.count}</div>
           </div>`;
@@ -594,6 +600,126 @@
       if (e.key === "Escape") closeCardModal();
     });
 
+    // ---- Ablageorte v5 --------------------------------------------------------
+    let LOCATIONS = [];
+
+    async function loadLocationsChips() {
+      try {
+        const data = await api("/api/locations");
+        LOCATIONS = data.locations || [];
+        const el = document.getElementById("locations-chips");
+        if (el) {
+          el.innerHTML = LOCATIONS.map(l => `
+            <button class="btn btn-sm ${l.is_default ? "btn-secondary" : ""}" style="min-height:36px;"
+                    onclick="showLocationCards(${l.location_id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}')"
+                    title="${escapeHtml(l.name)}: ${l.karten_count || 0} Karten">
+              ${l.is_default ? "📥" : l.typ === "binder" ? "📕" : l.typ === "deckbox" ? "📦" : "🗂️"}
+              ${escapeHtml(l.name.length > 16 ? l.name.slice(0, 14) + "…" : l.name)} (${l.karten_count || 0})
+            </button>`).join("");
+        }
+      } catch (e) {}
+    }
+
+    async function showLocationCards(locationId, name) {
+      try {
+        const data = await api(`/api/locations/${locationId}/cards`);
+        if (!data.items.length) { showToast(`„${name}" ist leer`, "info"); return; }
+        let html = `<div style="max-height:50vh; overflow-y:auto;"><table><tbody>` +
+          data.items.map(i => `<tr><td>${escapeHtml(i.name_de || i.name)}</td><td class="text-muted">${escapeHtml(i.set_id)} #${escapeHtml(i.card_number)} · ×${i.count}</td></tr>`).join("") +
+          `</tbody></table></div>`;
+        if (confirm(`„${name}" — ${data.count} Karten. Liste als Übersicht anzeigen? (OK = im Tabellen-Format, Abbrechen = schließen)`)) {
+          // Einfache Anzeige: Modal nutzen
+          const modal = document.getElementById("card-modal");
+          document.getElementById("card-modal-body").innerHTML = `<h2 style="margin-bottom:8px;">📁 ${escapeHtml(name)}</h2>` + html;
+          modal.classList.remove("hidden");
+        }
+      } catch (e) { showToast(`Fehler: ${e.message}`, "error"); }
+    }
+
+    function openLocationManage() {
+      let sheet = document.getElementById("loc-manage-sheet");
+      if (!sheet) {
+        sheet = document.createElement("div");
+        sheet.id = "loc-manage-sheet";
+        sheet.className = "more-sheet";
+        sheet.setAttribute("role", "dialog");
+        document.body.appendChild(sheet);
+        const bd = document.createElement("div");
+        bd.id = "loc-manage-backdrop";
+        bd.className = "more-sheet-backdrop";
+        bd.onclick = () => { sheet.hidden = true; bd.hidden = true; };
+        document.body.appendChild(bd);
+      }
+      const rows = LOCATIONS.map(l => `
+        <div class="loc-manage-row" data-id="${l.location_id}">
+          <span class="sl-icon">${l.is_default ? "📥" : l.typ === "binder" ? "📕" : l.typ === "deckbox" ? "📦" : "🗂️"}</span>
+          <span class="lm-name">${escapeHtml(l.name)} <span class="text-muted" style="font-size:11px;">(${l.karten_count || 0})</span></span>
+          ${l.is_default ? '<span class="text-muted" style="font-size:11px;">Standard</span>' : `
+            <button class="btn btn-sm" onclick="renameLocationUi(${l.location_id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}')" style="min-height:36px;">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteLocationUi(${l.location_id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}', ${l.karten_count || 0})" style="min-height:36px;">🗑</button>`}
+        </div>`).join("");
+      sheet.innerHTML = `
+        <div class="sheet-handle"></div>
+        <div style="padding:10px 16px 4px; font-weight:700;">📁 Ablageorte verwalten</div>
+        <nav class="sheet-links">${rows}</nav>
+        <div style="padding:10px 16px;">
+          <div class="flex gap-1">
+            <input type="text" id="new-loc-name" placeholder="Neuer Ablageort…" style="flex:1; min-height:44px;">
+            <select id="new-loc-typ" style="max-width:110px; min-height:44px;">
+              <option value="box">Box</option>
+              <option value="binder">Binder</option>
+              <option value="sonstige">Sonstiges</option>
+            </select>
+            <button class="btn btn-primary" onclick="createLocationUi()" style="min-height:44px;">＋</button>
+          </div>
+        </div>`;
+      sheet.hidden = false;
+      document.getElementById("loc-manage-backdrop").hidden = false;
+    }
+
+    async function createLocationUi() {
+      const name = document.getElementById("new-loc-name").value.trim();
+      if (!name) { showToast("Name eingeben", "error"); return; }
+      const typ = document.getElementById("new-loc-typ").value;
+      try {
+        await api("/api/locations", { method: "POST", body: { name, typ } });
+        showToast(`„${name}" angelegt ✓`, "success");
+        await loadLocationsChips();
+        openLocationManage();  // Sheet aktualisieren
+      } catch (err) { showToast(`Fehler: ${err.message}`, "error"); }
+    }
+
+    async function renameLocationUi(locationId, alt) {
+      const name = prompt("Neuer Name:", alt);
+      if (!name || name === alt) return;
+      try {
+        await api(`/api/locations/${locationId}`, { method: "POST", body: { name } });
+        showToast("Umbenannt ✓", "success");
+        await loadLocationsChips();
+        openLocationManage();
+      } catch (err) { showToast(`Fehler: ${err.message}`, "error"); }
+    }
+
+    async function deleteLocationUi(locationId, name, count) {
+      if (count > 0) {
+        showToast(`„${name}" kann nicht gelöscht werden — ${count} Karten liegen noch darin`, "error", 3500);
+        return;
+      }
+      if (!confirm(`Ablageort „${name}" löschen?`)) return;
+      try {
+        await api(`/api/locations/${locationId}/delete`, { method: "POST", body: {} });
+        showToast("Gelöscht", "info");
+        await loadLocationsChips();
+        openLocationManage();
+      } catch (err) { showToast(`Fehler: ${err.message}`, "error"); }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      loadLocationsChips();
+      const mb = document.getElementById("btn-manage-locations");
+      if (mb) mb.addEventListener("click", openLocationManage);
+    });
+
     document.addEventListener("DOMContentLoaded", async () => {
       loadFilters();
       loadStats();
@@ -604,7 +730,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=35').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=36').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

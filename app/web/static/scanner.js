@@ -68,6 +68,94 @@ function setScanMode(mode) {
 // Language of the card currently shown in the scan overlay ("de" | "en")
 let scanCardLanguage = "de";
 
+// ---- Ablageorte v5: Ziel-Ort fuer Scans (bleibt ueber Scans stehen) ------
+let SCAN_LOCATIONS = [];
+let SCAN_TARGET_LOCATION_ID = null;
+let SCAN_DECKS = [];
+let SCAN_TARGET_DECK_ID = null;
+
+async function loadScanLocations() {
+  try {
+    const data = await api("/api/locations");
+    SCAN_LOCATIONS = data.locations || [];
+    const def = SCAN_LOCATIONS.find(l => l.is_default) || SCAN_LOCATIONS[0];
+    if (def && SCAN_TARGET_LOCATION_ID === null) {
+      SCAN_TARGET_LOCATION_ID = def.location_id;
+    }
+    updateLocationLabel();
+  } catch (e) { /* Orte optional */ }
+  try {
+    const data = await api("/api/decks");
+    SCAN_DECKS = data.decks || [];
+  } catch (e) {}
+  const tgt = sessionStorage.getItem("scan_target_deck");
+  if (tgt) {
+    SCAN_TARGET_DECK_ID = parseInt(tgt, 10);
+    sessionStorage.removeItem("scan_target_deck");
+    const deck = SCAN_DECKS.find(d => d.deck_id === SCAN_TARGET_DECK_ID);
+    if (deck) showToast(`Deck-Modus: Karten gehen nach „${deck.name}" 🃏`, "info", 3000);
+  }
+}
+
+function updateLocationLabel() {
+  const el = document.getElementById("location-pick-label");
+  if (!el) return;
+  const loc = SCAN_LOCATIONS.find(l => l.location_id === SCAN_TARGET_LOCATION_ID);
+  el.textContent = loc ? loc.name : "Sammlung (Standard)";
+}
+
+function openLocationSheet() {
+  let sheet = document.getElementById("location-sheet");
+  if (!sheet) {
+    sheet = document.createElement("div");
+    sheet.id = "location-sheet";
+    sheet.className = "more-sheet";
+    sheet.setAttribute("role", "dialog");
+    document.body.appendChild(sheet);
+    document.addEventListener("click", (e) => {
+      if (e.target.id === "location-sheet-backdrop") closeLocationSheet();
+    }, false);
+  }
+  const items = SCAN_LOCATIONS.map(l => `
+    <button class="sheet-link" type="button" onclick="pickLocation(${l.location_id})">
+      <span class="sl-icon">${l.is_default ? "📥" : l.typ === "binder" ? "📕" : l.typ === "deckbox" ? "📦" : "🗂️"}</span>
+      <span>${escapeHtml(l.name)}${l.karten_count ? ` <span class="text-muted">(${l.karten_count})</span>` : ""}</span>
+      ${l.location_id === SCAN_TARGET_LOCATION_ID ? " ✓" : ""}
+    </button>`).join("");
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div style="padding:10px 16px 4px; font-weight:700;">📁 Karten ablegen in…</div>
+    <nav class="sheet-links">${items}
+      <button class="sheet-link" type="button" onclick="closeLocationSheet()">
+        <span class="sl-icon">✖</span><span>Abbrechen</span>
+      </button>
+    </nav>`;
+  sheet.hidden = false;
+  let backdrop = document.getElementById("location-sheet-backdrop");
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.id = "location-sheet-backdrop";
+    backdrop.className = "more-sheet-backdrop";
+    document.body.appendChild(backdrop);
+  }
+  backdrop.hidden = false;
+}
+
+function closeLocationSheet() {
+  const sheet = document.getElementById("location-sheet");
+  const backdrop = document.getElementById("location-sheet-backdrop");
+  if (sheet) sheet.hidden = true;
+  if (backdrop) backdrop.hidden = true;
+}
+
+function pickLocation(locationId) {
+  SCAN_TARGET_LOCATION_ID = locationId;
+  updateLocationLabel();
+  closeLocationSheet();
+  const loc = SCAN_LOCATIONS.find(l => l.location_id === locationId);
+  if (loc) showToast(`Ziel: ${loc.name} — gilt für alle weiteren Scans`, "info", 2200);
+}
+
 // ---- HUD-Scanline zentral steuern -------------------------------------------
 function _setHudScanning(on) {
   const hud = document.getElementById("camera-hud");
@@ -243,6 +331,10 @@ function vibrate(pattern) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  loadScanLocations().then(() => {
+    const deckBtn = document.getElementById("btn-to-deck");
+    if (deckBtn && SCAN_DECKS.length) deckBtn.classList.remove("hidden");
+  });
   initScanner();
 });
 
@@ -312,6 +404,32 @@ async function initScanner() {
   });
   const cancelBtn = document.getElementById("btn-cancel");
   if (cancelBtn) cancelBtn.addEventListener("click", () => cancelScan());
+  // Ablageort-Auswahl (v5)
+  const locPickBtn = document.getElementById("btn-location-pick");
+  if (locPickBtn) locPickBtn.addEventListener("click", openLocationSheet);
+  // Ins Deck (v5)
+  const deckBtnEl = document.getElementById("btn-to-deck");
+  if (deckBtnEl) deckBtnEl.addEventListener("click", async () => {
+    const src = lastScanResult;
+    if (!src) return;
+    const cardId = src.card_id || (src.candidates && src.candidates[0] && src.candidates[0].card_id);
+    if (!cardId) return;
+    if (!SCAN_DECKS.length) {
+      showToast("Noch keine Decks angelegt — unter „Mehr → Decks“ anlegen", "info", 3500);
+      return;
+    }
+    if (!SCAN_TARGET_DECK_ID) {
+      let sheet = document.getElementById("deck-sheet");
+      if (!sheet) { sheet = document.createElement("div"); sheet.id = "deck-sheet"; sheet.className = "more-sheet"; document.body.appendChild(sheet); }
+      const deckList = SCAN_DECKS.map(d => `<button class="sheet-link" type="button" onclick="scanAssignDeck(${d.deck_id})"><span class="sl-icon">🃏</span><span>${escapeHtml(d.name)}</span></button>`).join("");
+      sheet.innerHTML = `<div class="sheet-handle"></div><div style="padding:10px 16px 4px; font-weight:700;">🃏 In welches Deck?</div><nav class="sheet-links">${deckList}<button class="sheet-link" type="button" onclick="document.getElementById('deck-sheet').hidden=true"><span class="sl-icon">✖</span><span>Abbrechen</span></button></nav>`;
+      sheet.hidden = false;
+      window._scanCardId = cardId;
+      return;
+    }
+    await scanAssignDeck(SCAN_TARGET_DECK_ID, cardId);
+  });
+
   // Falsch gescannte Karte direkt merken (kein Foto, kein Sammlungs-Eintrag)
   const wlBtn = document.getElementById("btn-wishlist");
   if (wlBtn) wlBtn.addEventListener("click", async () => {
@@ -804,6 +922,27 @@ function hideResultOverlay() {
   if (overlay) overlay.style.display = "none";
 }
 
+async function scanAssignDeck(deckId, cardIdOverride) {
+  const cardId = cardIdOverride || window._scanCardId || (lastScanResult && (lastScanResult.card_id || (lastScanResult.candidates && lastScanResult.candidates[0] && lastScanResult.candidates[0].card_id)));
+  const sheet = document.getElementById("deck-sheet");
+  if (sheet) sheet.hidden = true;
+  if (!cardId) return;
+  try {
+    const r = await api(`/api/decks/${deckId}/assign`, { method: "POST", body: { card_id: cardId, menge: scanQuantity || 1 } });
+    const deck = SCAN_DECKS.find(d => d.deck_id === deckId);
+    showToast(`„${r.deck || (deck && deck.name)}" — ${r.moved} Karte(n) in die Deck-Box 🃏`, "success");
+    if (USER_SETTINGS.haptic_on_confirm && navigator.vibrate) navigator.vibrate(USER_SETTINGS.haptic_pattern_confirm);
+    cancelScan();
+  } catch (err) {
+    const msg = String(err.message || "");
+    if (msg.includes("keine_freien")) {
+      showToast("Keine freien Kopien — alle stecken bereits in Decks", "error");
+    } else {
+      showToast(`Fehler: ${msg}`, "error");
+    }
+  }
+}
+
 async function confirmScan(confirmed) {
   if (!lastScanResult) return;
 
@@ -828,6 +967,7 @@ async function confirmScan(confirmed) {
         quantity: confirmed ? scanQuantity : 1,
         language: scanCardLanguage,
         photo: (confirmed && !priceMode) ? lastScanPhoto : null,  // Foto nur fuer Sammlung
+          location_id: SCAN_TARGET_LOCATION_ID,  // v5: Ablageort vom Scanner
       },
     });
 

@@ -640,6 +640,25 @@ input[type="number"], input[type="search"], select, textarea {
 }
 .wl-alert-row.unack { border-left: 3px solid var(--error, #ff5a52); padding-left: 8px; }
 
+/* ---- Ablageorte v5: Verwaltung + Chips ----------------------------------- */
+.loc-manage-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 4px; border-bottom: 1px solid var(--outline-soft, #1d2739);
+}
+.loc-manage-row .lm-name { flex: 1; min-width: 0; font-size: 0.9rem; }
+.ci-loc { color: var(--text-muted); }
+
+/* ---- Decks v5: Liste + Badges ------------------------------------------- */
+.deck-row { cursor: pointer; transition: transform 0.1s; }
+.deck-row:active { transform: scale(0.985); }
+.deck-badge {
+  display: inline-block; font-size: 0.75rem; font-weight: 700;
+  padding: 3px 10px; border-radius: 999px;
+  background: var(--surface-3, #1c2330); color: var(--text-muted);
+  border: 1px solid var(--outline-soft, #1d2739);
+}
+.deck-badge.gebauet { background: rgba(63, 217, 138, 0.15); color: #3fd98a; border-color: rgba(63, 217, 138, 0.4); }
+
 /* ---- Sammlung teilen: Dialog -------------------------------------------- */
 .share-backdrop {
   position: fixed; inset: 0; z-index: 450;
