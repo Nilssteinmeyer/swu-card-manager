@@ -29,6 +29,10 @@
           <div class="stat-value" id="stat-wl">—</div>
           <div class="stat-label">Merkliste ❤️ (unter Ziel)</div>
         </div>
+        <div class="stat-card purple" onclick="location.href='/decks'" style="cursor:pointer;">
+          <div class="stat-value" id="stat-decks">—</div>
+          <div class="stat-label">Decks 🃏 (gebaut)</div>
+        </div>
         <div class="stat-card yellow">
           <div class="stat-value" id="stat-scans">—</div>
           <div class="stat-label">Scans heute</div>
@@ -100,6 +104,12 @@
         document.getElementById("stat-foil").textContent = (data.foil_count || 0).toLocaleString();
         // Merkliste-Kachel (Beschaffungs-Cockpit-Bruecke)
         try {
+          const decksData = await api("/api/decks");
+          const gebaut = (decksData.decks || []).filter(d => d.karten_in_box > 0).length;
+          document.getElementById("stat-decks").textContent =
+            decksData.decks.length > 0 ? `${decksData.decks.length}${gebaut > 0 ? " (" + gebaut + ")" : ""}` : "0";
+        } catch (e) { document.getElementById("stat-decks").textContent = "—"; }
+        try {
           const wl = await api("/api/wishlist/summary");
           const under = wl.under_target_count || 0;
           document.getElementById("stat-wl").textContent =
@@ -148,7 +158,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=36').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=37').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

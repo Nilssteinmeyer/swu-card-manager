@@ -229,7 +229,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=36').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=37').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

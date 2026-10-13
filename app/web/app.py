@@ -940,11 +940,13 @@ def _register_routes(app: Flask) -> None:
                           cards.set_id, cards.card_number, cards.rarity, cards.type,
                           col.count, col.condition, col.language, col.variant,
                           col.is_foil, col.acquired_at, col.source,
-                          m.idProduct, pr.trend, pr.foil_trend
+                          m.idProduct, pr.trend, pr.foil_trend,
+                          sl.name AS ablageort
                    FROM collection col
                    JOIN cards ON col.card_id = cards.card_id
                    LEFT JOIN card_mkm_map m ON m.card_id = col.card_id
                    LEFT JOIN card_prices pr ON pr.idProduct = m.idProduct
+                   LEFT JOIN storage_locations sl ON sl.location_id = col.location_id
                    WHERE col.household_id = ?
                    ORDER BY cards.set_id, cards.card_number""",
                 (_hh(),),
@@ -959,7 +961,7 @@ def _register_routes(app: Flask) -> None:
             headers = ["card_id", "name", "name_de", "subtitle", "set_id", "card_number",
                        "rarity", "type", "count", "condition", "language", "variant",
                        "is_foil", "acquired_at", "source", "mkm_idProduct",
-                       "price_trend_eur", "price_foil_trend_eur"]
+                       "price_trend_eur", "price_foil_trend_eur", "ablageort"]
             writer.writerow(headers)
             for r in rows:
                 writer.writerow([
@@ -968,6 +970,7 @@ def _register_routes(app: Flask) -> None:
                     r["count"], r["condition"], r["language"], r["variant"],
                     1 if r["is_foil"] else 0, r["acquired_at"], r["source"] or "",
                     r["idProduct"] or "", r["trend"] or "", r["foil_trend"] or "",
+                    r["ablageort"] or "",
                 ])
             data = out.getvalue()
             return Response(
