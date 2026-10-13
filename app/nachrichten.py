@@ -93,6 +93,8 @@ class NachrichtenRepository:
         if filter_ == "ungelesen":
             clauses.append("m.read_at IS NULL AND m.receiver_id = ?")
             params.append(user_id)
+        elif filter_ == "gelesen":
+            clauses.append("m.read_at IS NOT NULL")
         elif filter_ == "archiv":
             clauses.append("m.archived = 1")
         else:
@@ -228,7 +230,8 @@ class NachrichtenRepository:
         self.conn.commit()
         return broadcast_id
 
-    def broadcasts_for_user(self, user_id: int, only_unread: bool = False) -> list[dict]:
+    def broadcasts_for_user(self, user_id: int, only_unread: bool = False,
+                             only_read: bool = False) -> list[dict]:
         sql = """SELECT b.*, r.read_at, r.acknowledged
                  FROM broadcasts b
                  JOIN broadcast_receipts r ON r.broadcast_id = b.broadcast_id
@@ -236,6 +239,8 @@ class NachrichtenRepository:
         params: list = [user_id]
         if only_unread:
             sql += " AND r.acknowledged = 0"
+        if only_read:
+            sql += " AND r.acknowledged = 1"
         sql += " ORDER BY b.created_at DESC LIMIT 50"
         rows = self.conn.execute(sql, params).fetchall()
         out = []

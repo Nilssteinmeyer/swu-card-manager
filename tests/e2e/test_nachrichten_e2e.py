@@ -132,17 +132,19 @@ def test_dm_roundtrip_zwei_kontexte(two_users):
     page_b.wait_for_timeout(1000)
     badge_b = page_b.evaluate("() => document.getElementById('msg-total-badge')?.textContent")
     assert badge_b == "1", f"Badge bei B muss 1 sein (ist {badge_b})"
-    item_bold = page_b.evaluate("() => document.querySelector('.msg-item')?.style.background || ''")
-    assert item_bold != "", "Unread-Item hervorgehoben"
-    # B oeffnet Thread -> Badge sinkt
-    page_b.locator(".msg-item").first.click()
-    page_b.wait_for_selector("#thread-view:not(.hidden)", timeout=5000)
+    item_unread = page_b.evaluate("() => document.querySelector('.msg-item .swipe-fg')?.style.borderLeft || ''")
+    assert "accent" in item_unread, f"Unread-Item hervorgehoben (ist: {item_unread!r})"
+    # B oeffnet Nachricht -> Lese-Ansicht (markiert gelesen) -> Badge sinkt
+    page_b.locator(".msg-item .swipe-fg").first.click()
+    page_b.wait_for_selector("#read-sheet.visible", timeout=5000)
     page_b.wait_for_timeout(600)
     badge_after = page_b.evaluate("() => document.getElementById('msg-badge')?.classList.contains('hidden')")
     assert badge_after, "Badge muss nach Lesen verschwinden"
-    body_b = page_b.evaluate("() => document.getElementById('thread-bubbles').textContent")
+    body_b = page_b.evaluate("() => document.getElementById('read-content').textContent")
     assert "E2E-Testnachricht" in body_b
-    # B antwortet
+    # B antwortet: ueber Antworten-Button der Lese-Ansicht in den Thread
+    page_b.locator("#read-content button", has_text="Antworten").click()
+    page_b.wait_for_selector("#thread-view:not(.hidden)", timeout=5000)
     page_b.fill("#thread-reply", "Antwort von B!")
     page_b.locator("#btn-thread-send").click()
     page_b.wait_for_timeout(800)

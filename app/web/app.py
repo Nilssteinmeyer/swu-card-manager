@@ -2710,7 +2710,8 @@ def _register_routes(app: Flask) -> None:
             flt = request.args.get("filter", "alle")
             dms = r.inbox(g.get("user", {})["user_id"], flt)
             broadcasts = r.broadcasts_for_user(g.get("user", {})["user_id"],
-                                               only_unread=(flt == "ungelesen"))
+                                               only_unread=(flt == "ungelesen"),
+                                               only_read=(flt == "gelesen"))
             return jsonify({"messages": dms, "broadcasts": broadcasts,
                             "unread": r.unread_count(g.get("user", {})["user_id"])})
         finally:

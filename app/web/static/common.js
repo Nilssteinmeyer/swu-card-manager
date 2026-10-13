@@ -599,6 +599,20 @@ function _watchDynamicSheets() {
 document.addEventListener("DOMContentLoaded", () => {
   _installSheetDrag("#more-sheet", () => toggleMoreSheet(false));
   _installSheetDrag("#share-dialog", () => closeShareDialog());
+  // Statische Sheets der Nachrichten-Seite (Compose + Lese-Ansicht)
+  _installSheetDrag("#compose-sheet", () => {
+    const s = document.getElementById("compose-sheet");
+    const b = document.getElementById("compose-backdrop");
+    if (s) s.classList.remove("visible");
+    if (b) b.classList.remove("visible");
+    if (typeof closeComposer === "function") closeComposer();
+  });
+  _installSheetDrag("#read-sheet", () => {
+    const s = document.getElementById("read-sheet");
+    const b = document.getElementById("read-backdrop");
+    if (s) s.classList.remove("visible");
+    if (b) b.classList.remove("visible");
+  });
   _watchDynamicSheets();
   // Postfach-Badge global aktualisieren (Auth-Seiten: skip via 401-catch)
   if (typeof api === "function" && !IS_AUTH_PAGE) {
