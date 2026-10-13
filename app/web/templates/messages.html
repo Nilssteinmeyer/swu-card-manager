@@ -108,21 +108,21 @@
       const icon = { update: "🆕", wartung: "🛠️", announcement: "📣" }[b.typ] || "📣";
       const zeit = new Date(b.created_at + "Z").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
       const gelesen = b.acknowledged === 1;
-      return `<div class="card mb-2" style="border-left:3px solid ${gelesen ? "var(--outline, #555)" : "var(--accent)"}; background:var(--surface2); ${gelesen ? "opacity:0.7;" : ""}" data-bid="${b.broadcast_id}">
-        <div style="display:flex; align-items:flex-start; gap:10px;">
-          <span style="font-size:22px;">${icon}</span>
-          <div style="flex:1; min-width:0;">
-            <div><b>${escapeHtml(b.betreff)}</b>
-              ${gelesen
-                ? '<span class="badge" style="font-size:10px; margin-left:4px;">gelesen</span>'
-                : '<span class="badge" style="font-size:10px; margin-left:4px; background:var(--error, #e53935); color:var(--on-error, #fff);">NEU</span>'}
-            </div>
-            <span class="text-muted" style="font-size:11px;">SWU Team · ${zeit}</span>
-            <div style="font-size:13px; margin-top:6px; white-space:pre-wrap; line-height:1.5;">${escapeHtml(b.body)}</div>
+      const unread = !gelesen;
+      return `<div class="bc-item" data-bid="${b.broadcast_id}"
+            style="position:relative; border-bottom:1px solid var(--border); padding:12px 12px; min-height:60px;
+                   display:flex; gap:10px; align-items:center; ${unread ? "box-shadow:inset 3px 0 0 var(--accent);" : "opacity:0.75;"}">
+        <span style="font-size:22px;">${icon}</span>
+        <div style="flex:1; min-width:0;">
+          <div><b style="${unread ? "" : "font-weight:500;"}">${escapeHtml(b.betreff)}</b>
+            ${gelesen
+              ? '<span class="badge" style="font-size:10px; margin-left:4px;">gelesen</span>'
+              : '<span class="badge" style="font-size:10px; margin-left:4px; background:var(--error, #e53935); color:var(--on-error, #fff);">NEU</span>'}
           </div>
-          ${gelesen ? "" : `<button class="btn btn-sm btn-secondary" style="min-height:44px; min-width:72px; flex-shrink:0;"
-                  onclick="ackBroadcast(${b.broadcast_id})">✓ Verstanden</button>`}
+          <div class="text-muted" style="font-size:12px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden;">SWU Team · ${zeit} · ${escapeHtml((b.body || "").slice(0, 70))}${(b.body || "").length > 70 ? "…" : ""}</div>
         </div>
+        ${gelesen ? "" : `<button class="btn btn-sm btn-secondary" style="min-height:44px; min-width:72px; flex-shrink:0;"
+                onclick="ackBroadcast(${b.broadcast_id})">✓ Verstanden</button>`}
       </div>`;
     }).join("");
   }
@@ -154,7 +154,7 @@
           <span style="color:var(--on-success, #fff); background:var(--success, #2e7d32); width:72px; display:flex; align-items:center; justify-content:center;">📥</span>
           <span style="color:var(--on-error, #fff); background:var(--error, #c62828); width:72px; display:flex; align-items:center; justify-content:center;">🗑</span>
         </div>
-        <div class="swipe-fg" style="position:relative; display:flex; gap:10px; align-items:center; padding:12px 12px; min-height:60px; background:transparent; ${unread ? "box-shadow:inset 3px 0 0 var(--accent);" : ""}">
+        <div class="swipe-fg" style="position:relative; display:flex; gap:10px; align-items:center; padding:12px 12px; min-height:60px; background:var(--bg, #0d1117); ${unread ? "box-shadow:inset 3px 0 0 var(--accent);" : ""}">
           <span style="font-size:22px;">👤</span>
           <div style="flex:1; min-width:0;">
             <div><b style="${unread ? "" : "font-weight:500;"}">${escapeHtml(m.partner_name)}</b>${anzahl}
