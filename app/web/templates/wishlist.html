@@ -585,7 +585,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=38').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=40').then(reg => {
               reg.update().catch(() => {});
             }).catch(() => {});
       });

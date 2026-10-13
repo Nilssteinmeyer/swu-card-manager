@@ -556,6 +556,7 @@ function applyTheme(mode) {
 
 async function setTheme(mode) {
   if (!["dark", "light", "auto"].includes(mode)) return;
+  window._themeUserSet = true;  // initTheme darf manuelle Wahl nicht ueberschreiben
   applyTheme(mode);
   localStorage.setItem("swu-theme", mode);  // Auth-Seiten-Fallback (kein Settings-Call dort)
   try {
@@ -581,6 +582,9 @@ async function initTheme() {
       localStorage.setItem("swu-theme", mode);
     } catch (e) { /* Default dark */ }
   }
+  // Race-Guard: hat der Nutzer waehrend des Settings-Loads manuell
+  // umgeschaltet, gewinnt die manuelle Wahl (initTheme schweigt).
+  if (window._themeUserSet) return;
   applyTheme(mode);
   // Auto-Modus: auf Systemwechsel reagieren (live)
   window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {

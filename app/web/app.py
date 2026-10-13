@@ -340,6 +340,9 @@ def _collection_to_dict(row: dict[str, Any]) -> dict[str, Any]:
         "price_foil_trend": row.get("price_foil_trend"),
         "price_low": row.get("price_low"),
         "price_updated": row.get("price_updated"),
+        "location_name": row.get("location_name"),
+        "languages": row.get("languages", []),
+        "locations": row.get("locations", []),
     }
 
 
@@ -826,6 +829,10 @@ def _register_routes(app: Flask) -> None:
             sort_by = request.args.get("sort", "name").strip()
             sort_dir = request.args.get("dir", "asc").strip().lower()
             limit = request.args.get("limit", "500").strip()
+            # Nutzer-Anforderung: JEDE Karte nur EINE Kachel, egal wie viele
+            # Bestandszeilen (Sprache/Variante/Ort-Splits) existieren.
+            # group=rows -> alte Zeilen-Ansicht (z.B. fuer Migration-Tools).
+            group_mode = request.args.get("group", "cards").strip().lower()
 
             query = """
                 SELECT col.*, cards.name, cards.subtitle, cards.set_id,
@@ -920,7 +927,36 @@ def _register_routes(app: Flask) -> None:
 
             cur = conn.execute(query, params)
             rows = [dict(r) for r in cur.fetchall()]
-            items = [_collection_to_dict(r) for r in rows]
+
+            if group_mode == "cards":
+                # Aggregation: eine Kachel pro (card_id, is_foil).
+                # - count = Summe aller Zeilen-Mengen
+                # - languages/locations = Aufzaehlung der Zeilen (fuer Detail)
+                # - Preis/Preisfelder von der ersten Zeile (identisch je Karte)
+                merged: dict[tuple[str, int], dict[str, Any]] = {}
+                for r in rows:
+                    key = (r["card_id"], bool(r.get("is_foil", 0)))
+                    if key not in merged:
+                        base = _collection_to_dict(r)
+                        base["languages"] = []
+                        base["locations"] = []
+                        base["collection_ids"] = []
+                        merged[key] = base
+                    m = merged[key]
+                    # Summe aller Zeilen-Mengen dieser Karte
+                    if "total_count" not in m:
+                        m["total_count"] = 0
+                    m["total_count"] += r.get("count", 1)
+                    if r.get("language") and r["language"] not in m["languages"]:
+                        m["languages"].append(r["language"])
+                    if r.get("location_name") and r["location_name"] not in m["locations"]:
+                        m["locations"].append(r["location_name"])
+                    m["collection_ids"].append(r.get("collection_id"))
+                for m in merged.values():
+                    m["count"] = m.pop("total_count")
+                items = list(merged.values())
+            else:
+                items = [_collection_to_dict(r) for r in rows]
             return jsonify({"items": items, "count": len(items)})
         finally:
             conn.close()
