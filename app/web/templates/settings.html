@@ -138,6 +138,14 @@
         </div>
 
         <div class="setting-row">
+          <label>⚡ Auto-Verteilung nach Regeln</label>
+          <label class="switch"><input type="checkbox" id="auto_verteilung"><span class="slider"></span></label>
+        </div>
+        <div class="setting-desc">
+          Neu gescannte Exemplare werden automatisch nach deinen Verteilungsregeln aufgeteilt (z.B. Kopie 1 → Ordner, 2–4 → Playsets, Rest → Bulk) — sofern du im Scanner keinen Ziel-Ort gewählt hast. Regeln definierst du weiter unten unter „✂️ Verteilungsregeln".
+        </div>
+
+        <div class="setting-row">
           <label>Auflösung der Aufnahme (px Breite)</label>
           <select id="capture_resolution" class="setting-select">
             <option value="640">640px (schnell)</option>
@@ -217,6 +225,26 @@
           <label>Vibrationsmuster (Bestätigung)</label>
           <input type="text" id="haptic_pattern_confirm" class="setting-input" placeholder="50,30,80">
         </div>
+      </div>
+
+      <!-- Verteilungsregeln -->
+      <div class="settings-section">
+        <h2 class="settings-title">✂️ Verteilungsregeln</h2>
+        <div class="setting-desc" style="margin-bottom:10px;">
+          Verteilt neue Exemplare automatisch auf Ablageorte: z.B. Kopie 1 → Ordner (Display), Kopien 2–4 → Playsets, Rest → Bulk.
+          <button class="btn btn-sm btn-secondary" style="min-height:36px; margin-left:6px;" onclick="beispielRegeln()">Beispiel anlegen</button>
+        </div>
+        <div id="verteilung-regeln-liste" style="margin-bottom:10px;"></div>
+        <div class="flex gap-1" style="flex-wrap:wrap; margin-bottom:10px;">
+          <button class="btn btn-secondary" style="min-height:40px;" onclick="addRegelZeile()">＋ Regel hinzufügen</button>
+          <button class="btn btn-primary" style="min-height:40px;" onclick="saveRegeln()">✓ Regeln speichern</button>
+        </div>
+        <div class="setting-row" style="flex-wrap:wrap; align-items:center;">
+          <label style="flex:1;">Live-Preview bei</label>
+          <input type="number" id="vt-preview-menge" value="8" min="1" max="99" class="setting-input" style="max-width:80px; text-align:center;">
+          <span>Karten</span>
+        </div>
+        <div id="vt-preview-out" style="font-size:13px; padding:6px 0;"></div>
       </div>
 
       <!-- UI -->
@@ -415,5 +443,110 @@
             }).catch(() => {});
       });
     }
+  // ---- ✂️ Verteilungsregeln ------------------------------------------------
+  let VT_REGELN = [];   // [{von_kopie, bis_kopie (null=Rest), ziel_location_id}]
+  let VT_ORTE = [];
+
+  async function loadVerteilungsRegeln() {
+    try {
+      const [r, o] = await Promise.all([api("/api/verteilung/regeln"), api("/api/locations")]);
+      VT_REGELN = (r.regeln || []).map(x => ({
+        von_kopie: x.von_kopie,
+        bis_kopie: x.bis_kopie,
+        ziel_location_id: x.ziel_location_id,
+      }));
+      VT_ORTE = o.locations || [];
+      renderRegeln();
+      renderPreview();
+    } catch (e) { /* keine Regeln -> leer */}
+  }
+
+  function renderRegeln() {
+    const wrap = document.getElementById("verteilung-regeln-liste");
+    if (!wrap) return;
+    if (!VT_REGELN.length) {
+      wrap.innerHTML = '<p class="text-muted" style="font-size:12px;">Noch keine Regeln — Exemplare landen im Standard-Ort.</p>';
+      return;
+    }
+    wrap.innerHTML = VT_REGELN.map((r, i) => {
+      const ortSel = VT_ORTE.map(o =>
+        '<option value="' + o.location_id + '"' + (o.location_id === r.ziel_location_id ? " selected" : "") + '>' +
+        locIcon(o) + " " + escapeHtml(o.name) + '</option>').join("");
+      const bis = r.bis_kopie === null || r.bis_kopie === undefined ? "" : r.bis_kopie;
+      return '<div class="flex items-center" style="gap:6px; padding:7px 0; border-bottom:1px solid var(--border);">' +
+        '<span class="text-muted" style="font-size:12px; min-width:52px;">' + (i + 1) + '.</span>' +
+        '<span style="font-size:13px;">Kopie</span>' +
+        '<input type="number" min="1" max="99" value="' + r.von_kopie + '" class="setting-input" style="max-width:56px; text-align:center; min-height:38px;" onchange="vtUpdateVon(' + i + ', this.value)">' +
+        '<span style="font-size:13px;">bis</span>' +
+        '<input type="number" min="1" max="99" value="' + bis + '" placeholder="∞" class="setting-input" style="max-width:56px; text-align:center; min-height:38px;" onchange="vtUpdateBis(' + i + ', this.value)">' +
+        '<select class="setting-input" style="flex:1; min-height:38px;" onchange="vtUpdateZiel(' + i + ', this.value)">' + ortSel + '</select>' +
+        '<button class="btn btn-sm btn-danger" style="min-height:38px;" onclick="vtRemove(' + i + ')">🗑</button>' +
+        '</div>';
+    }).join("");
+  }
+
+  function vtUpdateVon(i, val) { VT_REGELN[i].von_kopie = Math.max(1, parseInt(val) || 1); renderPreview(); }
+  function vtUpdateBis(i, val) {
+    const n = val === "" ? null : parseInt(val);
+    VT_REGELN[i].bis_kopie = isNaN(n) ? null : n;
+    renderPreview();
+  }
+  function vtUpdateZiel(i, val) { VT_REGELN[i].ziel_location_id = parseInt(val); renderPreview(); }
+  function vtRemove(i) { VT_REGELN.splice(i, 1); renderRegeln(); renderPreview(); }
+
+  function addRegelZeile() {
+    const maxVon = VT_REGELN.length ? Math.max(...VT_REGELN.map(r => r.von_kopie)) : 0;
+    const ziel = VT_ORTE.length ? VT_ORTE[VT_ORTE.length - 1].location_id : null;
+    VT_REGELN.push({ von_kopie: maxVon + 1, bis_kopie: null, ziel_location_id: ziel });
+    renderRegeln();
+  }
+
+  async function beispielRegeln() {
+    // Nutzer-Muster: 1 -> erster Binder (Ordner), 2-4 -> Playset-Ort, Rest -> Bulk
+    const binder = VT_ORTE.find(o => o.typ === "binder" && !o.is_default);
+    const playset = VT_ORTE.find(o => (o.name || "").toLowerCase().includes("playset")) || binder;
+    const bulk = VT_ORTE.find(o => (o.name || "").toLowerCase().includes("bulk")) || VT_ORTE[VT_ORTE.length - 1];
+    if (!binder || !bulk) { showToast("Lege zuerst Ablageorte an (z.B. Ordner, Playsets, Bulk)", "error"); return; }
+    VT_REGELN = [
+      { von_kopie: 1, bis_kopie: 1, ziel_location_id: binder.location_id },
+      { von_kopie: 2, bis_kopie: 4, ziel_location_id: playset.location_id },
+      { von_kopie: 5, bis_kopie: null, ziel_location_id: bulk.location_id },
+    ];
+    renderRegeln();
+    renderPreview();
+  }
+
+  async function saveRegeln() {
+    try {
+      const res = await api("/api/verteilung/regeln", { method: "POST", body: { regeln: VT_REGELN } });
+      showToast("Verteilungsregeln gespeichert ✓", "success");
+      VT_REGELN = (res.regeln || []).map(x => ({
+        von_kopie: x.von_kopie, bis_kopie: x.bis_kopie, ziel_location_id: x.ziel_location_id,
+      }));
+      renderRegeln();
+      renderPreview();
+    } catch (err) { showToast("Fehler: " + err.message, "error", 4000); }
+  }
+
+  async function renderPreview() {
+    const out = document.getElementById("vt-preview-out");
+    if (!out) return;
+    const menge = parseInt(document.getElementById("vt-preview-menge").value) || 8;
+    try {
+      const p = await api("/api/verteilung/preview", { method: "POST", body: { menge } });
+      const chips = (p.preview || []).map(v => '<span class="badge" style="margin:2px;">' + v.icon + " " + escapeHtml(v.name) + " ×" + v.menge + "</span>").join(" ");
+      out.innerHTML = chips || '<span class="text-muted">Alles im Standard-Ort</span>';
+    } catch (e) {
+      out.innerHTML = '<span class="text-muted" style="font-size:12px;">Ungültige Regeln (noch nicht gespeichert oder Lücke/Überlappung)</span>';
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    loadVerteilungsRegeln();
+    const pm = document.getElementById("vt-preview-menge");
+    if (pm) pm.addEventListener("change", renderPreview);
+  });
   </script>
 {% endblock %}
+</body>
+</html>

@@ -620,19 +620,65 @@ def _register_routes(app: Flask) -> None:
 
                 if add_to_collection:
                     variant = "Foil" if is_foil else "Normal"
-                    add_info = repo.add_to_collection(
-                        conn,
-                        card_id=card_id,
-                        count=quantity,
-                        condition="NM",
-                        language=language,
-                        variant=variant,
-                        source="scan",
-                        return_details=True,
-                        household_id=_hh(),
-                        user_id=_uid(),
-                        location_id=scan_location_id,
-                    )
+                    # Auto-Verteilung: ohne explizite Ortswahl im Scanner und
+                    # bei aktivem Regelwerk verteilen die Regeln die Exemplare
+                    auto_verteilung = _get_setting("auto_verteilung", "0") == "1"
+                    if scan_location_id is None and auto_verteilung and quantity > 0:
+                        from app import verteilung as _vt
+
+                        plan = _vt.verteile_card(conn, _hh(), quantity)
+                        if len(plan) > 1:
+                            # Erste Teilmenge ueber add_to_collection, Rest via Split
+                            first_loc, first_menge = plan[0]
+                            add_info = repo.add_to_collection(
+                                conn,
+                                card_id=card_id,
+                                count=first_menge,
+                                condition="NM",
+                                language=language,
+                                variant=variant,
+                                source="scan",
+                                return_details=True,
+                                household_id=_hh(),
+                                user_id=_uid(),
+                                location_id=first_loc,
+                            )
+                            rest_plan = [(loc, menge) for loc, menge in plan[1:] if menge > 0]
+                            if rest_plan:
+                                _vt.split_collection_row(
+                                    conn, add_info["collection_id"], rest_plan,
+                                    reason="verteilung", household_id=_hh(), user_id=_uid(),
+                                )
+                            scan_location_id = first_loc
+                        else:
+                            scan_location_id = plan[0][0] if plan else scan_location_id
+                            add_info = repo.add_to_collection(
+                                conn,
+                                card_id=card_id,
+                                count=quantity,
+                                condition="NM",
+                                language=language,
+                                variant=variant,
+                                source="scan",
+                                return_details=True,
+                                household_id=_hh(),
+                                user_id=_uid(),
+                                location_id=scan_location_id,
+                            )
+                    else:
+                        add_info = repo.add_to_collection(
+                            conn,
+                            card_id=card_id,
+                            count=quantity,
+                            condition="NM",
+                            language=language,
+                            variant=variant,
+                            source="scan",
+                            return_details=True,
+                            household_id=_hh(),
+                            user_id=_uid(),
+                            location_id=scan_location_id,
+                        )
                     # Set is_foil flag on the newly added entry
                     if is_foil:
                         conn.execute(
@@ -1468,6 +1514,7 @@ def _register_routes(app: Flask) -> None:
         "card_image_size": "40", "theme": "dark", "language": "de", "card_language": "de",
         "scan_language": "de",
         "bulk_scan_mode": "false", "bulk_min_confidence": "0.85",
+        "auto_verteilung": "false",
         "save_photos_on_confirm": "true", "auto_retrain_threshold": "50",
         "admin_mode": "true",
     }
@@ -2080,7 +2127,28 @@ def _register_routes(app: Flask) -> None:
                    WHERE c.location_id = ? ORDER BY cards.set_id, cards.card_number""",
                 (location_id,),
             )
-            items = [dict(r) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
+            # Aggregation pro (card_id, is_foil): jede Karte EINMAL mit
+            # Gesamtmenge (Nutzer-Fehlermeldung: 8x hinterlegt, 4 Zeilen
+            # angezeigt). Sprachen/Bestandszeilen-IDs fuer Aufteilung mitgeliefert.
+            merged: dict[tuple[str, int], dict[str, Any]] = {}
+            for r in rows:
+                key = (r["card_id"], bool(r.get("is_foil", 0)))
+                if key not in merged:
+                    base = dict(r)
+                    base["languages"] = []
+                    base["collection_ids"] = []
+                    merged[key] = base
+                m = merged[key]
+                if "total_count" not in m:
+                    m["total_count"] = 0
+                m["total_count"] += r.get("count", 1)
+                if r.get("language") and r["language"] not in m["languages"]:
+                    m["languages"].append(r["language"])
+                m["collection_ids"].append(r.get("collection_id"))
+            items = list(merged.values())
+            for m in items:
+                m["count"] = m.pop("total_count")
             return jsonify({"items": items, "count": len(items)})
         finally:
             conn.close()
@@ -2102,6 +2170,113 @@ def _register_routes(app: Flask) -> None:
             moved = st.move_cards(conn, ids, int(to), reason=body.get("reason") or "manuell",
                                   household_id=_hh(), client_event_id=body.get("client_event_id"))
             return jsonify({"moved": moved})
+        finally:
+            conn.close()
+
+    @app.route("/api/collection/split", methods=["POST"])
+    def api_collection_split():
+        """Teilmengen einer Bestandszeile auf Ziel-Orte verteilen."""
+        from flask import g
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        cid = body.get("collection_id")
+        abgaben = body.get("abgaben")  # [{to_location_id, menge}]
+        if not cid or not isinstance(abgaben, list) or not abgaben:
+            return jsonify({"error": "collection_id + abgaben erforderlich"}), 400
+        conn = connect()
+        try:
+            from app import verteilung as vt
+
+            pairs = []
+            for a in abgaben:
+                ziel, menge = a.get("to_location_id"), a.get("menge")
+                if ziel is None or not isinstance(menge, int) or menge < 0:
+                    return jsonify({"error": "Ungültige Abgabe (to_location_id/menge)"}), 400
+                if menge > 0:
+                    pairs.append((int(ziel), menge))
+            moved = vt.split_collection_row(
+                conn, int(cid), pairs, reason="split",
+                household_id=_hh(),
+                user_id=(g.get("user") or {}).get("user_id") if g.get("user") else None,
+            )
+            return jsonify({"moved": moved})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()
+
+    @app.route("/api/verteilung/regeln")
+    def api_verteilung_regeln():
+        """Verteilungsregeln des Haushalts (mit Ziel-Ort-Namen)."""
+        conn = connect()
+        try:
+            from app import verteilung as vt
+
+            return jsonify({"regeln": vt.list_regeln(conn, _hh())})
+        finally:
+            conn.close()
+
+    @app.route("/api/verteilung/regeln", methods=["POST"])
+    def api_verteilung_save():
+        """Regel-Set speichern (ersetzt komplett; transaktional validiert)."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
+        body = request.get_json(silent=True) or {}
+        regeln = body.get("regeln")
+        if not isinstance(regeln, list):
+            return jsonify({"error": "regeln (Liste) erforderlich"}), 400
+        conn = connect()
+        try:
+            from app import verteilung as vt
+
+            clean = []
+            for r in regeln:
+                von = r.get("von_kopie")
+                if not isinstance(von, int) or von < 1:
+                    return jsonify({"error": "von_kopie >= 1 erforderlich"}), 400
+                bis = r.get("bis_kopie")
+                if bis is not None:
+                    bis = int(bis)
+                ziel = r.get("ziel_location_id")
+                if not isinstance(ziel, int):
+                    return jsonify({"error": "ziel_location_id erforderlich"}), 400
+                clean.append({"von_kopie": von, "bis_kopie": bis,
+                              "ziel_location_id": ziel, "bedingung": r.get("bedingung")})
+            vt.save_regeln(conn, _hh(), clean)
+            return jsonify({"saved": True, "regeln": vt.list_regeln(conn, _hh())})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()
+
+    @app.route("/api/verteilung/preview", methods=["POST"])
+    def api_verteilung_preview():
+        """Live-Preview: wie verteilt eine Menge nach aktuellem Regelwerk?"""
+        body = request.get_json(silent=True) or {}
+        menge = body.get("menge", 8)
+        if not isinstance(menge, int) or menge < 0 or menge > 999:
+            return jsonify({"error": "menge 0..999 erforderlich"}), 400
+        conn = connect()
+        try:
+            from app import verteilung as vt
+
+            result = vt.verteile_card(conn, _hh(), menge)
+            locs = {l["location_id"]: l for l in st.list_locations(conn, _hh())}
+            out = []
+            for ziel, anzahl in result:
+                l = locs.get(ziel, {})
+                out.append({
+                    "location_id": ziel,
+                    "name": l.get("name", "?"),
+                    "icon": l.get("icon") or {"binder": "📕", "deckbox": "📦"}.get(l.get("typ"), "🗂️"),
+                    "menge": anzahl,
+                })
+            return jsonify({"preview": out, "menge": menge})
         finally:
             conn.close()
 

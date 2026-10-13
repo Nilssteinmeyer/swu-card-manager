@@ -583,6 +583,7 @@
           </div>`;
 
         // Ablageort-Zeilen je Bestandslinie rendern (Nutzer-Wunsch: sehen + aendern)
+        window.CARD_CTX = card;
         renderBestandRows(card.bestand || []);
       } catch (err) {
         body.innerHTML = `<p class="text-muted">\u2717 ${escapeHtml(err.message)}</p>`;
@@ -608,6 +609,8 @@
           </div>
           <button class="btn btn-sm" style="min-height:36px;"
                   onclick="moveBestandRow(${b.collection_id}, '${encodeURIComponent(b.location_name)}')">📦 Umlagern</button>
+          <button class="btn btn-sm btn-secondary" style="min-height:36px;"
+                  onclick="openSplitSheet(${b.collection_id}, '${encodeURIComponent(CARD_CTX.card_id)}', ${b.count})">✂️ Aufteilen</button>
         </div>`;
       }).join("");
       wrap.innerHTML = rowsHtml;
@@ -662,6 +665,117 @@
         if (sheet) sheet.classList.remove("visible");
         if (bd) bd.classList.remove("visible");
         await loadCollection();  // Chips + Karten aktualisieren
+      } catch (err) { showToast("Fehler: " + err.message, "error"); }
+    }
+
+    // ---- ✂️ Aufteilen: Exemplare auf Orte verteilen (mit Regel-Vorschlag) ----
+    let SPLIT_STATE = null;
+
+    async function openSplitSheet(collectionId, cardIdEnc, total) {
+      let orte = [];
+      try { const d = await api("/api/locations"); orte = d.locations || []; } catch (e) { showToast("Orte laden fehlgeschlagen", "error"); return; }
+      let vorschlag = null;
+      try { const p = await api("/api/verteilung/preview", { method: "POST", body: { menge: total } }); vorschlag = p.preview; } catch (e) {}
+      SPLIT_STATE = { collectionId, total, orte, verteilt: {} };
+      if (vorschlag && vorschlag.length) {
+        vorschlag.forEach(v => { SPLIT_STATE.verteilt[v.location_id] = v.menge; });
+      } else if (orte.length) {
+        SPLIT_STATE.verteilt[orte[0].location_id] = total;
+      }
+      let sheet = document.getElementById("split-sheet");
+      let bd = document.getElementById("split-sheet-backdrop");
+      if (!sheet) {
+        sheet = document.createElement("div");
+        sheet.id = "split-sheet";
+        sheet.className = "more-sheet";
+        document.body.appendChild(sheet);
+        bd = document.createElement("div");
+        bd.id = "split-sheet-backdrop";
+        bd.className = "more-sheet-backdrop";
+        bd.addEventListener("click", () => { sheet.classList.remove("visible"); bd.classList.remove("visible"); });
+        document.body.appendChild(bd);
+      }
+      sheet.innerHTML = buildSplitHtml();
+      updateSplitSumme();
+      bd.classList.add("visible");
+      requestAnimationFrame(() => sheet.classList.add("visible"));
+    }
+
+    function buildSplitHtml() {
+      const s = SPLIT_STATE;
+      const rows = s.orte.map(o => {
+        const val = s.verteilt[o.location_id] || 0;
+        const icon = locIcon(o);
+        return '<div class="flex items-center" style="gap:8px; padding:7px 0; border-bottom:1px solid var(--border);">' +
+          '<span style="font-size:18px;">' + escapeHtml(icon) + '</span>' +
+          '<div style="flex:1; min-width:0; font-size:14px;">' + escapeHtml(o.name) + '</div>' +
+          '<div class="flex items-center" style="gap:6px;">' +
+          '<button class="btn btn-sm" style="min-width:38px; min-height:38px;" onclick="splitStep(' + o.location_id + ', -1)">−</button>' +
+          '<b id="split-val-' + o.location_id + '" style="min-width:24px; text-align:center; font-size:15px;">' + val + '</b>' +
+          '<button class="btn btn-sm" style="min-width:38px; min-height:38px;" onclick="splitStep(' + o.location_id + ', +1)">＋</button>' +
+          '</div></div>';
+      }).join("");
+      return '<div class="sheet-handle"></div>' +
+        '<div style="padding:10px 16px 2px; font-weight:700;">✂️ Aufteilen — ×' + s.total + ' Exemplare</div>' +
+        '<div id="split-summe" style="padding:2px 16px 6px; font-size:12px;"></div>' +
+        '<div style="padding:0 16px; max-height:44vh; overflow-y:auto;">' + rows + '</div>' +
+        '<div style="padding:10px 16px 14px;">' +
+        '<button class="btn btn-secondary" style="width:100%; min-height:40px; margin-bottom:8px;" onclick="applyRegelVorschlag()">⚡ Regel-Verteilung anwenden</button>' +
+        '<button class="btn btn-primary" style="width:100%; min-height:44px;" onclick="saveSplit()">✓ Speichern</button>' +
+        '</div>';
+    }
+
+    function splitSumme() {
+      return Object.values(SPLIT_STATE.verteilt).reduce((a, b) => a + b, 0);
+    }
+
+    function updateSplitSumme() {
+      const sum = splitSumme();
+      const el = document.getElementById("split-summe");
+      if (!el) return;
+      const diff = SPLIT_STATE.total - sum;
+      if (diff === 0) { el.innerHTML = '<span style="color:var(--success, #4caf50);">✓ Alle ' + SPLIT_STATE.total + ' Exemplare verteilt</span>'; }
+      else if (diff > 0) { el.innerHTML = '<span style="color:var(--orange);">' + diff + ' noch nicht verteilt</span>'; }
+      else { el.innerHTML = '<span style="color:var(--error, #e53935);">⚠ ' + (-diff) + ' zu viel verteilt</span>'; }
+    }
+
+    function splitStep(locationId, delta) {
+      const cur = SPLIT_STATE.verteilt[locationId] || 0;
+      const neu = Math.max(0, Math.min(SPLIT_STATE.total, cur + delta));
+      SPLIT_STATE.verteilt[locationId] = neu;
+      const el = document.getElementById("split-val-" + locationId);
+      if (el) el.textContent = neu;
+      updateSplitSumme();
+    }
+
+    async function applyRegelVorschlag() {
+      try {
+        const p = await api("/api/verteilung/preview", { method: "POST", body: { menge: SPLIT_STATE.total } });
+        SPLIT_STATE.verteilt = {};
+        (p.preview || []).forEach(v => { SPLIT_STATE.verteilt[v.location_id] = v.menge; });
+        const sheet = document.getElementById("split-sheet");
+        sheet.innerHTML = buildSplitHtml();
+        updateSplitSumme();
+      } catch (err) { showToast("Kein Regelwerk definiert", "info"); }
+    }
+
+    async function saveSplit() {
+      const sum = splitSumme();
+      if (sum !== SPLIT_STATE.total) {
+        showToast("Bitte alle " + SPLIT_STATE.total + " Exemplare zuweisen (aktuell " + sum + ")", "error");
+        return;
+      }
+      const abgaben = Object.entries(SPLIT_STATE.verteilt)
+        .filter(([, m]) => m > 0)
+        .map(([loc, m]) => ({ to_location_id: parseInt(loc, 10), menge: m }));
+      try {
+        const res = await api("/api/collection/split", { method: "POST", body: { collection_id: SPLIT_STATE.collectionId, abgaben } });
+        showToast(res.moved + " Exemplare verteilt ✓", "success");
+        const sheet = document.getElementById("split-sheet");
+        const bd = document.getElementById("split-sheet-backdrop");
+        if (sheet) sheet.classList.remove("visible");
+        if (bd) bd.classList.remove("visible");
+        await loadCollection();
       } catch (err) { showToast("Fehler: " + err.message, "error"); }
     }
 

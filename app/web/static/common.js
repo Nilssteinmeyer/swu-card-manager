@@ -573,6 +573,12 @@ function _watchDynamicSheets() {
       const b = document.getElementById("move-sheet-backdrop");
       if (b) b.classList.remove("visible");
     },
+    "split-sheet": () => {
+      const s = document.getElementById("split-sheet");
+      if (s) s.classList.remove("visible");
+      const b = document.getElementById("split-sheet-backdrop");
+      if (b) b.classList.remove("visible");
+    },
   };
   const mo = new MutationObserver(() => {
     for (const [id, closeFn] of Object.entries(DYN_CLOSE)) {

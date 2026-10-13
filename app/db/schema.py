@@ -587,6 +587,25 @@ def _migrate(cur: sqlite3.Cursor) -> None:
         cur.execute("ALTER TABLE decks ADD COLUMN icon TEXT")
         log.info("Migration: added decks.icon", extra={"event": "db_migration"})
 
+    # ---- Verteilungsregeln v5.2: Kopie 1 -> Ordner, 2-4 -> Playset, 5+ Bulk
+    # ERP-Slotting-Muster: priorisierte, geordnete Regelkette mit Overflow.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS verteilungs_regeln (
+            regel_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            household_id     INTEGER NOT NULL DEFAULT 1,
+            rang            INTEGER NOT NULL DEFAULT 1,
+            von_kopie       INTEGER NOT NULL DEFAULT 1,
+            bis_kopie       INTEGER,               -- NULL = bis unbeschraenkt (Rest/Overflow)
+            ziel_location_id INTEGER REFERENCES storage_locations(location_id),
+            bedingung       TEXT,                  -- zukuenftig: 'rarity>=R' o.ae.
+            aktiv           INTEGER DEFAULT 1,
+            erstellt_am     TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_verteilung_hh ON verteilungs_regeln (household_id, rang)"
+    )
+
 
     # Standard-Ort als geschützter Seed-Datensatz (Siebel 'Protect Seed Data'):
     # 'Sammlung (Standard)' = Eingangs-Box fuer Unsortiertes (CoolStuffInc-Muster).
