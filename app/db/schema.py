@@ -441,6 +441,42 @@ DDL_STATEMENTS = [
         client_event_id TEXT UNIQUE      -- Idempotenz (Offline-Queue)
     )
     """,
+    # --- Postfach v6: 1:1-Nachrichten + Admin-Broadcasts (NACHRICHTEN_KONZEPT) ---
+    """
+    CREATE TABLE IF NOT EXISTS messages (
+        message_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_id     INTEGER NOT NULL REFERENCES users(user_id),
+        receiver_id   INTEGER NOT NULL REFERENCES users(user_id),
+        betreff       TEXT,
+        body          BLOB NOT NULL,               -- AES-GCM-verschluesselt
+        body_iv       BLOB NOT NULL,
+        created_at    TEXT DEFAULT (datetime('now')),
+        read_at       TEXT,                        -- NULL = ungelesen
+        archived      INTEGER DEFAULT 0,
+        sender_deleted_at    TEXT,                  -- Soft-Delete je Sicht
+        receiver_deleted_at  TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS broadcasts (
+        broadcast_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+        typ           TEXT NOT NULL DEFAULT 'announcement',
+        betreff       TEXT NOT NULL,
+        body          BLOB NOT NULL,               -- AES-GCM-verschluesselt
+        body_iv       BLOB NOT NULL,
+        created_by    INTEGER REFERENCES users(user_id),
+        created_at    TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS broadcast_receipts (
+        broadcast_id  INTEGER NOT NULL REFERENCES broadcasts(broadcast_id) ON DELETE CASCADE,
+        user_id       INTEGER NOT NULL REFERENCES users(user_id),
+        read_at       TEXT,
+        acknowledged  INTEGER DEFAULT 0,
+        PRIMARY KEY (broadcast_id, user_id)
+    )
+    """,
     # --- Schema migrations --------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS schema_migrations (

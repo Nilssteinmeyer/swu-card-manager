@@ -2679,6 +2679,215 @@ def _register_routes(app: Flask) -> None:
         finally:
             conn.close()
 
+    # -- Postfach v6: Nachrichten + Broadcasts (NACHRICHTEN_KONZEPT) -----------
+    # Rate-Limit Anti-Spam (30/min, Muster des Scan-Limiters)
+    _msg_window: list[float] = []
+
+    def _msg_rate_limited() -> bool:
+        import time as _t
+
+        now = _t.time()
+        while _msg_window and now - _msg_window[0] > 60:
+            _msg_window.pop(0)
+        if len(_msg_window) >= 30:
+            return True
+        _msg_window.append(now)
+        return False
+
+    def _nachrichten_repo(conn):
+        from app.nachrichten import NachrichtenRepository
+
+        return NachrichtenRepository(conn, app.config["SECRET_KEY"])
+
+    @app.route("/api/messages")
+    def api_messages_inbox():
+        """Inbox: DMs + Broadcasts (Broadcasts oben gepinnt)."""
+        from flask import g
+
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            flt = request.args.get("filter", "alle")
+            dms = r.inbox(g.get("user", {})["user_id"], flt)
+            broadcasts = r.broadcasts_for_user(g.get("user", {})["user_id"],
+                                               only_unread=(flt == "ungelesen"))
+            return jsonify({"messages": dms, "broadcasts": broadcasts,
+                            "unread": r.unread_count(g.get("user", {})["user_id"])})
+        finally:
+            conn.close()
+
+    @app.route("/api/messages/thread/<int:partner_id>")
+    def api_messages_thread(partner_id: int):
+        from flask import g
+
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            msgs = r.thread(g.get("user", {})["user_id"], partner_id)
+            # Partner-Namen liefern
+            p_row = conn.execute("SELECT username, display_name FROM users WHERE user_id = ?",
+                                  (partner_id,)).fetchone()
+            name = (p_row["display_name"] or p_row["username"]) if p_row else "?"
+            # Lesen = beim Oeffnen (Apple-Mail-Semantik)
+            r.mark_read(g.get("user", {})["user_id"], partner_id=partner_id)
+            return jsonify({"messages": msgs, "partner": {"user_id": partner_id, "name": name}})
+        finally:
+            conn.close()
+
+    @app.route("/api/messages", methods=["POST"])
+    def api_messages_send():
+        from flask import g
+
+        if _msg_rate_limited():
+            return jsonify({"error": "Zu viele Nachrichten – bitte etwas langsamer"}), 429
+        body = request.get_json(silent=True) or {}
+        receiver = body.get("receiver_id")
+        if not isinstance(receiver, int):
+            return jsonify({"error": "receiver_id erforderlich"}), 400
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            mid = r.send_dm(g.get("user", {})["user_id"], receiver,
+                            body.get("body") or "", betreff=body.get("betreff"))
+            return jsonify({"message_id": mid, "sent": True})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()
+
+    @app.route("/api/messages/read", methods=["POST"])
+    def api_messages_read():
+        from flask import g
+
+        body = request.get_json(silent=True) or {}
+        ids = body.get("message_ids")
+        partner = body.get("partner_id")
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            n = r.mark_read(g.get("user", {})["user_id"],
+                            message_ids=ids, partner_id=partner)
+            return jsonify({"marked": n})
+        finally:
+            conn.close()
+
+    @app.route("/api/messages/archive", methods=["POST"])
+    def api_messages_archive():
+        from flask import g
+
+        body = request.get_json(silent=True) or {}
+        mid, arch = body.get("message_id"), body.get("archived", True)
+        if not isinstance(mid, int):
+            return jsonify({"error": "message_id erforderlich"}), 400
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            ok = r.archive(g.get("user", {})["user_id"], mid, bool(arch))
+            return jsonify({"archived": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/messages/unread", methods=["POST"])
+    def api_messages_unread():
+        """Als ungelesen markieren (Teams-Selbst-Erinnerungsmuster)."""
+        from flask import g
+
+        body = request.get_json(silent=True) or {}
+        mid = body.get("message_id")
+        if not isinstance(mid, int):
+            return jsonify({"error": "message_id erforderlich"}), 400
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            ok = r.mark_unread(g.get("user", {})["user_id"], mid)
+            return jsonify({"unread": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/messages/<int:message_id>", methods=["DELETE"])
+    def api_messages_delete(message_id: int):
+        from flask import g
+
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            ok = r.soft_delete(g.get("user", {})["user_id"], message_id)
+            return jsonify({"deleted": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/messages/unread_count")
+    def api_messages_unread_count():
+        from flask import g
+
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            return jsonify({"unread": r.unread_count(g.get("user", {})["user_id"])})
+        finally:
+            conn.close()
+
+    @app.route("/api/broadcasts", methods=["POST"])
+    def api_broadcasts_create():
+        """Admin-Broadcast an alle (EIN Objekt + receipts, nie Kopien)."""
+        from flask import g
+
+        if not (g.get("user") or {}).get("is_platform_admin"):
+            return jsonify({"error": "Nur Admins können Rundrufe senden"}), 403
+        if _msg_rate_limited():
+            return jsonify({"error": "Zu viele Broadcasts – bitte langsamer"}), 429
+        body = request.get_json(silent=True) or {}
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            bid = r.create_broadcast(g.get("user", {})["user_id"],
+                                     body.get("typ") or "announcement",
+                                     body.get("betreff") or "",
+                                     body.get("body") or "")
+            return jsonify({"broadcast_id": bid, "sent": True,
+                            "empfaenger": r.broadcast_stats(bid)["empfaenger"]})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()
+
+    @app.route("/api/broadcasts/<int:broadcast_id>/ack", methods=["POST"])
+    def api_broadcasts_ack(broadcast_id: int):
+        """'Verstanden': nur die eigene Receipt-Zeile (Empfaenger-Isolation)."""
+        from flask import g
+
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            ok = r.ack_broadcast(g.get("user", {})["user_id"], broadcast_id)
+            return jsonify({"acknowledged": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/broadcasts/<int:broadcast_id>/stats")
+    def api_broadcasts_stats(broadcast_id: int):
+        """Admin-Lesestatistik (Steam-seen-Muster)."""
+        from flask import g
+
+        if not (g.get("user") or {}).get("is_platform_admin"):
+            return jsonify({"error": "Nur Admins sehen Broadcast-Statistiken"}), 403
+        conn = connect()
+        try:
+            r = _nachrichten_repo(conn)
+            return jsonify(r.broadcast_stats(broadcast_id))
+        finally:
+            conn.close()
+
+    @app.route("/favicon.ico")
+    def favicon():
+        """Favicon: Redirect auf das PWA-Icon (404-Konsolen-Noise fix)."""
+        return redirect("/static/icons/icon-192.png")
+
+    @app.route("/messages")
+    def messages_page():
+        """Postfach-Seite (Inbox + Composer + Broadcasts)."""
+        return render_template("messages.html")
+
     @app.route("/api/wishlist/alerts")
     def api_wishlist_alerts():
         conn = connect()

@@ -1,0 +1,307 @@
+{% extends "base_app.html" %}
+{% block title %}Nachrichten{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="stat-row" style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+    <h1 style="margin:0; font-size:1.3rem;">✉️ Nachrichten</h1>
+    <span class="badge hidden" id="msg-total-badge"></span>
+    <div style="flex:1;"></div>
+    <button class="btn btn-primary" id="btn-msg-compose" style="min-height:44px;">✉️ Neue Nachricht</button>
+    <button class="btn btn-secondary" id="btn-msg-mark-all" style="min-height:44px;">✓ Alle gelesen</button>
+  </div>
+
+  <!-- Filter (Segmented, WhatsApp-Listen-Muster) -->
+  <div class="seg-filter" id="msg-filter" style="display:flex; gap:6px; margin-bottom:12px;">
+    <button class="btn btn-sm seg-btn active" data-filter="alle" style="flex:1; min-height:40px;">Alle</button>
+    <button class="btn btn-sm seg-btn" data-filter="ungelesen" style="flex:1; min-height:40px;">Ungelesen</button>
+    <button class="btn btn-sm seg-btn" data-filter="archiv" style="flex:1; min-height:40px;">Archiviert</button>
+  </div>
+
+  <!-- Broadcasts (eigenes Format, gepinnt oben — GitLab/Teams-Muster) -->
+  <div id="broadcast-list"></div>
+
+  <!-- DM-Liste -->
+  <div id="msg-list"></div>
+</div>
+
+<!-- Composer Bottom-Sheet -->
+<div class="more-sheet-backdrop" id="compose-backdrop"></div>
+<div class="more-sheet" id="compose-sheet" role="dialog" aria-modal="true" aria-label="Nachricht verfassen">
+  <div class="sheet-handle"></div>
+  <div style="padding:10px 16px 2px; font-weight:700;">✉️ Neue Nachricht</div>
+  <div style="padding:0 16px;">
+    <label style="font-size:12px;" class="text-muted">An:</label>
+    <div id="compose-chips" style="display:flex; flex-wrap:wrap; gap:6px; padding:6px 0; min-height:44px;"></div>
+    <input type="text" id="compose-empfaenger" class="setting-input" placeholder="Mitglied suchen…"
+           style="width:100%; min-height:44px;" autocomplete="off">
+    <div id="compose-vorschlaege" style="margin-top:4px;"></div>
+  </div>
+  <div style="padding:8px 16px;">
+    <textarea id="compose-body" rows="4" placeholder="Deine Nachricht…"
+              style="width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px; font-size:14px;"></textarea>
+    <div class="text-muted" style="font-size:11px; margin-top:4px;">
+      🔒 Nachrichten sind serverseitig verschlüsselt, aber nicht Ende-zu-Ende.
+    </div>
+    <button class="btn btn-primary" id="btn-msg-send" style="width:100%; min-height:44px; margin-top:8px;">📤 Senden</button>
+  </div>
+</div>
+
+<!-- Thread-Detail (Vollflaeche) -->
+<div id="thread-view" class="hidden" style="position:fixed; inset:0; z-index:1100; background:var(--bg, var(--surface)); display:flex; flex-direction:column;">
+  <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border);">
+    <button class="btn btn-sm" id="btn-thread-back" style="min-height:44px; min-width:44px;">←</button>
+    <div id="thread-partner-name" style="font-weight:700; flex:1;"></div>
+  </div>
+  <div id="thread-bubbles" style="flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:8px;"></div>
+  <div style="display:flex; gap:8px; padding:10px 14px; border-top:1px solid var(--border);">
+    <input type="text" id="thread-reply" placeholder="Antworten…"
+           style="flex:1; min-height:44px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:0 12px;">
+    <button class="btn btn-primary" id="btn-thread-send" style="min-height:44px; min-width:52px;">➤</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let MSG_PARTNERS = [];
+  let THREAD_PARTNER = null;
+  let COMPOSE_SELECTED = null;
+  const PRIVACY_HINT = "Nachrichten sind serverseitig verschlüsselt, aber nicht Ende-zu-Ende.";
+
+  // ---------- Inbox laden ----------
+  async function loadMessages() {
+    const filter = document.querySelector(".seg-btn.active")?.dataset.filter || "alle";
+    try {
+      const data = await api(`/api/messages?filter=${filter}`);
+      const badge = document.getElementById("msg-total-badge");
+      if (data.unread > 0) {
+        badge.textContent = data.unread > 99 ? "99+" : String(data.unread);
+        badge.classList.remove("hidden");
+      } else { badge.classList.add("hidden"); }
+      renderBroadcasts(data.broadcasts || []);
+      renderMsgList(data.messages || []);
+    } catch (e) { showToast("Fehler beim Laden: " + e.message, "error"); }
+  }
+
+  function renderBroadcasts(broadcasts) {
+    const el = document.getElementById("broadcast-list");
+    if (!broadcasts.length) { el.innerHTML = ""; return; }
+    el.innerHTML = broadcasts.map(b => {
+      const icon = { update: "🆕", wartung: "🛠️", announcement: "📣" }[b.typ] || "📣";
+      const zeit = new Date(b.created_at + "Z").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+      return `<div class="card mb-2" style="border-left:3px solid var(--accent); background:var(--surface2);">
+        <div class="flex items-center" style="gap:10px;">
+          <span style="font-size:22px;">${icon}</span>
+          <div style="flex:1; min-width:0;">
+            <b>${escapeHtml(b.betreff)}</b>
+            <span class="text-muted" style="font-size:11px; margin-left:6px;">SWU Team · ${zeit}</span>
+            <div style="font-size:13px; margin-top:4px; white-space:pre-wrap;">${escapeHtml(b.body)}</div>
+          </div>
+          <button class="btn btn-sm btn-secondary" style="min-height:44px; min-width:60px;"
+                  onclick="ackBroadcast(${b.broadcast_id})">✓ Verstanden</button>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  function renderMsgList(msgs) {
+    const el = document.getElementById("msg-list");
+    if (!msgs.length) {
+      el.innerHTML = `<div class="empty-state" style="text-align:center; padding:40px 16px;">
+        <div style="font-size:44px;">📭</div>
+        <div class="es-title" style="margin-top:8px;">Noch keine Nachrichten</div>
+        <div class="es-text" style="color:var(--muted, #888); font-size:13px; margin:6px 0 14px;">
+          Schreibe Mitgliedern direkt oder empfange Ankündigungen des Teams.
+        </div>
+        <button class="btn btn-primary" style="min-height:44px;" onclick="openComposer()">✉️ Neue Nachricht verfassen</button>
+      </div>`;
+      return;
+    }
+    el.innerHTML = msgs.map(m => {
+      const unread = m.ungelesen;
+      const zeit = new Date(m.created_at + "Z").toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+      const preview = (m.body || "").slice(0, 90);
+      return `<div class="msg-item" data-mid="${m.message_id}" data-partner="${m.partner_id}"
+            style="display:flex; gap:10px; align-items:center; padding:12px 10px; min-height:60px; border-bottom:1px solid var(--border); ${unread ? "background:var(--surface2);" : ""} cursor:pointer;"
+            onclick="openThread(${m.partner_id})">
+        <div style="width:8px; align-self:stretch; border-radius:4px; background:${unread ? "var(--accent)" : "transparent"};"></div>
+        <span style="font-size:22px;">👤</span>
+        <div style="flex:1; min-width:0;">
+          <div><b ${unread ? "" : 'style="font-weight:500;"'}>${escapeHtml(m.partner_name)}</b></div>
+          <div class="text-muted" style="font-size:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(preview)}${m.body && m.body.length > 90 ? "…" : ""}</div>
+        </div>
+        <span class="text-muted" style="font-size:11px; flex-shrink:0;">${zeit}</span>
+      </div>`;
+    }).join("");
+  }
+
+  // ---------- Broadcast ack ----------
+  async function ackBroadcast(bid) {
+    try {
+      await api(`/api/broadcasts/${bid}/ack`, { method: "POST", body: {} });
+      showToast("Als gelesen markiert ✓", "success");
+      await loadMessages();
+      updateTopbarBadge();
+    } catch (e) { showToast("Fehler: " + e.message, "error"); }
+  }
+
+  // ---------- Filter ----------
+  document.querySelectorAll(".seg-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".seg-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      loadMessages();
+    });
+  });
+
+  document.getElementById("btn-msg-mark-all").addEventListener("click", async () => {
+    const data = await api("/api/messages");
+    const ids = (data.messages || []).filter(m => m.ungelesen).map(m => m.message_id);
+    const bIds = (data.broadcasts || []).map(b => b.broadcast_id);
+    if (!ids.length && !bIds.length) { showToast("Nichts zu markieren", "info"); return; }
+    if (ids.length) await api("/api/messages/read", { method: "POST", body: { message_ids: ids } });
+    for (const bid of bIds) await api(`/api/broadcasts/${bid}/ack`, { method: "POST", body: {} });
+    showToast("Alle als gelesen markiert ✓", "success");
+    await loadMessages();
+    updateTopbarBadge();
+  });
+
+  // ---------- Composer ----------
+  function openComposer() {
+    COMPOSE_SELECTED = null;
+    document.getElementById("compose-chips").innerHTML = "";
+    document.getElementById("compose-empfaenger").value = "";
+    document.getElementById("compose-vorschlaege").innerHTML = "";
+    const draft = localStorage.getItem("swu-msg-draft");
+    document.getElementById("compose-body").value = draft || "";
+    document.getElementById("compose-backdrop").classList.add("visible");
+    requestAnimationFrame(() => document.getElementById("compose-sheet").classList.add("visible"));
+    loadPartners();
+  }
+
+  async function loadPartners() {
+    try {
+      const me = await api("/api/auth/me");
+      const myId = me.user && me.user.user_id;
+      const data = await api("/api/auth/users");
+      MSG_PARTNERS = (data.users || []).filter(u => u.user_id !== myId);
+    } catch (e) { MSG_PARTNERS = []; }
+  }
+
+  document.getElementById("compose-empfaenger").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const box = document.getElementById("compose-vorschlaege");
+    if (!q || !MSG_PARTNERS.length) { box.innerHTML = ""; return; }
+    const treffer = MSG_PARTNERS.filter(u => (u.username || "").toLowerCase().includes(q)).slice(0, 6);
+    box.innerHTML = treffer.map(u =>
+      `<button class="sheet-link" type="button" style="width:100%; text-align:left; min-height:44px;"
+               onclick="selectEmpfaenger(${u.user_id}, '${escapeHtml(u.username).replace(/'/g, "\\\\'")}')">
+        <span class="sl-icon">👤</span><span>${escapeHtml(u.username)}</span></button>`).join("");
+  });
+
+  function selectEmpfaenger(uid, name) {
+    COMPOSE_SELECTED = { user_id: uid, name: name };
+    document.getElementById("compose-vorschlaege").innerHTML = "";
+    document.getElementById("compose-empfaenger").value = "";
+    document.getElementById("compose-chips").innerHTML =
+      `<span class="badge" style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; font-size:13px;">
+        👤 ${escapeHtml(name)}
+        <button type="button" onclick="clearEmpfaenger()" aria-label="Empfänger entfernen"
+                style="background:none; border:none; color:inherit; font-size:16px; cursor:pointer; min-width:24px; min-height:24px;">✕</button>
+      </span>`;
+  }
+
+  function clearEmpfaenger() {
+    COMPOSE_SELECTED = null;
+    document.getElementById("compose-chips").innerHTML = "";
+  }
+
+  document.getElementById("btn-msg-compose").addEventListener("click", openComposer);
+  document.getElementById("compose-backdrop").addEventListener("click", closeComposer);
+  function closeComposer() {
+    const body = document.getElementById("compose-body").value;
+    if (body.trim()) {
+      localStorage.setItem("swu-msg-draft", body);
+      showToast("Entwurf gespeichert", "info", 2000);
+    }
+    document.getElementById("compose-sheet").classList.remove("visible");
+    document.getElementById("compose-backdrop").classList.remove("visible");
+  }
+
+  document.getElementById("btn-msg-send").addEventListener("click", async () => {
+    if (!COMPOSE_SELECTED) { showToast("Bitte Empfänger auswählen", "error"); return; }
+    const body = document.getElementById("compose-body").value.trim();
+    if (!body) { showToast("Nachricht ist leer", "error"); return; }
+    try {
+      await api("/api/messages", { method: "POST", body: { receiver_id: COMPOSE_SELECTED.user_id, body } });
+      showToast("Nachricht gesendet an " + COMPOSE_SELECTED.name + " ✓", "success");
+      localStorage.removeItem("swu-msg-draft");
+      document.getElementById("compose-body").value = "";
+      clearEmpfaenger();
+      document.getElementById("compose-sheet").classList.remove("visible");
+      document.getElementById("compose-backdrop").classList.remove("visible");
+      await loadMessages();
+      updateTopbarBadge();
+    } catch (e) { showToast("Fehler: " + e.message, "error"); }
+  });
+
+  // ---------- Thread ----------
+  async function openThread(partnerId) {
+    THREAD_PARTNER = partnerId;
+    try {
+      const data = await api(`/api/messages/thread/${partnerId}`);
+      document.getElementById("thread-partner-name").textContent = data.partner.name;
+      const bubbles = document.getElementById("thread-bubbles");
+      bubbles.innerHTML = data.messages.map(m => {
+        const eigene = m.sender_id !== partnerId;
+        const zeit = new Date(m.created_at + "Z").toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        return `<div style="max-width:80%; ${eigene ? "align-self:flex-end; background:var(--accent); color:var(--on-primary, #1a1600);" : "align-self:flex-start; background:var(--surface2);"} border-radius:12px; padding:8px 12px; font-size:14px;">
+          ${escapeHtml(m.body)}
+          <div style="font-size:10px; opacity:0.7; margin-top:2px; text-align:right;">${zeit}</div>
+        </div>`;
+      }).join("");
+      bubbles.scrollTop = bubbles.scrollHeight;
+      document.getElementById("thread-view").classList.remove("hidden");
+      updateTopbarBadge();
+    } catch (e) { showToast("Fehler: " + e.message, "error"); }
+  }
+
+  document.getElementById("btn-thread-back").addEventListener("click", () => {
+    document.getElementById("thread-view").classList.add("hidden");
+    loadMessages();
+  });
+
+  async function sendReply() {
+    const inp = document.getElementById("thread-reply");
+    const body = inp.value.trim();
+    if (!body || !THREAD_PARTNER) return;
+    try {
+      await api("/api/messages", { method: "POST", body: { receiver_id: THREAD_PARTNER, body } });
+      inp.value = "";
+      await openThread(THREAD_PARTNER);
+    } catch (e) { showToast("Fehler: " + e.message, "error"); }
+  }
+  document.getElementById("btn-thread-send").addEventListener("click", sendReply);
+  document.getElementById("thread-reply").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendReply();
+  });
+
+  // ---------- Topbar-Badge (global) ----------
+  async function updateTopbarBadge() {
+    try {
+      const data = await api("/api/messages/unread_count");
+      const badge = document.getElementById("msg-badge");
+      if (!badge) return;
+      if (data.unread > 0) {
+        badge.textContent = data.unread > 99 ? "99+" : String(data.unread);
+        badge.classList.remove("hidden");
+      } else { badge.classList.add("hidden"); }
+    } catch (e) { /* auf Auth-Seiten egal */ }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    loadMessages();
+    updateTopbarBadge();
+  });
+</script>
+{% endblock %}

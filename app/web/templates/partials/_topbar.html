@@ -15,10 +15,18 @@
         <li><a href="/collection" data-nav="/collection">🗂️ <span class="label">Sammlung</span></a></li>
         <li><a href="/wishlist" data-nav="/wishlist">⭐ <span class="label">Wishlist</span></a></li>
         <li data-admin-only><a href="/sets" data-nav="/sets">📦 <span class="label">Sets</span></a></li>
+        <li><a href="/messages" data-nav="/messages">✉️ <span class="label">Nachrichten</span></a></li>
         <li><a href="/settings" data-nav="/settings">⚙️ <span class="label">Einstellungen</span></a></li>
         <li data-admin-only><a href="/system" data-nav="/system">🔧 <span class="label">System</span></a></li>
       </ul>
     </nav>
+
+    <!-- Postfach: Badge mit Unread-Zahl (99+ Cap) -->
+    <a class="topbar-msg" href="/messages" aria-label="Nachrichten" style="position:relative; display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; text-decoration:none;">
+      <span style="font-size:20px;">✉️</span>
+      <span id="msg-badge" class="badge hidden" aria-live="polite"
+            style="position:absolute; top:4px; right:2px; background:var(--error, #e53935); color:var(--on-error, #fff); border-radius:10px; min-width:18px; height:18px; font-size:11px; line-height:18px; text-align:center; padding:0 4px;"></span>
+    </a>
 
     <!-- Account: Desktop = Dropdown (fixiert, nicht geclippt), Mobile = öffnet More-Sheet -->
     <div class="account-area" id="account-menu"></div>

@@ -284,6 +284,7 @@ def api_me():
         conn.close()
     return jsonify({
         "user": {
+            "user_id": g.user["user_id"],
             "username": g.user["username"],
             "display_name": g.user.get("display_name"),
             "is_platform_admin": bool(g.user.get("is_platform_admin")),
@@ -339,6 +340,25 @@ def api_household_join():
         if result.get("ok"):
             session["active_household_id"] = result["household_id"]
         return jsonify(result), 200 if result.get("ok") else 400
+    finally:
+        conn.close()
+
+
+@bp.route("/api/auth/users", methods=["GET"])
+@login_required
+def api_users_list():
+    """Alle User der Plattform (DM-Empfaenger, lokale Community)."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT user_id, username, display_name FROM users ORDER BY username COLLATE NOCASE"
+        ).fetchall()
+        users = [
+            {"user_id": r["user_id"], "username": r["username"],
+             "display_name": r["display_name"]}
+            for r in rows
+        ]
+        return jsonify({"users": users})
     finally:
         conn.close()
 

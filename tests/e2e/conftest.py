@@ -23,6 +23,8 @@ BASE = f"https://localhost:{PORT}"
 
 pytestmark = pytest.mark.e2e
 
+E2E_DB_PATH = None
+
 
 def _wait_for_port(port: int, timeout: float = 60.0) -> bool:
     deadline = time.time() + timeout
@@ -58,6 +60,10 @@ def e2e_server(tmp_path_factory):
 
     env = dict(os.environ)
     env["SWU_DB_PATH_OVERRIDE"] = str(db_path)
+    # DB-Pfad für Tests teilen (z.B. um Admin-Flags zu setzen)
+    import pytest as _pytest_global_holder  # noqa: F401
+    global E2E_DB_PATH
+    E2E_DB_PATH = str(db_path)
     env["SWU_SKIP_WARMUP"] = "1"
     env["PYTHONPATH"] = str(PROJECT_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
 

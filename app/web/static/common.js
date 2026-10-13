@@ -579,6 +579,13 @@ function _watchDynamicSheets() {
       const b = document.getElementById("split-sheet-backdrop");
       if (b) b.classList.remove("visible");
     },
+    "compose-sheet": () => {
+      const s = document.getElementById("compose-sheet");
+      if (s) s.classList.remove("visible");
+      const b = document.getElementById("compose-backdrop");
+      if (b) b.classList.remove("visible");
+      if (typeof closeComposer === "function") closeComposer();
+    },
   };
   const mo = new MutationObserver(() => {
     for (const [id, closeFn] of Object.entries(DYN_CLOSE)) {
@@ -593,6 +600,20 @@ document.addEventListener("DOMContentLoaded", () => {
   _installSheetDrag("#more-sheet", () => toggleMoreSheet(false));
   _installSheetDrag("#share-dialog", () => closeShareDialog());
   _watchDynamicSheets();
+  // Postfach-Badge global aktualisieren (Auth-Seiten: skip via 401-catch)
+  if (typeof api === "function" && !IS_AUTH_PAGE) {
+    api("/api/messages/unread_count").then(d => {
+      const badge = document.getElementById("msg-badge");
+      if (!badge) return;
+      if (d.unread > 0) {
+        badge.textContent = d.unread > 99 ? "99+" : String(d.unread);
+        badge.setAttribute("aria-label", d.unread + " ungelesene Nachrichten");
+        badge.classList.remove("hidden");
+      } else {
+        badge.classList.add("hidden");
+      }
+    }).catch(() => {});
+  }
 });
 
 // ---- Theme (Dark/Light/Auto) ----------------------------------------------
