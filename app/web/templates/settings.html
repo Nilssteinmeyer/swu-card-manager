@@ -480,6 +480,8 @@
         '<span style="font-size:13px;">bis</span>' +
         '<input type="number" min="1" max="99" value="' + bis + '" placeholder="∞" class="setting-input" style="max-width:56px; text-align:center; min-height:38px;" onchange="vtUpdateBis(' + i + ', this.value)">' +
         '<select class="setting-input" style="flex:1; min-height:38px;" onchange="vtUpdateZiel(' + i + ', this.value)">' + ortSel + '</select>' +
+        '<button class="btn btn-sm" style="min-height:38px; min-width:34px;" title="Regel nach oben" onclick="vtMove(' + i + ', -1)"' + (i === 0 ? " disabled" : "") + '>↑</button>' +
+        '<button class="btn btn-sm" style="min-height:38px; min-width:34px;" title="Regel nach unten" onclick="vtMove(' + i + ', 1)"' + (i === VT_REGELN.length - 1 ? " disabled" : "") + '>↓</button>' +
         '<button class="btn btn-sm btn-danger" style="min-height:38px;" onclick="vtRemove(' + i + ')">🗑</button>' +
         '</div>';
     }).join("");
@@ -493,6 +495,14 @@
   }
   function vtUpdateZiel(i, val) { VT_REGELN[i].ziel_location_id = parseInt(val); renderPreview(); }
   function vtRemove(i) { VT_REGELN.splice(i, 1); renderRegeln(); renderPreview(); }
+
+  function vtMove(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= VT_REGELN.length) return;
+    [VT_REGELN[i], VT_REGELN[j]] = [VT_REGELN[j], VT_REGELN[i]];
+    renderRegeln();
+    renderPreview();
+  }
 
   function addRegelZeile() {
     const maxVon = VT_REGELN.length ? Math.max(...VT_REGELN.map(r => r.von_kopie)) : 0;

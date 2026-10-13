@@ -713,6 +713,7 @@
           '<button class="btn btn-sm" style="min-width:38px; min-height:38px;" onclick="splitStep(' + o.location_id + ', -1)">−</button>' +
           '<b id="split-val-' + o.location_id + '" style="min-width:24px; text-align:center; font-size:15px;">' + val + '</b>' +
           '<button class="btn btn-sm" style="min-width:38px; min-height:38px;" onclick="splitStep(' + o.location_id + ', +1)">＋</button>' +
+          '<button class="btn btn-sm btn-secondary" style="min-height:38px; padding:0 10px;" title="Alle noch offenen Exemplare hierher" onclick="splitRestHierher(' + o.location_id + ')">↧ Rest</button>' +
           '</div></div>';
       }).join("");
       return '<div class="sheet-handle"></div>' +
@@ -741,10 +742,23 @@
 
     function splitStep(locationId, delta) {
       const cur = SPLIT_STATE.verteilt[locationId] || 0;
-      const neu = Math.max(0, Math.min(SPLIT_STATE.total, cur + delta));
+      // Hart-Clamp (EVE/YNAB-Muster): + nur bis zum unverteilteten Rest,
+      // nie Ueber-Zuteilung moeglich
+      const andere = splitSumme() - cur;
+      const maxHier = SPLIT_STATE.total - andere;
+      const neu = Math.max(0, Math.min(maxHier, cur + delta));
       SPLIT_STATE.verteilt[locationId] = neu;
       const el = document.getElementById("split-val-" + locationId);
       if (el) el.textContent = neu;
+      updateSplitSumme();
+    }
+
+    function splitRestHierher(locationId) {
+      const rest = SPLIT_STATE.total - splitSumme();
+      if (rest <= 0) { showToast("Nichts mehr offen", "info"); return; }
+      SPLIT_STATE.verteilt[locationId] = (SPLIT_STATE.verteilt[locationId] || 0) + rest;
+      const el = document.getElementById("split-val-" + locationId);
+      if (el) el.textContent = SPLIT_STATE.verteilt[locationId];
       updateSplitSumme();
     }
 
