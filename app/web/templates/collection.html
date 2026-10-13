@@ -98,13 +98,13 @@
           <div class="setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
             <label style="font-weight:600;">Preise anzeigen</label>
             <select id="price-display-mode" style="max-width:220px;" onchange="applyPriceDisplayMode(this.value)">
+              <option value="price">Einzelpreis der Karte</option>
               <option value="value">Karten × Preis (Wert)</option>
-              <option value="price">Nur Kartenpreis</option>
               <option value="none">Keine Preise</option>
             </select>
           </div>
           <div class="setting-desc" style="margin-bottom:12px;">
-            „Karten × Preis" zeigt den Wert deiner Exemplare (Anzahl berücksichtigt), „Nur Kartenpreis" den Einzel-Preis der Karte.
+            „Einzelpreis der Karte" ist der Standard und zeigt den Preis einer einzelnen Karte, „Karten × Preis" den Wert deiner Exemplare (Anzahl berücksichtigt).
           </div>
 
           <div class="setting-desc" style="margin-bottom:8px;">
@@ -237,18 +237,18 @@
     }
 
     // ---- Preis-Anzeige-Modus (persistiert pro Nutzer) ------------------------
-    let PRICE_DISPLAY_MODE = "value"; // default: Karten × Preis (Wert)
+    let PRICE_DISPLAY_MODE = "price"; // default: Einzelpreis der Karte (Nutzerwunsch)
     async function initPriceDisplayMode() {
       try {
         const s = await api("/api/settings");
         const m = s.price_display_mode;
-        PRICE_DISPLAY_MODE = ["value", "price", "none"].includes(m) ? m : "value";
+        PRICE_DISPLAY_MODE = ["value", "price", "none"].includes(m) ? m : "price";
       } catch (e) { /* default */ }
       const sel = document.getElementById("price-display-mode");
       if (sel) sel.value = PRICE_DISPLAY_MODE;
     }
     async function applyPriceDisplayMode(mode) {
-      PRICE_DISPLAY_MODE = ["value", "price", "none"].includes(mode) ? mode : "value";
+      PRICE_DISPLAY_MODE = ["value", "price", "none"].includes(mode) ? mode : "price";
       try { await api("/api/settings", { method: "POST", body: { price_display_mode: PRICE_DISPLAY_MODE } }); } catch (e) {}
       loadCollection();
     }
@@ -587,7 +587,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=32').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=33').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});
