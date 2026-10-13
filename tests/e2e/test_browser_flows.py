@@ -203,8 +203,12 @@ def test_settings_page_saves(page):
     _register(page, "setuser", "set@example.com", "geheim123")
     page.goto(f"{BASE}/settings")
     page.wait_for_selector("#scan_language")
+    # Warten bis loadSettings() fertig ist - sonst ueberschreibt der
+    # asynchrone Settings-Load die Auswahl im Volllauf (Race)
+    page.wait_for_function("() => window.__settingsLoaded === true", timeout=8000)
     page.select_option("#scan_language", "en")
     page.click("#btn-save-settings")
+    page.wait_for_timeout(500)
     # verify persisted
     me = page.evaluate("fetch('/api/settings').then(r => r.json())")
     assert me["scan_language"] == "en"

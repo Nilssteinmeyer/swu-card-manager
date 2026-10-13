@@ -160,48 +160,55 @@ def verteile_card(conn: sqlite3.Connection, household_id: int, menge: int) -> li
 # Teilmengen-Split (Bestandszeilen auf Orte aufteilen, Journal-basiert)
 # ---------------------------------------------------------------------------
 
-def split_collection_row(conn: sqlite3.Connection, collection_id: int,
-                         abgaben: list[tuple[int, int]],
-                         reason: str = "split", household_id: int = 1,
-                         user_id: int | None = None) -> int:
-    """Bucht von Bestandszeile 'collection_id' Teilmengen auf Ziel-Orte um.
+def split_collection_rows(conn: sqlite3.Connection, collection_ids: list[int],
+                          abgaben: list[tuple[int, int]],
+                          reason: str = "split", household_id: int = 1,
+                          user_id: int | None = None) -> int:
+    """Bucht Teilmengen mehrerer Bestandszeilen (ein Ablageort, eine Karte)
+    auf Ziel-Orte um.
 
-    abgaben: [(ziel_location_id, anzahl)] — Summe muss <= count der Zeile sein.
-    Quelle wird verkleinert (0 -> Zeile entfaellt), Ziele erhalten neue/
-    erhoehte Zeilen mit IDENTISCHEN Attributen (Sprache, Zustand, Variante,
-    Foil). Jede Bewegung erhaelt einen card_moves-Journal-Eintrag
-    (Scan-Undo-Sicherheit).
+    collection_ids: ALLE Zeilen der Ort-Gruppe (z.B. EN x4 + DE x1 + EN x2).
+    abgaben: [(ziel_location_id, anzahl)] — Summe muss <= Summe der Zeilen
+    sein. Verbrauch FIFO ueber die Zeilen: eine Abgabe kann Zeile 1 ganz und
+    Zeile 2 teilweise verbrauchen. Jede Bewegung erhaelt einen card_moves-
+    Journal-Eintrag. Ziel-Zeilen erben die Attribute der Quell-Zeile
+    (Sprache, Zustand, Variante, Foil) und werden gemergt, falls identisch
+    existierend.
     Returns: Gesamtzahl bewegter Exemplare.
     """
-    row = conn.execute(
-        "SELECT * FROM collection WHERE collection_id = ? AND household_id = ?",
-        (collection_id, household_id),
-    ).fetchone()
-    if not row:
+    from datetime import datetime
+    import uuid as _uuid
+
+    if not collection_ids or not abgaben:
+        raise ValueError("Nichts zu verteilen")
+    rows = []
+    for cid in collection_ids:
+        row = conn.execute(
+            "SELECT * FROM collection WHERE collection_id = ? AND household_id = ?",
+            (cid, household_id),
+        ).fetchone()
+        if row:
+            rows.append(dict(row))
+    if not rows:
         raise ValueError("Bestandszeile nicht gefunden")
-    quelle_loc = row["location_id"]
-    total = row["count"]
+    total = sum(r["count"] for r in rows)
     sum_abgaben = sum(a for _, a in abgaben)
     if sum_abgaben <= 0:
         raise ValueError("Nichts zu verteilen")
     if sum_abgaben > total:
         raise ValueError(f"Verteilung ({sum_abgaben}) übersteigt Bestand ({total})")
 
-    from datetime import datetime
-    import uuid as _uuid
-
-    jetzt = datetime.now().isoformat(timespec="seconds")
+    quelle_loc = rows[0]["location_id"]
     bewegt = 0
-    for ziel_loc, anzahl in abgaben:
-        if anzahl <= 0 or ziel_loc == quelle_loc:
-            continue
-        # Ziel-Zeile mit identischen Attributen suchen/erzeugen
+    stapel = [dict(r) for r in rows]
+
+    def _buchung(quell_row, ziel_loc, anzahl):
         ziel = conn.execute(
             """SELECT collection_id, count FROM collection
                WHERE card_id=? AND condition=? AND language=? AND variant=? AND is_foil=?
                  AND location_id=? AND household_id=?""",
-            (row["card_id"], row["condition"], row["language"], row["variant"],
-             row["is_foil"], ziel_loc, household_id),
+            (quell_row["card_id"], quell_row["condition"], quell_row["language"],
+             quell_row["variant"], quell_row["is_foil"], ziel_loc, household_id),
         ).fetchone()
         if ziel:
             conn.execute("UPDATE collection SET count = count + ? WHERE collection_id = ?",
@@ -211,22 +218,43 @@ def split_collection_row(conn: sqlite3.Connection, collection_id: int,
                 """INSERT INTO collection (card_id, count, condition, language, variant,
                                            is_foil, location, source, household_id, user_id, location_id)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (row["card_id"], anzahl, row["condition"], row["language"], row["variant"],
-                 row["is_foil"], row["location"], row["source"], household_id, user_id, ziel_loc),
+                (quell_row["card_id"], anzahl, quell_row["condition"], quell_row["language"],
+                 quell_row["variant"], quell_row["is_foil"], quell_row["location"],
+                 quell_row["source"], household_id, user_id, ziel_loc),
             )
-        # Quelle verkleinern
         conn.execute("UPDATE collection SET count = count - ? WHERE collection_id = ?",
-                     (anzahl, collection_id))
-        # Journal je Bewegung (Schema: menge/user_id existieren nicht dort -
-        # Menge steht im reason-Kontext, Undo laeuft ueber collection_id)
+                     (anzahl, quell_row["collection_id"]))
         conn.execute(
             """INSERT INTO card_moves (collection_id, from_location_id, to_location_id,
                                        reason, household_id, client_event_id)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (collection_id, quelle_loc, ziel_loc, reason, household_id, str(_uuid.uuid4())),
+            (quell_row["collection_id"], quelle_loc, ziel_loc, reason,
+             household_id, str(_uuid.uuid4())),
         )
-        bewegt += anzahl
-    # Quelle mit 0 entfernen (aufräumen)
-    conn.execute("DELETE FROM collection WHERE collection_id = ? AND count <= 0", (collection_id,))
+        return anzahl
+
+    for ziel_loc, soll in abgaben:
+        if soll <= 0 or ziel_loc == quelle_loc:
+            continue
+        offen = soll
+        while offen > 0 and stapel:
+            r = stapel[0]
+            nehmen = min(offen, r["count"])
+            if nehmen > 0:
+                bewegt += _buchung(r, ziel_loc, nehmen)
+                r["count"] -= nehmen
+                offen -= nehmen
+            if r["count"] <= 0:
+                conn.execute("DELETE FROM collection WHERE collection_id = ? AND count <= 0",
+                             (r["collection_id"],))
+                stapel.pop(0)
     conn.commit()
     return bewegt
+
+
+# Abwaertskompatibilitaet: Einzelzeilen-API
+def split_collection_row(conn, collection_id, abgaben, reason="split",
+                         household_id=1, user_id=None) -> int:
+    return split_collection_rows(conn, [collection_id], abgaben, reason=reason,
+                                 household_id=household_id, user_id=user_id)
+

@@ -602,21 +602,29 @@
         : null;  // falls Chips noch nicht geladen: Ort-Auswahl laedt sie live
       const rowsHtml = bestand.map(b => {
         const icon = b.location_icon || (b.location_typ === "binder" ? "📕" : b.location_typ === "deckbox" ? "📦" : "🗂️");
-        return `<div class="flex items-center" style="gap:8px; padding:8px 0; border-bottom:1px solid var(--border);">
+        const idsJson = escapeHtml(JSON.stringify(b.collection_ids || []));
+        const langText = (b.languages && b.languages.length > 1)
+          ? "🌐 " + b.languages.map(l => l.toUpperCase()).join("/")
+          : "";
+        return `<div class="flex items-center" style="gap:8px; padding:8px 0; border-bottom:1px solid var(--border);" data-collection-ids="${idsJson}" data-location-id="${b.location_id}" data-count="${b.count}">
           <span style="font-size:18px;">${escapeHtml(icon)}</span>
           <div style="flex:1; min-width:0;">
-            <div>${escapeHtml(b.location_name)} <span class="text-muted" style="font-size:11px;">×${b.count} · ${escapeHtml((b.language || "de").toUpperCase())}${b.is_foil ? " · ✨ Foil" : ""}</span></div>
+            <div>${escapeHtml(b.location_name)} <span class="text-muted" style="font-size:11px;">×${b.count}${b.is_foil ? " · ✨ Foil" : ""}${langText ? " · " + langText : ""}</span></div>
           </div>
           <button class="btn btn-sm" style="min-height:36px;"
-                  onclick="moveBestandRow(${b.collection_id}, '${encodeURIComponent(b.location_name)}')">📦 Umlagern</button>
+                  onclick='moveBestandRow(this.closest("[data-collection-ids]"), "${encodeURIComponent(b.location_name)}")'>📦 Umlagern</button>
           <button class="btn btn-sm btn-secondary" style="min-height:36px;"
-                  onclick="openSplitSheet(${b.collection_id}, '${encodeURIComponent(CARD_CTX.card_id)}', ${b.count})">✂️ Aufteilen</button>
+                  onclick='openSplitSheet(this.closest("[data-collection-ids]"), "${encodeURIComponent(CARD_CTX.card_id)}", ${b.count})'>✂️ Aufteilen</button>
         </div>`;
       }).join("");
       wrap.innerHTML = rowsHtml;
     }
 
-    async function moveBestandRow(collectionId, currentName) {
+    async function moveBestandRow(rowEl, currentName) {
+      // rowEl = Zeilen-Div mit data-collection-ids (alle Zeilen des Orts)
+      const collectionIds = JSON.parse(rowEl.dataset.collectionIds || "[]");
+      const collectionId = collectionIds[0];  // Kompatibilitaet falls leer
+      const count = parseInt(rowEl.dataset.count || "0", 10);
       // Ziel-Ort waehlen (Bottom-Sheet wie im Scanner)
       let orte = [];
       try { const d = await api("/api/locations"); orte = d.locations || []; } catch (e) { showToast("Orte laden fehlgeschlagen", "error"); return; }
@@ -637,7 +645,7 @@
       const buttons = orte.map(function(l) {
         const nameEsc = escapeHtml(l.name).replace(/'/g, "\'");
         const extra = l.karten_count ? " (" + l.karten_count + ")" : "";
-        const oc = "doMoveBestandRow(" + collectionId + ", " + l.location_id + ", '" + nameEsc + "')";
+        const oc = "doMoveBestandRow([" + collectionIds.join(",") + "], " + l.location_id + ", '" + nameEsc + "')";
         return '<button class="sheet-link" type="button" onclick="' + oc + '">' +
                '<span class="sl-icon">' + locIcon(l) + '</span>' +
                '<span>' + escapeHtml(l.name) + extra + '</span></button>';
@@ -656,9 +664,9 @@
       requestAnimationFrame(() => sheet.classList.add("visible"));
     }
 
-    async function doMoveBestandRow(collectionId, toLocationId, name) {
+    async function doMoveBestandRow(collectionIds, toLocationId, name) {
       try {
-        const res = await api("/api/collection/move", { method: "POST", body: { collection_ids: [collectionId], to_location_id: toLocationId, reason: "detail-modal" } });
+        const res = await api("/api/collection/move", { method: "POST", body: { collection_ids: collectionIds, to_location_id: toLocationId, reason: "detail-modal" } });
         showToast("Verschoben nach " + name + " ✓", "success");
         const sheet = document.getElementById("move-sheet");
         const bd = document.getElementById("move-sheet-backdrop");
@@ -671,12 +679,13 @@
     // ---- ✂️ Aufteilen: Exemplare auf Orte verteilen (mit Regel-Vorschlag) ----
     let SPLIT_STATE = null;
 
-    async function openSplitSheet(collectionId, cardIdEnc, total) {
+    async function openSplitSheet(rowEl, cardIdEnc, total) {
       let orte = [];
       try { const d = await api("/api/locations"); orte = d.locations || []; } catch (e) { showToast("Orte laden fehlgeschlagen", "error"); return; }
       let vorschlag = null;
       try { const p = await api("/api/verteilung/preview", { method: "POST", body: { menge: total } }); vorschlag = p.preview; } catch (e) {}
-      SPLIT_STATE = { collectionId, total, orte, verteilt: {} };
+      const collectionIds = JSON.parse(rowEl.dataset.collectionIds || "[]");
+      SPLIT_STATE = { collectionIds, total, orte, verteilt: {} };
       if (vorschlag && vorschlag.length) {
         vorschlag.forEach(v => { SPLIT_STATE.verteilt[v.location_id] = v.menge; });
       } else if (orte.length) {
@@ -783,7 +792,7 @@
         .filter(([, m]) => m > 0)
         .map(([loc, m]) => ({ to_location_id: parseInt(loc, 10), menge: m }));
       try {
-        const res = await api("/api/collection/split", { method: "POST", body: { collection_id: SPLIT_STATE.collectionId, abgaben } });
+        const res = await api("/api/collection/split", { method: "POST", body: { collection_ids: SPLIT_STATE.collectionIds, abgaben } });
         showToast(res.moved + " Exemplare verteilt ✓", "success");
         const sheet = document.getElementById("split-sheet");
         const bd = document.getElementById("split-sheet-backdrop");

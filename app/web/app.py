@@ -1882,20 +1882,29 @@ def _register_routes(app: Flask) -> None:
                    ORDER BY col.is_foil, sl.name COLLATE NOCASE""",
                 (card_id, _hh()),
             )
-            card["bestand"] = [
-                {
-                    "collection_id": r["collection_id"],
-                    "count": r["count"],
-                    "language": r["language"],
-                    "variant": r["variant"],
-                    "is_foil": bool(r["is_foil"]),
+            # AGGREGIERT pro (location_id, is_foil): ein Ort = eine Zeile.
+            # Nutzer-Fehlermeldung: '8x Giftige Raffinerie, Detail zeigt
+            # 4x/1x/2x/1x Standard' - Zeilen-Splits (Sprache) gehoeren in
+            # die Aufteilung, nicht in die Anzeige. Silvane-Muster: 'In
+            # your collection' listet je Ablageort EINE Position.
+            _bestand_agg: dict[tuple, dict] = {}
+            for r in cur.fetchall():
+                key = (r["location_id"], bool(r["is_foil"]))
+                g = _bestand_agg.setdefault(key, {
                     "location_id": r["location_id"],
                     "location_name": r["location_name"] or "—",
                     "location_icon": r["location_icon"],
                     "location_typ": r["location_typ"],
-                }
-                for r in cur.fetchall()
-            ]
+                    "is_foil": bool(r["is_foil"]),
+                    "count": 0,
+                    "languages": [],
+                    "collection_ids": [],
+                })
+                g["count"] += r["count"]
+                if r["language"] and r["language"] not in g["languages"]:
+                    g["languages"].append(r["language"])
+                g["collection_ids"].append(r["collection_id"])
+            card["bestand"] = list(_bestand_agg.values())
             # price: Cardmarket (falls importiert) + TCGplayer (Fallback/parallel)
             price = repo.get_price_for_card(conn, card_id)
             card["price"] = price
@@ -2182,10 +2191,10 @@ def _register_routes(app: Flask) -> None:
         if not _can_edit():
             return jsonify({"error": "Nur Mitglieder mit Schreibrechten"}), 403
         body = request.get_json(silent=True) or {}
-        cid = body.get("collection_id")
+        cids = body.get("collection_ids") or ([body.get("collection_id")] if body.get("collection_id") else None)
         abgaben = body.get("abgaben")  # [{to_location_id, menge}]
-        if not cid or not isinstance(abgaben, list) or not abgaben:
-            return jsonify({"error": "collection_id + abgaben erforderlich"}), 400
+        if not cids or not isinstance(abgaben, list) or not abgaben:
+            return jsonify({"error": "collection_ids + abgaben erforderlich"}), 400
         conn = connect()
         try:
             from app import verteilung as vt
@@ -2197,8 +2206,8 @@ def _register_routes(app: Flask) -> None:
                     return jsonify({"error": "Ungültige Abgabe (to_location_id/menge)"}), 400
                 if menge > 0:
                     pairs.append((int(ziel), menge))
-            moved = vt.split_collection_row(
-                conn, int(cid), pairs, reason="split",
+            moved = vt.split_collection_rows(
+                conn, [int(x) for x in cids], pairs, reason="split",
                 household_id=_hh(),
                 user_id=(g.get("user") or {}).get("user_id") if g.get("user") else None,
             )

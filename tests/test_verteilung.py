@@ -181,6 +181,44 @@ class TestSplit:
         assert ziel["variant"] == "AltArt"
         assert ziel["is_foil"] == 1
 
+    def test_split_multi_row_ortsgruppe(self, conn, orte):
+        """4 Zeilen desselben Orts (EN x4, DE x1, EN x2, EN x1 = 8) verteilen."""
+        cids = []
+        for count, lang in [(4, "en"), (1, "de"), (2, "en"), (1, "en")]:
+            cid = repo.add_to_collection(conn, "SOR-005", count=count, language=lang, household_id=1)
+            cids.append(cid)
+        bewegt = vt.split_collection_rows(conn, cids, [
+            (orte["ordner"], 1), (orte["playset"], 3), (orte["bulk"], 4),
+        ], household_id=1)
+        assert bewegt == 8
+        vert = conn.execute(
+            "SELECT location_id, SUM(count) AS c FROM collection WHERE card_id='SOR-005' AND household_id=1 GROUP BY location_id"
+        ).fetchall()
+        by_loc = {r["location_id"]: r["c"] for r in vert}
+        assert by_loc[orte["ordner"]] == 1
+        assert by_loc[orte["playset"]] == 3
+        assert by_loc[orte["bulk"]] == 4
+        assert sum(by_loc.values()) == 8
+
+    def test_split_multi_row_fifo_attribute(self, conn, orte):
+        """FIFO: Abgabe 5 verbraucht EN-Zeile ganz + teilt DE-Zeile."""
+        cid_en = repo.add_to_collection(conn, "SOR-005", count=4, language="en", household_id=1)
+        cid_de = repo.add_to_collection(conn, "SOR-005", count=2, language="de", household_id=1)
+        vt.split_collection_rows(conn, [cid_en, cid_de], [(orte["ordner"], 5)], household_id=1)
+        ziel = conn.execute(
+            "SELECT language, count FROM collection WHERE location_id=? AND card_id='SOR-005' ORDER BY language",
+            (orte["ordner"],),
+        ).fetchall()
+        by_lang = {r["language"]: r["count"] for r in ziel}
+        assert by_lang.get("en") == 4
+        assert by_lang.get("de") == 1
+        # Quell-Rest: DE 1 bleibt im Standard
+        std = get_default_location(conn, 1)
+        rest = conn.execute(
+            "SELECT count FROM collection WHERE collection_id=?", (cid_de,)
+        ).fetchone()
+        assert rest["count"] == 1
+
     def test_split_haushalt_isolation(self, conn, orte):
         """Fremde Zeile (anderer Haushalt) ist nicht split-bar."""
         conn.execute("INSERT INTO households (household_id, name, owner_user_id) VALUES (2, 'HH2', 9)")
