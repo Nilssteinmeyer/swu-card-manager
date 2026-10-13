@@ -130,22 +130,23 @@ function openLocationSheet() {
         <span class="sl-icon">✖</span><span>Abbrechen</span>
       </button>
     </nav>`;
-  sheet.hidden = false;
+  requestAnimationFrame(() => sheet.classList.add("visible"));
   let backdrop = document.getElementById("location-sheet-backdrop");
   if (!backdrop) {
     backdrop = document.createElement("div");
     backdrop.id = "location-sheet-backdrop";
     backdrop.className = "more-sheet-backdrop";
+    backdrop.addEventListener("click", closeLocationSheet);
     document.body.appendChild(backdrop);
   }
-  backdrop.hidden = false;
+  backdrop.classList.add("visible");
 }
 
 function closeLocationSheet() {
   const sheet = document.getElementById("location-sheet");
   const backdrop = document.getElementById("location-sheet-backdrop");
-  if (sheet) sheet.hidden = true;
-  if (backdrop) backdrop.hidden = true;
+  if (sheet) sheet.classList.remove("visible");
+  if (backdrop) backdrop.classList.remove("visible");
 }
 
 function pickLocation(locationId) {
@@ -422,8 +423,8 @@ async function initScanner() {
       let sheet = document.getElementById("deck-sheet");
       if (!sheet) { sheet = document.createElement("div"); sheet.id = "deck-sheet"; sheet.className = "more-sheet"; document.body.appendChild(sheet); }
       const deckList = SCAN_DECKS.map(d => `<button class="sheet-link" type="button" onclick="scanAssignDeck(${d.deck_id})"><span class="sl-icon">🃏</span><span>${escapeHtml(d.name)}</span></button>`).join("");
-      sheet.innerHTML = `<div class="sheet-handle"></div><div style="padding:10px 16px 4px; font-weight:700;">🃏 In welches Deck?</div><nav class="sheet-links">${deckList}<button class="sheet-link" type="button" onclick="document.getElementById('deck-sheet').hidden=true"><span class="sl-icon">✖</span><span>Abbrechen</span></button></nav>`;
-      sheet.hidden = false;
+      sheet.innerHTML = `<div class="sheet-handle"></div><div style="padding:10px 16px 4px; font-weight:700;">🃏 In welches Deck?</div><nav class="sheet-links">${deckList}<button class="sheet-link" type="button" onclick="document.getElementById('deck-sheet').classList.remove('visible')"><span class="sl-icon">✖</span><span>Abbrechen</span></button></nav>`;
+      requestAnimationFrame(() => sheet.classList.add("visible"));
       window._scanCardId = cardId;
       return;
     }
@@ -925,7 +926,7 @@ function hideResultOverlay() {
 async function scanAssignDeck(deckId, cardIdOverride) {
   const cardId = cardIdOverride || window._scanCardId || (lastScanResult && (lastScanResult.card_id || (lastScanResult.candidates && lastScanResult.candidates[0] && lastScanResult.candidates[0].card_id)));
   const sheet = document.getElementById("deck-sheet");
-  if (sheet) sheet.hidden = true;
+  if (sheet) sheet.classList.remove("visible");
   if (!cardId) return;
   try {
     const r = await api(`/api/decks/${deckId}/assign`, { method: "POST", body: { card_id: cardId, menge: scanQuantity || 1 } });

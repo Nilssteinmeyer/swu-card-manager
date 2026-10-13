@@ -124,11 +124,11 @@
 {% endblock %}
 
 {% block scripts %}
-  <script src="/static/scanner.js?v=17"></script>
+  <script src="/static/scanner.js?v=18"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=37').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=38').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});
