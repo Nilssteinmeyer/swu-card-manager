@@ -36,3 +36,4 @@ Thumbs.db
 venv/
 tools/
 config/setup_state.json
+tcg_wishlist_research/
