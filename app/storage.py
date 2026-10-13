@@ -27,11 +27,27 @@ def _clean_icon(icon: str | None) -> str | None:
 
 
 def get_default_location(conn: sqlite3.Connection, household_id: int) -> dict:
+    """Standard-Ort des Haushalts - legt ihn on-demand an, falls fehlend.
+
+    Migration seedet nur Haushalte, die zum Zeitpunkt des DB-Imports
+    existierten; jede spaetere Registrierung braucht ihren eigenen
+    Standard-Ort (Nutzer-Anforderung: IMMER ein Standard-Ablageort).
+    """
     row = conn.execute(
         "SELECT * FROM storage_locations WHERE household_id = ? AND is_default = 1",
         (household_id,),
     ).fetchone()
-    return dict(row) if row else None
+    if row:
+        return dict(row)
+    cur = conn.execute(
+        """INSERT INTO storage_locations (household_id, name, typ, sortierung, is_default)
+           VALUES (?, 'Sammlung (Standard)', 'standard', 'set', 1)""",
+        (household_id,),
+    )
+    conn.commit()
+    return dict(conn.execute(
+        "SELECT * FROM storage_locations WHERE location_id = ?", (cur.lastrowid,),
+    ).fetchone())
 
 
 def list_locations(conn: sqlite3.Connection, household_id: int) -> list[dict]:

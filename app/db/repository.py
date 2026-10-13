@@ -245,12 +245,13 @@ def add_to_collection(
         return row["collection_id"]
     if location_id is None:
         # v5: neue Karten landen im Standard-Ablageort (Eingangs-Box), sofern
-        # kein Ziel angegeben - alte Freitext-Spalte 'location' bleibt unberuehrt
-        row = conn.execute(
-            "SELECT location_id FROM storage_locations WHERE household_id = ? AND is_default = 1",
-            (household_id,),
-        ).fetchone()
-        location_id = row["location_id"] if row else None
+        # kein Ziel angegeben - alte Freitext-Spalte 'location' bleibt unberuehrt.
+        # get_default_location legt den Standard-Ort on-demand an (neue
+        # Haushalte bekommen ihn NICHT von der Migration!)
+        from app.storage import get_default_location as _gdl
+
+        default = _gdl(conn, household_id)
+        location_id = default["location_id"] if default else None
     cur = conn.execute(
         """INSERT INTO collection (card_id, count, condition, language, variant, location, source, household_id, user_id, location_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",

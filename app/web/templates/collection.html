@@ -574,12 +574,95 @@
               ${textBlock("Epic Action", card.epic_action_de || card.epic_action)}
             </div>
           </div>
+          <div id="detail-bestand-sektion" style="margin-top:14px; padding-top:10px; border-top:1px solid var(--border);">
+            <div style="font-weight:700; margin-bottom:6px;">📁 Ablageorte dieser Karte</div>
+            <div id="detail-bestand-rows"></div>
+          </div>
           <div class="flex gap-1" style="margin-top:12px; flex-wrap:wrap;">
             <button class="btn btn-secondary" style="min-height:44px;" onclick="merkenFromCardDetail('${encodeURIComponent(card.card_id)}')">❤️ Auf Merkliste</button>
           </div>`;
+
+        // Ablageort-Zeilen je Bestandslinie rendern (Nutzer-Wunsch: sehen + aendern)
+        renderBestandRows(card.bestand || []);
       } catch (err) {
         body.innerHTML = `<p class="text-muted">\u2717 ${escapeHtml(err.message)}</p>`;
       }
+    }
+
+    function renderBestandRows(bestand) {
+      const wrap = document.getElementById("detail-bestand-rows");
+      if (!wrap) return;
+      if (!bestand.length) {
+        wrap.innerHTML = '<p class="text-muted" style="font-size:12px;">Keine Exemplare in der Sammlung.</p>';
+        return;
+      }
+      const orte = (typeof LOCATIONS !== "undefined" && LOCATIONS.length)
+        ? LOCATIONS
+        : null;  // falls Chips noch nicht geladen: Ort-Auswahl laedt sie live
+      const rowsHtml = bestand.map(b => {
+        const icon = b.location_icon || (b.location_typ === "binder" ? "📕" : b.location_typ === "deckbox" ? "📦" : "🗂️");
+        return `<div class="flex items-center" style="gap:8px; padding:8px 0; border-bottom:1px solid var(--border);">
+          <span style="font-size:18px;">${escapeHtml(icon)}</span>
+          <div style="flex:1; min-width:0;">
+            <div>${escapeHtml(b.location_name)} <span class="text-muted" style="font-size:11px;">×${b.count} · ${escapeHtml((b.language || "de").toUpperCase())}${b.is_foil ? " · ✨ Foil" : ""}</span></div>
+          </div>
+          <button class="btn btn-sm" style="min-height:36px;"
+                  onclick="moveBestandRow(${b.collection_id}, '${encodeURIComponent(b.location_name)}')">📦 Umlagern</button>
+        </div>`;
+      }).join("");
+      wrap.innerHTML = rowsHtml;
+    }
+
+    async function moveBestandRow(collectionId, currentName) {
+      // Ziel-Ort waehlen (Bottom-Sheet wie im Scanner)
+      let orte = [];
+      try { const d = await api("/api/locations"); orte = d.locations || []; } catch (e) { showToast("Orte laden fehlgeschlagen", "error"); return; }
+      let sheet = document.getElementById("move-sheet");
+      let bd = document.getElementById("move-sheet-backdrop");
+      if (!sheet) {
+        sheet = document.createElement("div");
+        sheet.id = "move-sheet";
+        sheet.className = "more-sheet";
+        document.body.appendChild(sheet);
+        bd = document.createElement("div");
+        bd.id = "move-sheet-backdrop";
+        bd.className = "more-sheet-backdrop";
+        bd.addEventListener("click", () => { sheet.classList.remove("visible"); bd.classList.remove("visible"); });
+        document.body.appendChild(bd);
+      }
+      const safeName = (n) => String(n).replace(/'/g, "&#39;");
+      const buttons = orte.map(function(l) {
+        const nameEsc = escapeHtml(l.name).replace(/'/g, "\'");
+        const extra = l.karten_count ? " (" + l.karten_count + ")" : "";
+        const oc = "doMoveBestandRow(" + collectionId + ", " + l.location_id + ", '" + nameEsc + "')";
+        return '<button class="sheet-link" type="button" onclick="' + oc + '">' +
+               '<span class="sl-icon">' + locIcon(l) + '</span>' +
+               '<span>' + escapeHtml(l.name) + extra + '</span></button>';
+      }).join("");
+      sheet.innerHTML =
+        '<div class="sheet-handle"></div>' +
+        '<div style="padding:10px 16px 4px; font-weight:700;">📦 Verschieben nach… <span class="text-muted" style="font-weight:400; font-size:11px;">(jetzt: ' + escapeHtml(decodeURIComponent(currentName)) + ')</span></div>' +
+        '<nav class="sheet-links">' + buttons +
+        '<button class="sheet-link" type="button" id="move-sheet-cancel"><span class="sl-icon">✖</span><span>Abbrechen</span></button></nav>';
+      const cancelBtn = sheet.querySelector("#move-sheet-cancel");
+      if (cancelBtn) cancelBtn.addEventListener("click", () => {
+        sheet.classList.remove("visible");
+        bd.classList.remove("visible");
+      });
+      bd.classList.add("visible");
+      requestAnimationFrame(() => sheet.classList.add("visible"));
+    }
+
+    async function doMoveBestandRow(collectionId, toLocationId, name) {
+      try {
+        const res = await api("/api/collection/move", { method: "POST", body: { collection_ids: [collectionId], to_location_id: toLocationId, reason: "detail-modal" } });
+        showToast("Verschoben nach " + name + " ✓", "success");
+        const sheet = document.getElementById("move-sheet");
+        const bd = document.getElementById("move-sheet-backdrop");
+        if (sheet) sheet.classList.remove("visible");
+        if (bd) bd.classList.remove("visible");
+        await loadCollection();  // Chips + Karten aktualisieren
+      } catch (err) { showToast("Fehler: " + err.message, "error"); }
     }
 
     async function merkenFromCardDetail(cardIdEnc) {

@@ -423,7 +423,19 @@ async function initScanner() {
       let sheet = document.getElementById("deck-sheet");
       if (!sheet) { sheet = document.createElement("div"); sheet.id = "deck-sheet"; sheet.className = "more-sheet"; document.body.appendChild(sheet); }
       const deckList = SCAN_DECKS.map(d => `<button class="sheet-link" type="button" onclick="scanAssignDeck(${d.deck_id})"><span class="sl-icon">${deckIcon(d)}</span><span>${escapeHtml(d.name)}</span></button>`).join("");
-      sheet.innerHTML = `<div class="sheet-handle"></div><div style="padding:10px 16px 4px; font-weight:700;">🃏 In welches Deck?</div><nav class="sheet-links">${deckList}<button class="sheet-link" type="button" onclick="document.getElementById('deck-sheet').classList.remove('visible')"><span class="sl-icon">✖</span><span>Abbrechen</span></button></nav>`;
+      sheet.innerHTML = `<div class="sheet-handle"></div><div style="padding:10px 16px 4px; font-weight:700;">🃏 In welches Deck?</div><nav class="sheet-links">${deckList}<button class="sheet-link" type="button" onclick="document.getElementById('deck-sheet').classList.remove('visible'); document.getElementById('deck-sheet-backdrop')?.classList.remove('visible')"><span class="sl-icon">✖</span><span>Abbrechen</span></button></nav>`;
+      let deckBd = document.getElementById("deck-sheet-backdrop");
+      if (!deckBd) {
+        deckBd = document.createElement("div");
+        deckBd.id = "deck-sheet-backdrop";
+        deckBd.className = "more-sheet-backdrop";
+        deckBd.addEventListener("click", () => {
+          sheet.classList.remove("visible");
+          deckBd.classList.remove("visible");
+        });
+        document.body.appendChild(deckBd);
+      }
+      deckBd.classList.add("visible");
       requestAnimationFrame(() => sheet.classList.add("visible"));
       window._scanCardId = cardId;
       return;

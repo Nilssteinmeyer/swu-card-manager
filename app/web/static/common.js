@@ -472,8 +472,14 @@ async function joinByCode() {
 // Nutzer erwartet: am dickeren Balken (Handle) nach unten ziehen schliesst das
 // Sheet - wie in jeder iOS-App. Implementiert: Pointer-Events (Touch+Maus),
 // 1:1-Folge waehrend des Ziehens, Schliessen ab 80px oder schneller Bewegung.
+// Zentraler Drag-Installer: fuer statische UND dynamische Sheets.
+// Alle Bottom-Sheets dieser App schliessen per Runterziehen (iOS-Konvention).
+const SHEET_DRAG_TARGETS = [];  // {sel, closeFn}
 function _installSheetDrag(sheetSel, closeFn) {
-  const sheet = document.querySelector(sheetSel);
+  SHEET_DRAG_TARGETS.push({ sel: sheetSel, closeFn });
+  _bindSheetDrag(document.querySelector(sheetSel), closeFn);
+}
+function _bindSheetDrag(sheet, closeFn) {
   if (!sheet || sheet.dataset.dragInstalled) return;
   sheet.dataset.dragInstalled = "1";
 
@@ -537,9 +543,50 @@ function _installSheetDrag(sheetSel, closeFn) {
   });
 }
 
+// Dynamische Sheets (loc-manage, location-sheet, deck-sheet, icon-picker,
+// card-modal) entstehen erst zur Laufzeit -> Drag nachinstallieren, sobald
+// sie in den DOM kommen (MutationObserver, einmalig pro Sheet).
+function _watchDynamicSheets() {
+  const DYN_CLOSE = {
+    "loc-manage-sheet": () => {
+      const s = document.getElementById("loc-manage-sheet");
+      if (s) s.classList.remove("visible");
+      const b = document.getElementById("loc-manage-backdrop");
+      if (b) b.classList.remove("visible");
+    },
+    "location-sheet": () => (typeof closeLocationSheet === "function" ? closeLocationSheet() : null),
+    "deck-sheet": () => {
+      const s = document.getElementById("deck-sheet");
+      if (s) s.classList.remove("visible");
+      const b = document.getElementById("deck-sheet-backdrop");
+      if (b) b.classList.remove("visible");
+    },
+    "icon-picker-sheet": () => {
+      const s = document.getElementById("icon-picker-sheet");
+      if (s) s.classList.remove("visible");
+      const b = document.getElementById("icon-picker-backdrop");
+      if (b) b.classList.remove("visible");
+    },
+    "move-sheet": () => {
+      const s = document.getElementById("move-sheet");
+      if (s) s.classList.remove("visible");
+      const b = document.getElementById("move-sheet-backdrop");
+      if (b) b.classList.remove("visible");
+    },
+  };
+  const mo = new MutationObserver(() => {
+    for (const [id, closeFn] of Object.entries(DYN_CLOSE)) {
+      const s = document.getElementById(id);
+      if (s && !s.dataset.dragInstalled) _bindSheetDrag(s, closeFn);
+    }
+  });
+  mo.observe(document.body, { childList: true });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   _installSheetDrag("#more-sheet", () => toggleMoreSheet(false));
   _installSheetDrag("#share-dialog", () => closeShareDialog());
+  _watchDynamicSheets();
 });
 
 // ---- Theme (Dark/Light/Auto) ----------------------------------------------

@@ -1823,6 +1823,32 @@ def _register_routes(app: Flask) -> None:
             owned = cur.fetchone()
             card["owned_count"] = owned["c"]
             card["owned_foil_count"] = owned["f"]
+            # Wo liegt die Karte? Alle Bestandszeilen mit Ablageort (Nutzer-
+            # Wunsch: im Karten-Detail sehen UND aendern koennen)
+            cur = conn.execute(
+                """SELECT col.collection_id, col.count, col.language, col.variant,
+                          col.is_foil, col.location_id, sl.name AS location_name,
+                          sl.icon AS location_icon, sl.typ AS location_typ
+                   FROM collection col
+                   LEFT JOIN storage_locations sl ON sl.location_id = col.location_id
+                   WHERE col.card_id = ? AND col.household_id = ?
+                   ORDER BY col.is_foil, sl.name COLLATE NOCASE""",
+                (card_id, _hh()),
+            )
+            card["bestand"] = [
+                {
+                    "collection_id": r["collection_id"],
+                    "count": r["count"],
+                    "language": r["language"],
+                    "variant": r["variant"],
+                    "is_foil": bool(r["is_foil"]),
+                    "location_id": r["location_id"],
+                    "location_name": r["location_name"] or "—",
+                    "location_icon": r["location_icon"],
+                    "location_typ": r["location_typ"],
+                }
+                for r in cur.fetchall()
+            ]
             # price: Cardmarket (falls importiert) + TCGplayer (Fallback/parallel)
             price = repo.get_price_for_card(conn, card_id)
             card["price"] = price
