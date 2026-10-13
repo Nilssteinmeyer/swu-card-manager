@@ -592,6 +592,74 @@ async function initTheme() {
   });
 }
 
+// ---- Ablageort-/Deck-Symbole (Nutzer-Wahl, Fallback auf Typ-Icons) ---------
+function locIcon(l) {
+  if (l && l.icon) return l.icon;
+  if (!l) return "🗂️";
+  if (l.is_default) return "📥";
+  if (l.typ === "binder") return "📕";
+  if (l.typ === "deckbox") return "📦";
+  return "🗂️";
+}
+function deckIcon(d) {
+  return (d && d.icon) ? d.icon : "🃏";
+}
+
+// Kuratierte Emoji-Auswahl + freie Eingabe (iOS-Nativ-Emoji-Tastatur)
+const ICON_CHOICES = [
+  "📥", "📕", "📦", "🗂️", "🃏", "🎴", "⚡", "🎯", "💎", "🏆",
+  "🔥", "❄️", "🌟", "☠️", "🤖", "👽", "⚔️", "🛡️", "🚀", "🐉",
+  "🔵", "🔴", "🟡", "🟢", "⚪", "⚫", "🧊", "🍀", "🌙", "☀️",
+];
+
+// Emoji-Picker-Sheet: onPick(emoji|""), "" = Typ-Fallback
+// current: aktuell gewaehltes Icon (oder "" fuer Fallback)
+function openIconPicker(current, onPick, titel) {
+  let sheet = document.getElementById("icon-picker-sheet");
+  let backdrop = document.getElementById("icon-picker-backdrop");
+  if (!sheet) {
+    sheet = document.createElement("div");
+    sheet.id = "icon-picker-sheet";
+    sheet.className = "more-sheet";
+    sheet.setAttribute("role", "dialog");
+    document.body.appendChild(sheet);
+    backdrop = document.createElement("div");
+    backdrop.id = "icon-picker-backdrop";
+    backdrop.className = "more-sheet-backdrop";
+    backdrop.addEventListener("click", () => {
+      sheet.classList.remove("visible");
+      backdrop.classList.remove("visible");
+    });
+    document.body.appendChild(backdrop);
+  }
+  const cur = (current || "").trim();
+  const choices = ICON_CHOICES.map(e =>
+    `<button class="icon-pick-btn${e === cur ? " selected" : ""}" type="button"
+             onclick="window._iconPick('${e}')"
+             style="font-size:26px; min-width:48px; min-height:48px;">${e}</button>`).join("");
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div style="padding:10px 16px 4px; font-weight:700;">${titel || "Symbol wählen"}</div>
+    <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; padding:8px 16px;">${choices}</div>
+    <div style="padding:8px 16px 16px;">
+      <div class="flex gap-1">
+        <input type="text" id="icon-custom-input" placeholder="Eigenes Emoji…" maxlength="8"
+               style="flex:1; min-height:44px; text-align:center; font-size:20px;" value="${cur}">
+        <button class="btn btn-primary" type="button" style="min-height:44px;"
+                onclick="window._iconPick(document.getElementById('icon-custom-input').value.trim())">OK</button>
+      </div>
+      <button class="btn btn-secondary" type="button" style="width:100%; min-height:40px; margin-top:8px;"
+              onclick="window._iconPick('')">↩︎ Standard-Symbol (nach Typ)</button>
+    </div>`;
+  window._iconPick = (emoji) => {
+    sheet.classList.remove("visible");
+    backdrop.classList.remove("visible");
+    onPick(emoji || "");
+  };
+  requestAnimationFrame(() => sheet.classList.add("visible"));
+  backdrop.classList.add("visible");
+}
+
 // ---- Init on page load ---------------------------------------------------
 // Auth-Seiten (login/register/reset/no-household) haben keinen Nutzerkontext:
 // /api/admin/status und /api/settings antworten dort immer 401 -> Konsolen-Noise.

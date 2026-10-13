@@ -613,7 +613,7 @@
             <button class="btn btn-sm ${l.is_default ? "btn-secondary" : ""}" style="min-height:36px;"
                     onclick="showLocationCards(${l.location_id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}')"
                     title="${escapeHtml(l.name)}: ${l.karten_count || 0} Karten">
-              ${l.is_default ? "📥" : l.typ === "binder" ? "📕" : l.typ === "deckbox" ? "📦" : "🗂️"}
+              ${locIcon(l)}
               ${escapeHtml(l.name.length > 16 ? l.name.slice(0, 14) + "…" : l.name)} (${l.karten_count || 0})
             </button>`).join("");
         }
@@ -652,8 +652,9 @@
       }
       const rows = LOCATIONS.map(l => `
         <div class="loc-manage-row" data-id="${l.location_id}">
-          <span class="sl-icon">${l.is_default ? "📥" : l.typ === "binder" ? "📕" : l.typ === "deckbox" ? "📦" : "🗂️"}</span>
+          <span class="sl-icon">${locIcon(l)}</span>
           <span class="lm-name">${escapeHtml(l.name)} <span class="text-muted" style="font-size:11px;">(${l.karten_count || 0})</span></span>
+          <button class="btn btn-sm" title="Symbol ändern" onclick="changeLocationIconUi(${l.location_id}, '${escapeHtml(l.icon || "").replace(/'/g, "\'")}')" style="min-height:36px;">🎨</button>
           ${l.is_default ? '<span class="text-muted" style="font-size:11px;">Standard</span>' : `
             <button class="btn btn-sm" onclick="renameLocationUi(${l.location_id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}')" style="min-height:36px;">✏️</button>
             <button class="btn btn-sm btn-danger" onclick="deleteLocationUi(${l.location_id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}', ${l.karten_count || 0})" style="min-height:36px;">🗑</button>`}
@@ -664,6 +665,8 @@
         <nav class="sheet-links">${rows}</nav>
         <div style="padding:10px 16px;">
           <div class="flex gap-1">
+            <button class="btn" id="new-loc-icon-btn" onclick="pickNewLocationIcon()" title="Symbol wählen"
+                    style="min-height:44px; min-width:48px; font-size:20px;">🗂️</button>
             <input type="text" id="new-loc-name" placeholder="Neuer Ablageort…" style="flex:1; min-height:44px;">
             <select id="new-loc-typ" style="max-width:110px; min-height:44px;">
               <option value="box">Box</option>
@@ -683,11 +686,34 @@
       if (!name) { showToast("Name eingeben", "error"); return; }
       const typ = document.getElementById("new-loc-typ").value;
       try {
-        await api("/api/locations", { method: "POST", body: { name, typ } });
+        await api("/api/locations", { method: "POST", body: { name, typ, icon: NEW_LOC_ICON } });
+        NEW_LOC_ICON = "";
+        const nlb = document.getElementById("new-loc-icon-btn"); if (nlb) nlb.textContent = "🗂️";
         showToast(`„${name}" angelegt ✓`, "success");
         await loadLocationsChips();
         openLocationManage();  // Sheet aktualisieren
       } catch (err) { showToast(`Fehler: ${err.message}`, "error"); }
+    }
+
+    let NEW_LOC_ICON = "";
+    function pickNewLocationIcon() {
+      openIconPicker(NEW_LOC_ICON, (emoji) => {
+        NEW_LOC_ICON = emoji;
+        const def = { box: "🗂️", binder: "📕", sonstige: "🗂️" };
+        document.getElementById("new-loc-icon-btn").textContent = emoji || def[document.getElementById("new-loc-typ").value] || "🗂️";
+      }, "Symbol für den neuen Ablageort");
+    }
+
+    async function changeLocationIconUi(locationId, current) {
+      openIconPicker(current, async (emoji) => {
+        try {
+          const l = LOCATIONS.find(x => x.location_id === locationId);
+          await api(`/api/locations/${locationId}`, { method: "POST", body: { name: l.name, icon: emoji } });
+          showToast("Symbol geändert ✓", "success");
+          await loadLocationsChips();
+          openLocationManage();
+        } catch (err) { showToast(`Fehler: ${err.message}`, "error"); }
+      }, "Symbol ändern");
     }
 
     async function renameLocationUi(locationId, alt) {

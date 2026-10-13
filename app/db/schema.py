@@ -572,6 +572,22 @@ def _migrate(cur: sqlite3.Cursor) -> None:
         "CREATE INDEX IF NOT EXISTS idx_card_moves_household ON card_moves (household_id)"
     )
 
+    # ---- Ablageorte/Decks v5.1: eigenes Symbol (Emoji) je Ort/Deck ---------
+    # Nutzer-Anforderung: 'wenn ich Sammlungen anlege, will ich die Symbole
+    # selbst auswählen und ändern können'. icon ist ein einzelnes Emoji-
+    # Zeichen (max 8 Bytes); NULL -> UI-Fallback auf typ-basierte Icons.
+    cur.execute("PRAGMA table_info(storage_locations)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "icon" not in cols:
+        cur.execute("ALTER TABLE storage_locations ADD COLUMN icon TEXT")
+        log.info("Migration: added storage_locations.icon", extra={"event": "db_migration"})
+    cur.execute("PRAGMA table_info(decks)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "icon" not in cols:
+        cur.execute("ALTER TABLE decks ADD COLUMN icon TEXT")
+        log.info("Migration: added decks.icon", extra={"event": "db_migration"})
+
+
     # Standard-Ort als geschützter Seed-Datensatz (Siebel 'Protect Seed Data'):
     # 'Sammlung (Standard)' = Eingangs-Box fuer Unsortiertes (CoolStuffInc-Muster).
     # Pro Haushalt genau einer; bestehende Sammlungs-Zeilen (location_id NULL)

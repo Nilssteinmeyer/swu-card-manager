@@ -269,8 +269,9 @@
   background: rgba(0, 0, 0, 0.55);
   opacity: 0;
   transition: opacity 0.2s;
+  pointer-events: none;  /* unsichtbar = klick-durchlaessig */
 }
-.more-sheet-backdrop.visible { opacity: 1; }
+.more-sheet-backdrop.visible { opacity: 1; pointer-events: auto; }
 .more-sheet {
   position: fixed;
   left: 0;
@@ -815,3 +816,16 @@ input[type="number"], input[type="search"], select, textarea {
 /* Preis-Anzeige: Wert-Modus hervorgehoben */
 .ci-price small { color: var(--text-muted); font-size: 0.85em; }  /* >=11px via min() unten */
 .ci-price small { font-size: max(0.85em, 11px); }
+
+/* Emoji-Picker (Ablageort-/Deck-Symbole) */
+.icon-pick-btn {
+  background: var(--surface2, transparent);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.icon-pick-btn.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.icon-pick-btn:active { transform: scale(0.94); }

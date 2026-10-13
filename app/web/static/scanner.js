@@ -118,7 +118,7 @@ function openLocationSheet() {
   }
   const items = SCAN_LOCATIONS.map(l => `
     <button class="sheet-link" type="button" onclick="pickLocation(${l.location_id})">
-      <span class="sl-icon">${l.is_default ? "📥" : l.typ === "binder" ? "📕" : l.typ === "deckbox" ? "📦" : "🗂️"}</span>
+      <span class="sl-icon">${locIcon(l)}</span>
       <span>${escapeHtml(l.name)}${l.karten_count ? ` <span class="text-muted">(${l.karten_count})</span>` : ""}</span>
       ${l.location_id === SCAN_TARGET_LOCATION_ID ? " ✓" : ""}
     </button>`).join("");
@@ -422,7 +422,7 @@ async function initScanner() {
     if (!SCAN_TARGET_DECK_ID) {
       let sheet = document.getElementById("deck-sheet");
       if (!sheet) { sheet = document.createElement("div"); sheet.id = "deck-sheet"; sheet.className = "more-sheet"; document.body.appendChild(sheet); }
-      const deckList = SCAN_DECKS.map(d => `<button class="sheet-link" type="button" onclick="scanAssignDeck(${d.deck_id})"><span class="sl-icon">🃏</span><span>${escapeHtml(d.name)}</span></button>`).join("");
+      const deckList = SCAN_DECKS.map(d => `<button class="sheet-link" type="button" onclick="scanAssignDeck(${d.deck_id})"><span class="sl-icon">${deckIcon(d)}</span><span>${escapeHtml(d.name)}</span></button>`).join("");
       sheet.innerHTML = `<div class="sheet-handle"></div><div style="padding:10px 16px 4px; font-weight:700;">🃏 In welches Deck?</div><nav class="sheet-links">${deckList}<button class="sheet-link" type="button" onclick="document.getElementById('deck-sheet').classList.remove('visible')"><span class="sl-icon">✖</span><span>Abbrechen</span></button></nav>`;
       requestAnimationFrame(() => sheet.classList.add("visible"));
       window._scanCardId = cardId;

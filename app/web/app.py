@@ -1995,6 +1995,7 @@ def _register_routes(app: Flask) -> None:
                 conn, name, typ=body.get("typ") or "box", household_id=_hh(),
                 sortierung=body.get("sortierung") or "set",
                 kapazitaet=body.get("kapazitaet"), notiz=body.get("notiz"),
+                icon=body.get("icon"),
             )
             return jsonify({"location_id": loc_id, "created": True})
         finally:
@@ -2013,7 +2014,8 @@ def _register_routes(app: Flask) -> None:
             return jsonify({"error": "Name erforderlich"}), 400
         conn = connect()
         try:
-            ok = st.rename_location(conn, location_id, name, household_id=_hh())
+            ok = st.rename_location(conn, location_id, name, household_id=_hh(),
+                                    icon=body.get("icon"))
             return jsonify({"renamed": ok})
         finally:
             conn.close()
@@ -2102,7 +2104,8 @@ def _register_routes(app: Flask) -> None:
         try:
             deck_id = st.create_deck(conn, name, household_id=_hh(), format=fmt,
                                      leader_card_id=body.get("leader_card_id"),
-                                     base_card_id=body.get("base_card_id"))
+                                     base_card_id=body.get("base_card_id"),
+                                     icon=body.get("icon"))
             return jsonify({"deck_id": deck_id, "created": True})
         finally:
             conn.close()
@@ -2132,7 +2135,8 @@ def _register_routes(app: Flask) -> None:
             return jsonify({"error": "Name erforderlich"}), 400
         conn = connect()
         try:
-            ok = st.rename_deck(conn, deck_id, name, household_id=_hh())
+            ok = st.rename_deck(conn, deck_id, name, household_id=_hh(),
+                                icon=body.get("icon"))
             return jsonify({"renamed": ok})
         finally:
             conn.close()

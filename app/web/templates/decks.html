@@ -10,6 +10,8 @@
           <span>➕ Neues Deck</span>
         </div>
         <div class="flex gap-1" style="flex-wrap:wrap;">
+          <button class="btn" id="new-deck-icon-btn" onclick="pickNewDeckIcon()" title="Symbol wählen"
+                  style="min-height:44px; min-width:48px; font-size:20px;">🃏</button>
           <input type="text" id="new-deck-name" class="setting-input" style="flex:1; min-width:160px; text-align:left;" placeholder="z.B. Cad Bane Gelb">
           <select id="new-deck-format" style="max-width:130px;">
             <option value="premier">Premier</option>
@@ -56,7 +58,7 @@
           <div class="card mb-2 deck-row" data-deck="${d.deck_id}" onclick="openDeckDetail(${d.deck_id})">
             <div class="flex items-center justify-between">
               <div style="min-width:0;">
-                <b style="font-size:1.05rem;">${escapeHtml(d.name)}</b>
+                <b style="font-size:1.05rem;">${deckIcon(d)} ${escapeHtml(d.name)}</b>
                 <div class="text-muted" style="font-size:12px;">
                   ${d.format} · Maindeck ${d.maindeck_count}/50
                   ${d.sideboard_count ? ` · Sideboard ${d.sideboard_count}/10` : ""}
@@ -73,12 +75,34 @@
     }
 
     // ---- Deck anlegen ----------------------------------------------------
+    let NEW_DECK_ICON = "";
+    function pickNewDeckIcon() {
+      openIconPicker(NEW_DECK_ICON, (emoji) => {
+        NEW_DECK_ICON = emoji;
+        document.getElementById("new-deck-icon-btn").textContent = emoji || "🃏";
+      }, "Symbol für das neue Deck");
+    }
+
+    async function changeDeckIconUi(deckId, current) {
+      openIconPicker(current, async (emoji) => {
+        try {
+          const d = DECKS.find(x => x.deck_id === deckId) || {};
+          await api(`/api/decks/${deckId}`, { method: "POST", body: { name: d.name, icon: emoji } });
+          showToast("Symbol geändert ✓", "success");
+          loadDecks();
+          openDeckDetail(deckId);
+        } catch (err) { showToast(`Fehler: ${err.message}`, "error"); }
+      }, "Symbol ändern");
+    }
+
     document.getElementById("btn-deck-create").addEventListener("click", async () => {
       const name = document.getElementById("new-deck-name").value.trim();
       if (!name) { showToast("Bitte einen Namen eingeben", "error"); return; }
       const format = document.getElementById("new-deck-format").value;
       try {
-        await api("/api/decks", { method: "POST", body: { name, format } });
+        await api("/api/decks", { method: "POST", body: { name, format, icon: NEW_DECK_ICON } });
+        NEW_DECK_ICON = "";
+        const dbib = document.getElementById("new-deck-icon-btn"); if (dbib) dbib.textContent = "🃏";
         showToast(`Deck „${name}" angelegt 🃏`, "success");
         document.getElementById("new-deck-name").value = "";
         loadDecks();
@@ -97,7 +121,8 @@
         const mainCount = cards.filter(c => c.zone === "maindeck").reduce((s, c) => s + c.menge, 0);
         const sideCount = cards.filter(c => c.zone === "sideboard").reduce((s, c) => s + c.menge, 0);
         body.innerHTML = `
-          <h2 style="margin:8px 0 4px 0; font-size:1.2rem;">${escapeHtml(d.name)}</h2>
+          <h2 style="margin:8px 0 4px 0; font-size:1.2rem;">${deckIcon(d)} ${escapeHtml(d.name)}
+            <button class="btn btn-sm" title="Symbol ändern" onclick="changeDeckIconUi(${deckId}, '${escapeHtml(d.icon || "").replace(/'/g, "\'")}')" style="min-height:36px; margin-left:4px;">🎨</button></h2>
           <div class="text-muted" style="font-size:12px; margin-bottom:10px;">
             ${d.format} · Maindeck ${mainCount}/50 · Sideboard ${sideCount}/10 · ${d.karten_in_box} Karten in der Deck-Box
           </div>

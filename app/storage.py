@@ -16,6 +16,16 @@ from app.db import repository as repo
 # Ablageorte (storage_locations)
 # ---------------------------------------------------------------------------
 
+def _clean_icon(icon: str | None) -> str | None:
+    """Genau EIN Emoji (max 3 Codepoints incl. Variation-Selector/ZWJ)."""
+    if not icon:
+        return None
+    icon = icon.strip()
+    if not icon or len(icon) > 3:  # 1 Graphem: Emoji + ggf. VS16/FE0F oder ZWJ
+        return None
+    return icon
+
+
 def get_default_location(conn: sqlite3.Connection, household_id: int) -> dict:
     row = conn.execute(
         "SELECT * FROM storage_locations WHERE household_id = ? AND is_default = 1",
@@ -38,27 +48,38 @@ def list_locations(conn: sqlite3.Connection, household_id: int) -> list[dict]:
 
 def create_location(conn: sqlite3.Connection, name: str, typ: str = "box",
                     household_id: int = 1, sortierung: str = "set",
-                    kapazitaet: int | None = None, notiz: str | None = None) -> int:
+                    kapazitaet: int | None = None, notiz: str | None = None,
+                    icon: str | None = None) -> int:
     if typ not in ("standard", "binder", "box", "deckbox", "sonstige"):
         typ = "sonstige"
     if sortierung not in ("set", "aspekt", "name"):
         sortierung = "set"
     cur = conn.execute(
-        """INSERT INTO storage_locations (household_id, name, typ, sortierung, kapazitaet, notiz)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (household_id, name.strip(), typ, sortierung, kapazitaet, notiz),
+        """INSERT INTO storage_locations (household_id, name, typ, sortierung, kapazitaet, notiz, icon)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (household_id, name.strip(), typ, sortierung, kapazitaet, notiz, _clean_icon(icon)),
     )
     conn.commit()
     return cur.lastrowid
 
 
 def rename_location(conn: sqlite3.Connection, location_id: int, name: str,
-                    household_id: int = 1) -> bool:
-    """Umbenennen inkl. Standard-Ort erlaubt; Household-Isolation."""
-    cur = conn.execute(
-        "UPDATE storage_locations SET name = ? WHERE location_id = ? AND household_id = ?",
-        (name.strip(), location_id, household_id),
-    )
+                    household_id: int = 1, icon: str | None = None) -> bool:
+    """Umbenennen inkl. Standard-Ort erlaubt; Household-Isolation.
+
+    icon: None = unverändert; '' = zurücksetzen (typ-Fallback); 'x' = setzen.
+    """
+    icon_clean = _clean_icon(icon)
+    if icon is not None:
+        cur = conn.execute(
+            "UPDATE storage_locations SET name = ?, icon = ? WHERE location_id = ? AND household_id = ?",
+            (name.strip(), icon_clean, location_id, household_id),
+        )
+    else:
+        cur = conn.execute(
+            "UPDATE storage_locations SET name = ? WHERE location_id = ? AND household_id = ?",
+            (name.strip(), location_id, household_id),
+        )
     conn.commit()
     return cur.rowcount > 0
 
@@ -184,19 +205,20 @@ def split_collection_entry(conn: sqlite3.Connection, collection_id: int,
 
 def create_deck(conn: sqlite3.Connection, name: str, household_id: int = 1,
                 format: str = "premier", leader_card_id: str | None = None,
-                base_card_id: str | None = None) -> int:
+                base_card_id: str | None = None, icon: str | None = None) -> int:
     """Deck anlegen: automatisch mit Deck-Box als Ablageort (ManaBox-Muster:
     Deck = registriertes physisches Objekt)."""
+    icon_clean = _clean_icon(icon)
     cur = conn.execute(
-        """INSERT INTO decks (household_id, name, format, leader_card_id, base_card_id)
-           VALUES (?, ?, ?, ?, ?)""",
-        (household_id, name.strip(), format, leader_card_id, base_card_id),
+        """INSERT INTO decks (household_id, name, format, leader_card_id, base_card_id, icon)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (household_id, name.strip(), format, leader_card_id, base_card_id, icon_clean),
     )
     deck_id = cur.lastrowid
     loc = conn.execute(
-        """INSERT INTO storage_locations (household_id, name, typ, sortierung)
-           VALUES (?, ?, 'deckbox', 'aspekt')""",
-        (household_id, f"Deckbox: {name.strip()}"),
+        """INSERT INTO storage_locations (household_id, name, typ, sortierung, icon)
+           VALUES (?, ?, 'deckbox', 'aspekt', ?)""",
+        (household_id, f"Deckbox: {name.strip()}", icon_clean),
     ).lastrowid
     conn.execute("UPDATE decks SET location_id = ? WHERE deck_id = ?", (loc, deck_id))
     conn.commit()
@@ -227,17 +249,30 @@ def list_decks(conn: sqlite3.Connection, household_id: int) -> list[dict]:
 
 
 def rename_deck(conn: sqlite3.Connection, deck_id: int, name: str,
-                household_id: int = 1) -> bool:
-    cur = conn.execute(
-        "UPDATE decks SET name = ? WHERE deck_id = ? AND household_id = ?",
-        (name.strip(), deck_id, household_id),
-    )
-    # Deck-Box heisst mit um
-    conn.execute(
-        """UPDATE storage_locations SET name = 'Deckbox: ' || ?
-           WHERE location_id = (SELECT location_id FROM decks WHERE deck_id = ?)""",
-        (name.strip(), deck_id),
-    )
+                household_id: int = 1, icon: str | None = None) -> bool:
+    """Umbenennen (Deck + Deck-Box); icon None=unveraendert, ''=reset, 'x'=setzen."""
+    icon_clean = _clean_icon(icon)
+    if icon is not None:
+        cur = conn.execute(
+            "UPDATE decks SET name = ?, icon = ? WHERE deck_id = ? AND household_id = ?",
+            (name.strip(), icon_clean, deck_id, household_id),
+        )
+        conn.execute(
+            """UPDATE storage_locations SET name = 'Deckbox: ' || ?, icon = ?
+               WHERE location_id = (SELECT location_id FROM decks WHERE deck_id = ?)""",
+            (name.strip(), icon_clean, deck_id),
+        )
+    else:
+        cur = conn.execute(
+            "UPDATE decks SET name = ? WHERE deck_id = ? AND household_id = ?",
+            (name.strip(), deck_id, household_id),
+        )
+        # Deck-Box heisst mit um
+        conn.execute(
+            """UPDATE storage_locations SET name = 'Deckbox: ' || ?
+               WHERE location_id = (SELECT location_id FROM decks WHERE deck_id = ?)""",
+            (name.strip(), deck_id),
+        )
     conn.commit()
     return cur.rowcount > 0
 
