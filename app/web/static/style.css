@@ -243,6 +243,9 @@ html, body {
 .btn-sm {
   padding: 0.4rem 0.8rem;
   font-size: 0.82rem;
+  /* Extremtest: Modal-Close (X) war 36x44 - Apple HIG min 44x44 */
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .btn-block {
@@ -1049,7 +1052,8 @@ td .badge {
 .auth-card input:focus { outline: none; border-color: var(--accent); }
 .auth-error { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; border-radius: 10px; padding: 10px 14px; font-size: 14px; margin-bottom: 12px; }
 .auth-links { display: flex; justify-content: space-between; margin-top: 18px; font-size: 14px; }
-.auth-links a { color: var(--accent); text-decoration: none; }
+.auth-links a { color: var(--accent); text-decoration: none; padding: 10px 2px; margin: -10px -2px; }
+/* Extremtest: Links waren 21px hoch - Padding erweitert das Tap-Target auf 40px+ ohne visuelle Aenderung */
 
 /* ---- Account menu ---- */
 .account-menu { position: relative; }

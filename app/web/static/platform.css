@@ -392,6 +392,15 @@
 .account-dd .ad-item:active {
   background: var(--surface-2);
 }
+.account-dd-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; color: var(--text);
+  font: inherit; cursor: pointer;
+  /* Extremtest: Button hatte keine Regel -> 22px hoch (HIG min 44px) */
+  min-height: 44px; padding: 0 10px;
+  border-radius: 12px;
+}
+.account-dd-btn:hover { background: var(--hover-bg, rgba(255,255,255,0.06)); }
 .account-dd .ad-name { color: var(--text); }
 .account-dd .ad-role { color: var(--text-muted); }
 .account-dd .ad-value { color: var(--text-muted); }
@@ -706,4 +715,5 @@ input[type="number"], input[type="search"], select, textarea {
 :root.theme-light .ci-rarity { text-shadow: 0 1px 2px rgba(255,255,255,0.35); }
 
 /* Preis-Anzeige: Wert-Modus hervorgehoben */
-.ci-price small { color: var(--text-muted); font-size: 0.85em; }  /* 0.72em=9.36px < 11px Extremtest-Minimum */
+.ci-price small { color: var(--text-muted); font-size: 0.85em; }  /* >=11px via min() unten */
+.ci-price small { font-size: max(0.85em, 11px); }

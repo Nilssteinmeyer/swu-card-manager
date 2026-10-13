@@ -538,7 +538,7 @@
           <div style="display:flex; gap:16px; flex-wrap:wrap;">
             <div style="flex:0 0 220px; max-width:220px;">
               <img src="${imgUrl}" alt="${escapeHtml(card.name)}" style="width:100%; border-radius:8px; border:1px solid var(--border);" onerror="this.style.display='none'">
-              <div class="text-muted" style="font-size:11px; margin-top:4px;">${langDe ? "Deutsches Kartenbild (falls verf\u00fcgbar)" : "Englisches Kartenbild"} \u00b7 <a href="${imgUrl}?lang=de" target="_blank" rel="noopener" style="text-decoration:underline;">DE</a> \u00b7 <a href="${imgUrl}?lang=en" target="_blank" rel="noopener" style="text-decoration:underline;">EN</a></div>
+              <div class="text-muted" style="font-size:11px; margin-top:4px;">${langDe ? "Deutsches Kartenbild (falls verf\u00fcgbar)" : "Englisches Kartenbild"} \u00b7 <a href="${imgUrl}?lang=de" target="_blank" rel="noopener" style="text-decoration:underline; padding:10px 4px; margin:-10px -4px; display:inline-block;">DE</a> \u00b7 <a href="${imgUrl}?lang=en" target="_blank" rel="noopener" style="text-decoration:underline; padding:10px 4px; margin:-10px -4px; display:inline-block;">EN</a></div>
             </div>
             <div style="flex:1; min-width:260px;">
               <h2 style="margin:0 0 2px 0;">${escapeHtml(card.name_de || card.name)}</h2>
@@ -575,7 +575,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=28').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=30').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});
