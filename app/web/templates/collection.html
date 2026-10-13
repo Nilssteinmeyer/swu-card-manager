@@ -4,12 +4,13 @@
 {% block content %}
       <h1 class="mb-2">Sammlung</h1>
 
+      <div class="collection-layout">
       <div class="card">
         <div class="card-title flex-center-between" style="cursor:pointer;" id="filter-toggle" onclick="toggleSection('filter-body', 'filter-arrow')">
           <span>🔍 Filter</span>
-          <span id="filter-arrow" class="collapse-arrow">▼</span>
+          <span id="filter-arrow" class="collapse-arrow">▶</span>
         </div>
-        <div id="filter-body" class="collapsible-body">
+        <div id="filter-body" class="collapsible-body hidden">
           <div class="search-input full-width">
             <input type="search" id="f-search" placeholder="Kartenname suchen...">
           </div>
@@ -76,7 +77,6 @@
             <button class="btn" onclick="resetFilters()">↺ Zurücksetzen</button>
           </div>
         </div>
-      </div>
 
       <div class="stat-grid">
         <div class="stat-card">
@@ -126,6 +126,7 @@
         <div id="collection-grid" class="collection-grid">
           <p class="text-muted">Filter anwenden oder Sammlung laden...</p>
         </div>
+      </div>
       </div>
 {% endblock %}
 
@@ -527,6 +528,17 @@
           rows.push(["Cardmarket Foil-Trend", eur(price.foil_trend)]);
           rows.push(["Preis-Stand", price.updated_at ? escapeHtml(price.updated_at) : "\u2014"]);
         }
+        // Vision-QA: TCGplayer-Preis (price_tcg) wurde geladen aber nie angezeigt
+        const tcg = card.price_tcg;
+        if (tcg) {
+          const usd = v => v != null ? "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "\u2014";
+          const tcgNormal = tcg.market_normal != null ? tcg.market_normal : (tcg.low_normal != null ? tcg.low_normal : null);
+          const tcgFoil = tcg.market_foil != null ? tcg.market_foil : (tcg.low_foil != null ? tcg.low_foil : null);
+          rows.push(["TCGplayer Market", `${usd(tcgNormal)}${tcgFoil != null ? " (Foil " + usd(tcgFoil) + ")" : ""}`]);
+        }
+        if (!price && !tcg) {
+          rows.push(["Preis", "\u2014 (noch kein Preis-Import)"]);
+        }
 
         const textBlock = (label, content) => content ? `
           <div style="margin-top:10px;">
@@ -575,7 +587,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js?v=30').then(reg => {
+        navigator.serviceWorker.register('/static/sw.js?v=32').then(reg => {
               // Sofort pruefen ob ein neuer SW existiert
               reg.update().catch(() => {});
             }).catch(() => {});

@@ -220,7 +220,8 @@ html, body {
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  /* Vision-QA: hartes #fff auf Imperial-Gelb cr 1.19 -> Theme-Token dunkler Text */
+  color: var(--on-primary, #fff);
 }
 
 .btn-primary:hover {
@@ -231,13 +232,14 @@ html, body {
 .btn-success {
   background: var(--green);
   border-color: var(--green);
-  color: #fff;
+  /* Vision-QA: #fff auf #3fd98a cr 1.65 -> dunkler Text fuer AA */
+  color: var(--on-success, #06240f);
 }
 
 .btn-danger {
   background: var(--red);
   border-color: var(--red);
-  color: #fff;
+  color: var(--on-error, #fff);
 }
 
 .btn-sm {
@@ -264,6 +266,12 @@ html, body {
   color: var(--text-muted);
   margin-bottom: 0.3rem;
   font-weight: 500;
+}
+
+/* Vision-QA: Placeholder cr 3.6 -> 4.5+ */
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 input[type="text"],
@@ -894,7 +902,7 @@ td .badge {
   pointer-events: none; z-index: 5;
 }
 .scan-overlay-icon { font-size: 28px; }
-.scan-overlay-text { font-size: 14px; font-weight: 600; color: #666; }
+.scan-overlay-text { font-size: 14px; font-weight: 600; color: var(--text-muted, #8b949e); }
 @keyframes pulse-border { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 .scan-result-overlay {
@@ -977,7 +985,7 @@ td .badge {
 
 /* Admin gate: hidden when admin mode is off */
 .admin-hidden { display: none !important; }
-.setting-desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.setting-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 
 /* Card prices in collection grid */
 .ci-price { font-size: 13px; font-weight: 700; color: var(--accent); }
@@ -1104,7 +1112,7 @@ td .badge {
 }
 .scan-mode-btn.active {
   background: var(--accent, #3b82f6);
-  color: #fff;
+  color: var(--on-primary, #fff);  /* Vision-QA: #fff auf Gelb cr 1.2 -> Theme-Token */
 }
 .scan-mode-btn:not(.active):hover {
   color: var(--fg, #e6e9ef);
