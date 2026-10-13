@@ -641,13 +641,77 @@ def add_to_wishlist(
     target_price: float | None = None,
     notes: str | None = None,
     household_id: int = 1,
+    is_foil: bool = False,
+    language: str = "de",
+    priority: int = 2,
 ) -> int:
+    """Karte zur Merkliste; erfasst price_at_add fuer Delta-Anzeige.
+
+    Cardmarket-Blaupause: Variante (Foil), Sprache, Prioritaet und Zielpreis
+    gehoeren auf den EINTRAG, nicht auf die Karte.
+    """
+    # Preis beim Hinzufuegen snapshoten (dual-source wie get_wishlist)
+    price_at_add, price_src = None, None
+    row = conn.execute(
+        "SELECT trend FROM card_prices p JOIN card_mkm_map m ON p.idProduct = m.idProduct WHERE m.card_id = ?",
+        (card_id,),
+    ).fetchone()
+    if row and row["trend"] is not None:
+        price_at_add, price_src = float(row["trend"]), "mkm"
+    else:
+        row = conn.execute(
+            "SELECT market_normal, market_foil FROM tcg_prices WHERE card_id = ?",
+            (card_id,),
+        ).fetchone()
+        if row:
+            px = row["market_foil"] if (is_foil and row["market_foil"] is not None) else row["market_normal"]
+            if px is not None:
+                price_at_add, price_src = float(px), "tcg"
     cur = conn.execute(
-        """INSERT INTO wishlist (card_id, count, target_price, notes, household_id)
-           VALUES (?, ?, ?, ?, ?)""",
-        (card_id, count, target_price, notes, household_id),
+        """INSERT INTO wishlist
+           (card_id, count, target_price, notes, household_id, is_foil, language,
+            priority, price_at_add, added_at_price_src)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (card_id, count, target_price, notes, household_id,
+         1 if is_foil else 0, language, priority, price_at_add, price_src),
     )
     return cur.lastrowid
+
+
+def update_wishlist_entry(
+    conn: sqlite3.Connection,
+    wishlist_id: int,
+    count: int | None = None,
+    target_price: float | None = None,
+    notes: str | None = None,
+    priority: int | None = None,
+    is_foil: bool | None = None,
+    language: str | None = None,
+) -> bool:
+    """Einzelne Felder eines Merklisten-Eintrags aendern (Edit-Sheet).
+
+    Nur angegebene Felder werden aktualisiert; target_price-Aenderung
+    setzt target_reached_at zurueck (neuer Ziel-Kontext).
+    """
+    sets, vals = [], []
+    if count is not None:
+        sets.append("count = ?"); vals.append(max(1, int(count)))
+    if target_price is not None:
+        sets.append("target_price = ?"); vals.append(float(target_price))
+        sets.append("target_reached_at = NULL")
+    if notes is not None:
+        sets.append("notes = ?"); vals.append(notes)
+    if priority is not None:
+        sets.append("priority = ?"); vals.append(int(priority))
+    if is_foil is not None:
+        sets.append("is_foil = ?"); vals.append(1 if is_foil else 0)
+    if language is not None:
+        sets.append("language = ?"); vals.append(language)
+    if not sets:
+        return False
+    vals.append(wishlist_id)
+    cur = conn.execute(f"UPDATE wishlist SET {', '.join(sets)} WHERE wishlist_id = ?", vals)
+    return cur.rowcount > 0
 
 
 def remove_from_wishlist(conn: sqlite3.Connection, wishlist_id: int) -> bool:
@@ -656,19 +720,142 @@ def remove_from_wishlist(conn: sqlite3.Connection, wishlist_id: int) -> bool:
 
 
 def get_wishlist(conn: sqlite3.Connection, household_id: int = 1) -> list[dict[str, Any]]:
+    """Merkliste mit dual-source Preisen (MKM EUR bevorzugt, TCGplayer USD Fallback).
+
+    Liefert pro Eintrag: aktueller Preis + Waehrung + Quelle, Zielpreis-Status
+    ('under_target' | 'above_target' | None), Preis-Delta zum Speicherzeitpunkt
+    und Ziel-Distanz in Prozent (fuer Sortierung 'Zielpreis-Distanz').
+    """
     cur = conn.execute(
         """SELECT w.*, cards.name, cards.subtitle, cards.set_id, cards.card_number,
                   cards.rarity, cards.front_art_path,
-                  m.idProduct, p.trend AS price_trend
+                  m.idProduct,
+                  p.trend AS mkm_trend,
+                  p.foil_trend AS mkm_foil_trend,
+                  tcg.market_normal, tcg.market_foil,
+                  tcg.low_normal, tcg.low_foil
            FROM wishlist w
            JOIN cards ON w.card_id = cards.card_id
            LEFT JOIN card_mkm_map m ON m.card_id = w.card_id
            LEFT JOIN card_prices p ON p.idProduct = m.idProduct
+           LEFT JOIN tcg_prices tcg ON tcg.card_id = w.card_id
            WHERE w.household_id = ?
            ORDER BY w.created_at DESC""",
         (household_id,),
     )
+    items = []
+    for r in cur.fetchall():
+        it = dict(r)
+        is_foil = bool(it.get("is_foil"))
+        # Dual-source: MKM (EUR) bevorzugt, sonst TCGplayer (USD) - Quellen-Label!
+        if is_foil:
+            mkm_px = it.get("mkm_foil_trend") if it.get("mkm_foil_trend") is not None else it.get("mkm_trend")
+            tcg_px = it.get("market_foil") if it.get("market_foil") is not None else it.get("market_normal")
+            tcg_low = it.get("low_foil") if it.get("low_foil") is not None else it.get("low_normal")
+        else:
+            mkm_px = it.get("mkm_trend")
+            tcg_px = it.get("market_normal")
+            tcg_low = it.get("low_normal")
+        if mkm_px is not None:
+            it["price"] = float(mkm_px); it["currency"] = "EUR"; it["price_source"] = "cardmarket"
+        elif tcg_px is not None:
+            it["price"] = float(tcg_px); it["currency"] = "USD"; it["price_source"] = "tcgplayer"
+        else:
+            it["price"] = None; it["currency"] = None; it["price_source"] = None
+        it["low_price"] = float(tcg_low) if tcg_low is not None else None
+        # Zielpreis-Status (Ziel wird gegen die aktuelle Quelle geprueft)
+        target = it.get("target_price")
+        if target is not None and it["price"] is not None:
+            it["target_status"] = "under_target" if it["price"] <= float(target) else "above_target"
+            it["target_distance_pct"] = round(((it["price"] - float(target)) / float(target)) * 100, 1) if float(target) > 0 else None
+        else:
+            it["target_status"] = None
+            it["target_distance_pct"] = None
+        # Preis-Delta seit Speichern (NN/g: Preis-Ehrlichkeit in der Liste)
+        if it.get("price_at_add") and it["price"] is not None and it.get("added_at_price_src") == ("mkm" if it["price_source"] == "cardmarket" else "tcg"):
+            base = float(it["price_at_add"])
+            if base > 0:
+                it["price_delta_pct"] = round(((it["price"] - base) / base) * 100, 1)
+            else:
+                it["price_delta_pct"] = None
+        else:
+            it["price_delta_pct"] = None
+        items.append(it)
+    return items
+
+
+def get_wishlist_summary(conn: sqlite3.Connection, household_id: int = 1) -> dict[str, Any]:
+    """Kopf-Statistik: Anzahl, Gesamtsumme je Quelle, unter-Zielpreis-Count."""
+    items = get_wishlist(conn, household_id)
+    return {
+        "count": len(items),
+        "total_eur": sum(it["price"] for it in items if it["price"] is not None and it["currency"] == "EUR"),
+        "total_usd": sum(it["price"] for it in items if it["price"] is not None and it["currency"] == "USD"),
+        "priced_count": sum(1 for it in items if it["price"] is not None),
+        "under_target_count": sum(1 for it in items if it["target_status"] == "under_target"),
+        "with_target_count": sum(1 for it in items if it.get("target_price") is not None),
+        "unpriced_count": sum(1 for it in items if it["price"] is None),
+    }
+
+
+def add_wishlist_alert(
+    conn: sqlite3.Connection,
+    wishlist_id: int,
+    kind: str,
+    old_price: float | None = None,
+    new_price: float | None = None,
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO wishlist_alerts (wishlist_id, kind, old_price, new_price) VALUES (?, ?, ?, ?)",
+        (wishlist_id, kind, old_price, new_price),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_wishlist_alerts(conn: sqlite3.Connection, household_id: int = 1, limit: int = 50) -> list[dict[str, Any]]:
+    cur = conn.execute(
+        """SELECT a.*, cards.name, cards.set_id, cards.card_number
+           FROM wishlist_alerts a
+           JOIN wishlist w ON a.wishlist_id = w.wishlist_id
+           JOIN cards ON w.card_id = cards.card_id
+           WHERE w.household_id = ?
+           ORDER BY a.created_at DESC LIMIT ?""",
+        (household_id, limit),
+    )
     return [dict(r) for r in cur.fetchall()]
+
+
+def acknowledge_wishlist_alert(conn: sqlite3.Connection, alert_id: int) -> bool:
+    cur = conn.execute("UPDATE wishlist_alerts SET acknowledged = 1 WHERE alert_id = ?", (alert_id,))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def add_missing_cards_to_wishlist(
+    conn: sqlite3.Connection,
+    card_ids: list[str],
+    household_id: int = 1,
+    is_foil: bool = False,
+    language: str = "de",
+) -> int:
+    """Fehlende Karten in BULK auf die Merkliste (Deckbox/Deck-Rechner-Bruecke).
+
+    Bereits vorhandene Eintraege (gleiche Karte+Variante) werden uebersprungen.
+    """
+    added = 0
+    for card_id in card_ids:
+        exists = conn.execute(
+            "SELECT 1 FROM wishlist WHERE card_id = ? AND household_id = ? AND is_foil = ?",
+            (card_id, household_id, 1 if is_foil else 0),
+        ).fetchone()
+        if exists:
+            continue
+        add_to_wishlist(conn, card_id, count=1, household_id=household_id,
+                        is_foil=is_foil, language=language)
+        added += 1
+    conn.commit()
+    return added
 
 
 # --- Set completion -------------------------------------------------------------

@@ -1,0 +1,339 @@
+{
+  "reddit_tcgplayer_wishlist": [
+    {
+      "subreddit": "magicTCG",
+      "author": "PapaJordo",
+      "title": "TCGPlayer Wish list?",
+      "body": "I'm just trying to figure out an app or something that can have a wishlist. On occasion I'll just look up a card I don't have, then forget about it if i dont screenshot it or something. So im wondering If there's an app that can make a wishlist and check live prices and stuff like thatthag way in the future i can look again and buy any cards im craving and when i have the money.",
+      "created": 1693284270.0
+    }
+  ],
+  "reddit_deckbox_comments": {
+    "error": "HTTP Error 429: Too Many Requests"
+  },
+  "reddit_manabox_wishlist": [
+    {
+      "subreddit": "mtgfinance",
+      "author": "quayo",
+      "title": "",
+      "body": "My collection is at [manapulse.dk](http://manapulse.dk) a website that both functions as a pinned app on my phone and works at home at my desktop for more power-user features.\n\nFrom day to day I usually use it to track incoming cards from CardTrader/Card Market, modify deck lists, create draft trades for people that contact me to buy stuff from my public trade list in the app. And then I wishlist a bunch of cards for playing.\n\nThe app is designed with a scanner like Manabox, so not much typing needed.\n\nI gave up manabox because I prefer the desktop browser experience as my main entry point. Never been a big fan of mobile first approaches.",
+      "created": 1788030800.0
+    },
+    {
+      "subreddit": "magicproxies",
+      "author": "Otterpawps",
+      "title": "",
+      "body": "Dual lands. How do you ever have enough. \nEdit: i also keep a wishlist on my manabox for cards I see in a game on youtube or at the table to remind me to print at some point. Sometimes I use those if I have a presence of mind to fill in spors",
+      "created": 1786736545.0
+    },
+    {
+      "subreddit": "mtg",
+      "author": "MusicOfTheApes",
+      "title": "",
+      "body": "If you're on iOS and are willing to try it I've released the Beta for my app Gatherers :  [https://testflight.apple.com/join/r4jUh9Z2](https://testflight.apple.com/join/r4jUh9Z2) \n\nAnd no, it's not a vibe-coded app, I'm a dev since 2020 and I was tired of things I couldn't do in ManaBox or other apps, so I developed since last year an app that fits my needs :   \n\\- easily tag cards with an intelligent tag system, for deck analysis  \n\\- easily add cards to your wishlist in one tap  \n\\- deck building tools such as staples per color combinations, combo fetcher from Commanderspellbook or a way to create your own ones and share them with people  \n\\- versioning of decks : save different versions of your decks or import reference decks to compare to yours (as long as you tagged cards, which btw is persistent so if you ever remove cards from your collection you won't have to tag them again if added back or imported from various sites)  \n\\- advanced game simulator   \n\\- easily import decks from lists or Moxfield/Archidekt and an intelligent swapper to swap the missing cards with ones from your collection  \n\\- create lists from missing cards in decks  \n\\- binders, sets, scan (alpha), stats\n\n",
+      "created": 1785275116
+    },
+    {
+      "subreddit": "magicTCG",
+      "author": "okayfrog",
+      "title": "",
+      "body": "To my knowledge, Manabox doesn't have a dedicated Wishlist, but it does have lists you can make.\n\nManaBox -> Collection -> Lists -> New List (folder at bottom)\n\nI have a generic Wishlist of cool cards, and specific wishlists for decks I'm making.",
+      "created": 1783111291
+    },
+    {
+      "subreddit": "magicTCG",
+      "author": "SeraphsEnvy",
+      "title": "",
+      "body": "How do i add cards to a wishlist in like ManaBox or Urza Gatherer (or anything else)? I just can't seem to find a heart button or anything similar in either app. I browse through the cards but then the only options are either at to a collection (as if i had the card), or add it to a deck. In Urza i see the option to add to a wish list, but you have to look up each card individually—i can't add them while I'm just browsing the cards in the explorer. Eons ago, i used to use MTG Cards Info and it had great add to wishlist options but it hasn't been updated in forever. Are there any good wishlist apps out there? Or are they hidden in these otherwise excellent apps (I do like Manabox's interface).",
+      "created": 1783094370
+    },
+    {
+      "subreddit": "EDH",
+      "author": "Emnalyeriar",
+      "title": "",
+      "body": "I used numerous tools like Deckstats, Moxfield or ManaBox but I got frustrated constantly switching between apps so around 2 years ago a build my own app. The main idea was to have a proper card, decks and sealed product data base with a good collection manager and deckbuilder. My biggest issue with Moxfield was that it allowed to have only one collection and one wishlist. So now I use mine own app. It has a small amount of users and I still work on it almost daily, improving it day by day. What I also built is that it shows you from the collection wie which cards are used in which decks. The app is mythichub.com",
+      "created": 1783068909
+    },
+    {
+      "subreddit": "mtg",
+      "author": "-androjen-",
+      "title": "",
+      "body": "That’s really thoughtful of you! I’ve only been in this hobby for about 6 months but I have learned that lots of players have a wishlist of cards that they would like to get for themselves or would like others to get for them. I keep a wishlist on my ManaBox app.\nMaybe you could ask him if he has a wishlist of cards that he wants and pick one or some from that list and surprise him with it? You can also ask him what his favorite set is and get him a play booster box (or collector booster box depending on how much you’re looking to spend) in his favorite set. Good luck and hope this helps!",
+      "created": 1778670446
+    },
+    {
+      "subreddit": "mtgfinance",
+      "author": "sleeveiq",
+      "title": "",
+      "body": "What you're describing is basically a wishlist that pulls pricing cards you want to watch (owned or not) with automatic price tracking. MTGStocks is the classic market-watch tool for historical charts across all printings, and Scryfall's card detail pages have 90-day price charts if you just want one-off lookups.  \n\nMost players i've talked to like u/No_Feeling_1688  mentioned, currently use 2 separate tools, ManaBox + MTGStocks to fill both the collection tracking and to track prices for cards you want to watch. \n\nFull disclosure, I'm the founder of an MTG tracker called SleeveIQ. Wishlists are a first-class feature alongside collections, and we pull Scryfall daily pricing on wishlist cards the same way we do for your collection. So you could build a \"hunting list\" of older cards you're tracking for acquisition and keep your owned ManaBox-style collection side by side in the same app. Foil/non-foil track as separate variants, which matters a lot on older singles. Deck building is on the roadmap.\n\nFree tier covers getting started and you get both wishlists and collections. Happy to answer questions if it sounds useful  otherwise ManaBox + MTGStocks is a reasonable combo for the two",
+      "created": 1776874765
+    }
+  ],
+  "reddit_dragonshield_app": {
+    "error": "The read operation timed out"
+  },
+  "reddit_collx_wishlist": [
+    {
+      "subreddit": "retrogaming",
+      "author": "Kollekto_de",
+      "title": "",
+      "body": "Hey all — wanted to share something I've been building as a solo dev \non the side for the retro collector community.\n\n**Kollekto** → https://kollekto.de?utm_source=reddit&utm_medium=organic&utm_campaign=r-retrogaming&utm_content=megathread-intro-202604\n\nShort version: It's a collection-tracker with an actual marketplace attached. \nI started it because I was frustrated with existing tools — Excel dies when \nyou cross categories, PriceCharting is US-centric and doesn't know much about PAL \nvariants, dedicated apps only do one thing at a time.\n\nWhat makes it different:\n\n- **Multi-category from day one**: video games, TCG (Pokémon / Magic / \n  Yu-Gi-Oh), sports cards — all in one collection. Most of my users track \n  2-3 categories.\n- **Actual community pricing**: users submit/confirm prices, so it reflects \n  real PAL market instead of extrapolated US numbers\n- **Integrated marketplace** with Stripe-backed buyer protection — not just \n  \"mark as for sale\" listings\n- **Gamification layer** (XP, achievements, collection milestones) — \n  if you enjoyed OG PS2 completion mechanics you'll get it\n\nCurrently ~80 users in Beta, mostly DACH. German + English. Free tier covers \none active colle",
+      "created": 1776798286
+    }
+  ],
+  "reddit_swu_collection_app": [
+    {
+      "subreddit": "Wellington",
+      "author": "FidgitForgotHisL-P",
+      "title": "",
+      "body": "Graphic is the only physical shop left right?\n\nEven the gaming shops don’t carry comics these days (remember Pendragon?).\n\nIf you’re reading Marvel, Marvel Unlimited is a good deal - USD $10/month or $70/year, comics show up three months after drop, but the back catalogue is humongous - possibly too humongous, people are often overwhelmed about where to start.  It also includes a lot of Star Wars stuff they published, like the excellent Darth Vader series by Kieron Gillen.  The big downside is they have no age gate at all, so they don’t include anything that’s not kid friendly - no Punisher Max for example.\n\nDC also have a subscription app but it’s not available in our market :(\n\nAs someone else mentioned, checkout your local library!  Lots of collections, and, they do carry adult graphic novels and manga too.  I’m currently making my way through Alice in Borderland, all 9 or so books are available from the library.  Oh also I’m pretty sure Libby has comics, but the selection will be pretty limited.\n\nI imagine it’s really impractical to bring comics in for any reasonable cost these days, Graphic probably keep going as a result of being the only game in town, and having that user ba",
+      "created": 1788583814.0
+    },
+    {
+      "subreddit": "starwarsunlimited",
+      "author": "Spogito",
+      "title": "",
+      "body": "I was confused by this app and I thought it was a collection tracker that might offer silly challenges like \"win with one health left\" or something fun. Instead we have one of the most offensive things I've ever seen. This app masquerade ls a a fun community project but is just money grubbing.\n\nThere is a bit where the app says \"you are opening real star wars unlimited cards for your collection\". This is patently false as they are digital and also basically knockoff.\n\nBut at the same exact time, YOU CAN PAY REAL MONEY to get more packs. So you (the developer) have taken artwork that doesn't belong to you, from a card game that doesn't belong to you, from an IP owned by one of the most litigious entertainment companies in the world and then you have charged people money for it?? \n\nFinally, this app is pure skinner box. With actual packs, even if you get hosed there are game pieces in your hands that you can own and play with. This app only encourages the mindless opening of packs, with people who might be prone to gambling addiction being encouraged to spend REAL MONEY on knockoff fake cards. The app even offers the tantalizing idea that my digital binder has a real dollar value, wh",
+      "created": 1785285491
+    },
+    {
+      "subreddit": "TCG",
+      "author": "sweetestgreek1",
+      "title": "",
+      "body": "Just hear me out: bird watching. This satisfies the collecting itch in ways nothing else has before. It's like Pokemon collecting in real life. Use the Merlin Bird ID app to identify and you \"collect\" by checking birds you haven't seen before, building your collection (also known as the \"Life List\". The benefits are massive: you get to be outside in nature, learn a bunch, see cool things you never realized were right around you, and typically (minus some park passes) it's 100% free. \n\nIf that's not appealing, Star Wars Unlimited is definitely on the cheaper side, if you still want to be in a TCG. ",
+      "created": 1781865185
+    },
+    {
+      "subreddit": "OmnibusCollectors",
+      "author": "NoBagelsNoBagels",
+      "title": "",
+      "body": "Answering this question might be the highlight of my day.  Let me open my holocron and tell you the truths of Force.\n\nThe guys who made the KOTOR games used old Dark Horse comics as their beginning reference material for the game.  You can find this in Marvel's \"Tales of the Jedi\" Omnibus.  You can buy it in other formats (old Dark Horse collections and maybe Marvel Epic collections) if you're looking for a cheaper way to get it.  \n\nIt is after reading that you would play the KOTOR games, which happen hundreds or thousands of years later, or maybe less.\n\nAfter the games, Dark Horse went back to the well and did a long-running series called Knights of the Old Republic that is 50 issues written by John Jackson Miller.  The art is very good or just good throughout.  I don't actually know what the best way for you to get that material is.  I bought the comics as they came out.  You could probably get all the comics on ebay--I just checked and I'm seeing it go for over $400 so forget that.  Just realized I've got a small fortune in one of my comic boxes.  I'm looking at Amazon and I don't really see what the best way to get these is.  I think they came out in a Marvel Epic Collection, b",
+      "created": 1778168446
+    },
+    {
+      "subreddit": "mtgaltered",
+      "author": "WizardWard",
+      "title": "",
+      "body": "Thats a good question and thanks for asking what this app does that Mana box does is the following\n\nOne app for every game — MTG, Pokémon, Yu-Gi-Oh!, Lorcana, One Piece, Star Wars Unlimited, Flesh & Blood, and sports cards all in one collection. You entire collection across all TCGs can been seen together.\n\nLocal player-to-player trading — geolocation-based marketplace to find people near you with cards you need, not just stores or online\n\nStronger deck builder — format validation, advanced filters, and one-tap optimization for cheapest or full art printings\n\nCommunity layer — public decks, voting, trending lists —\n\nGame tools built in — life counter for up to 10 players, dice roller and more, all inside the same app\n",
+      "created": 1776463406
+    },
+    {
+      "subreddit": "GenX",
+      "author": "tkecanuck341",
+      "title": "",
+      "body": "I'm a millennial and I have \\~2000 Star Wars comics, and the collection expands every month.  Mostly Marvel, but some Dark Horse and IDW comics too.\n\nThe Marvel ones, I open them once, redeem the digital code, and then read them in the Marvel Unlimited app.  Then they immediately go back into the bag and board and into my comic file cabinet.\n\nThe Dark Horse ones, I read the paper book, and then seal and file away.\n\nI don't expect they'll ever be worth anything.  I just enjoy collecting them.  I'll probably give them away eventually.",
+      "created": 1765262902
+    },
+    {
+      "subreddit": "digitalcards",
+      "author": "Roullette3",
+      "title": "",
+      "body": "Shadowverse worlds beyond is great - i am just getting the battlepass and saving all my free currency for each expansion and ive been able to build everything.\n\nKards is great - kinda need to buy the beginner deals and battlepass for a few months to get a good collection of wild cards.\n\nPtcgl is amazing and 100% f2p. Just held back by the clunky/buggy app\n\nDuel masters plays - japanese only but can be played with a translation mod. Decks are a bit expensive dust wise and a lot of pve grinding but overall a great game.\n\nThere is also sims where you can get all the cards for free\n\nKarabest for star wars unlimited, jinteki for netrunner and talishar for flesh and blood",
+      "created": 1762227036
+    },
+    {
+      "subreddit": "StarWarsEU",
+      "author": "Nice_Satisfaction651",
+      "title": "",
+      "body": "https://starwars.fandom.com/wiki/Star_Wars_Legends_Epic_Collection:_Tales_of_the_Jedi_Vol._1\n\nI see one listing on eBay for just $60\n\nAlternatively, a Marvel Unlimited subscription would give you access to like 90% of the legends comics on the app.",
+      "created": 1744479853.0
+    }
+  ],
+  "reddit_moxfield_wishlist": [
+    {
+      "subreddit": "EDH",
+      "author": "TytusPullo",
+      "title": "",
+      "body": "Im toying with reteo frame only decks and these two below are regularly tested. Im tryimg to avoid proxying and putting stuff from my collection so duals and otjer bit or two are still on the wishlist.\n\nEsper Urza is stax/combo with backup beatdown plan of actually casting commander:\n\nhttps://moxfield.com/decks/Cz9WIy-pcEWx6r8Ee5xqNA\n\nSharuum the Hegemon is full on esper combo deck, but her loops are 3 cards including her from command zone so again, a backup plan if faster lines are not viable:\n\nhttps://moxfield.com/decks/Cz9WIy-pcEWx6r8Ee5xqNA",
+      "created": 1790841424.0
+    },
+    {
+      "subreddit": "magicfrance",
+      "author": "Deckerr_app",
+      "title": "",
+      "body": "Salut, tu peux importer une liste de deck au format texte simple (.txt) type export MTGO/Arena/Moxfield — des lignes comme \"4 Lightning Bolt\" ou \"1 Sauron, the Dark Lord (LTR) 224\". \n\nJ'ai aussi ajouté la possibilité de voir le nombre de cartes manquantes de ta collection directement dans la création/édition de deck (tu peux aussi scanner des cartes depuis l'édition d'un deck pour en rajouter à la volée).      \n\nD'ailleurs, celles qui te manquent s'affichent en noir et blanc dans la liste.                                                                                                                                 \n\nTu peux rajouter toutes les cartes qui te manquent dans ta wishlist ou dans ta collection avec ces 2 boutons :\n\nhttps://preview.redd.it/mwn0j15c08sh1.png?width=902&format=png&auto=webp&s=5ae1ec845c7471ea8642192efc007411f48b5dca",
+      "created": 1790584181.0
+    },
+    {
+      "subreddit": "EDHBrews",
+      "author": "Basic_Capital3719",
+      "title": "",
+      "body": "Thanks! \n\nI actually have another irl b4 deck that revolves around Broodlord and Worldgorger, it’s probably my most powerful deck and would be super easy to push into cEDH territory: https://moxfield.com/decks/cRVSm9iAEkenomLgSlI89A\n\nI’m not as convinced on them in this deck though, too much potential to get stuck in hand and I’m not running a reanimate package.   \nSimilarly I’m not as convinced on \\[\\[Burnt Offering\\]\\] without the high mana creatures to feed it. \n\nBowmasters I’ll add on to the wishlist for sure.   \n   \nAgree that Chain of Smog is the biggest brick in the deck (although I am running squelcher). The benefit just about outweighs the cost for me though. With \\[\\[Sedgemoor Witch\\]\\] I can win without following up if \\[\\[Impact Tremors\\]\\] is out, or sac the tokens into \\[\\[Goblin Bombardment\\]\\]. Infinite treasures from Storm-Kiln also wins with \\[\\[Mayhem Devil\\]\\] or \\[\\[The Sackville-Bagginses\\]\\], and often means draw the deck with face-breaker and is great with Smaug too",
+      "created": 1789318628.0
+    },
+    {
+      "subreddit": "EDH",
+      "author": "TytusPullo",
+      "title": "",
+      "body": "[[Sharuum the Hegemon]] is my b4 only deck, it would be weird to stunt myself to accomodate b3 play patterns, and she is no [[Tivit]] to duke it out in b5. Its full on esper combo deck, still in trsting with few reserved list cards on the wishlist, and Im trying to stick to retro frame cards barring white border saga and an odd Invention frame.\n\nhttps://moxfield.com/decks/SJsEqSh2oEiV7IX5PpBYFw",
+      "created": 1789026798.0
+    },
+    {
+      "subreddit": "mtg",
+      "author": "MusicOfTheApes",
+      "title": "",
+      "body": "If you're on iOS and are willing to try it I've released the Beta for my app Gatherers :  [https://testflight.apple.com/join/r4jUh9Z2](https://testflight.apple.com/join/r4jUh9Z2) \n\nAnd no, it's not a vibe-coded app, I'm a dev since 2020 and I was tired of things I couldn't do in ManaBox or other apps, so I developed since last year an app that fits my needs :   \n\\- easily tag cards with an intelligent tag system, for deck analysis  \n\\- easily add cards to your wishlist in one tap  \n\\- deck building tools such as staples per color combinations, combo fetcher from Commanderspellbook or a way to create your own ones and share them with people  \n\\- versioning of decks : save different versions of your decks or import reference decks to compare to yours (as long as you tagged cards, which btw is persistent so if you ever remove cards from your collection you won't have to tag them again if added back or imported from various sites)  \n\\- advanced game simulator   \n\\- easily import decks from lists or Moxfield/Archidekt and an intelligent swapper to swap the missing cards with ones from your collection  \n\\- create lists from missing cards in decks  \n\\- binders, sets, scan (alpha), stats\n\n",
+      "created": 1785275116
+    },
+    {
+      "subreddit": "EDH",
+      "author": "Emnalyeriar",
+      "title": "",
+      "body": "I used numerous tools like Deckstats, Moxfield or ManaBox but I got frustrated constantly switching between apps so around 2 years ago a build my own app. The main idea was to have a proper card, decks and sealed product data base with a good collection manager and deckbuilder. My biggest issue with Moxfield was that it allowed to have only one collection and one wishlist. So now I use mine own app. It has a small amount of users and I still work on it almost daily, improving it day by day. What I also built is that it shows you from the collection wie which cards are used in which decks. The app is mythichub.com",
+      "created": 1783068909
+    },
+    {
+      "subreddit": "mtgbrawl",
+      "author": "hisdekkness",
+      "title": "",
+      "body": "Sure! It's a real work in progress as I ran out of wildcards so there's a ton of easy upgrades on my wishlist right now, but this got me into platinum without much Brawl experience. \n\n[https://moxfield.com/decks/jmnychmLU0KgMnRcxYciqQ](https://moxfield.com/decks/jmnychmLU0KgMnRcxYciqQ)",
+      "created": 1782870127
+    },
+    {
+      "subreddit": "BudgetBrews",
+      "author": "badheartveil",
+      "title": "",
+      "body": "My first deck that was someone’s actual deck they made out of chaff they had was \\[\\[arabella\\]\\] I copied their decklist 1:1 and it ended up costing $91ish from cardkingdom - putting the deck on moxfield it was $79 currently but some card prices have changed over the last 20 months. \n\nLGS can be huge, mine has a online website that you can look at out of stock cards, wishlist them, and they email you when they get it in stock. I heard of one in California that is like 10 vendors in one store so they have to have good deals and a good card selection, the video I was watching someone built 95% of his deck from an email he sent and another vendor had the remaining 5 cards. \n\nYou might ask your friends for their extras if they have it. My friend had a bunch of the -1/-1 cards so he hooked me up with a couple of them as he was playing 60 card in those days so he had sets. I paid him in energy drinks. ",
+      "created": 1782314886
+    }
+  ],
+  "reddit_tcgplayer_alerts": [
+    {
+      "subreddit": "PokemonTCG",
+      "author": "GrailSweep",
+      "title": "",
+      "body": "Hey everyone! I'm a solo dev from the UK and I've been building **GrailSweep**, an AI card scanner for Pokémon (English & Japanese), Magic: The Gathering, Yu-Gi-Oh and One Piece.\n\nTake a photo of a card and it will:\n\n* identify it from 165,000+ cards\n* read the set code, so it can tell reprints apart\n* give it an instant condition grade\n* show what it's worth in **£ GBP**, using TCGPlayer and Cardmarket prices\n\nIt's free to use with free scans every month, and you don't need an account. If you want to try everything, there's a **free 24-hour Pro trial** with no card details needed, which unlocks the collection manager, price alerts, price history, set manager, card show mode (offline), plus lots more features..\n\n[https://grailsweep.com](https://grailsweep.com) (also on iOS, Android and the Microsoft Store)\n\nI'd really appreciate feedback, especially if you like the app and features. ",
+      "created": 1791103247.0
+    },
+    {
+      "subreddit": "PokemonTCG",
+      "author": "Trooper15a",
+      "title": "",
+      "body": "**Hey everyone! I built a better collectr called :** [**ripnpull.ca**](https://ripnpull.ca)\n\nTrack your Pokemon TCG collection across every set, see completion progress, market values, and what it costs to finish a set. Also supports 14 other TCGs (Magic, Yu-Gi-Oh, Vanguard, Weiss Schwarz, etc).\n\nFeatures:\n\n* Set completion tracking with progress bars\n* Live market prices from TCGPlayer\n* Card scanner (snap a photo to identify cards)\n* Deck builder with tournament deck imports\n* Wishlist with price drop alerts\n* Direct Buy links to TCGPlayer\n\nIt's a web app so works on any device and Would love feedback from the community! For the Beta its currently Free but for the actual release on the app store etc i plan on selling this for a one time fee of $4.99.",
+      "created": 1789261841.0
+    },
+    {
+      "subreddit": "PokemonTCG",
+      "author": "preaverage_",
+      "title": "",
+      "body": "I built pkmnprices.com: a free collection tracker with daily prices from TCGplayer, Cardmarket and eBay for 70,000+ cards and 5,900+ sealed products, in English, Japanese and German.\n\nWhat it does that I couldn't find elsewhere: every card shows the actual eBay sold listings with links, not just an average; set pages show what a full set costs to complete; you can import a spreadsheet, get an alert when a card crosses a price, and download an appraisal PDF for insurance.\n\nThere's also a developer API with a free tier if you'd rather build your own thing. No app, works in the browser.",
+      "created": 1788678382.0
+    },
+    {
+      "subreddit": "NoStupidQuestions",
+      "author": "MarqelionHarborline",
+      "title": "",
+      "body": "tcgplayer has solid deals especially if you filter by condition and set price alerts for cards you want",
+      "created": 1786832596.0
+    },
+    {
+      "subreddit": "OnePieceTCGFinance",
+      "author": "Fluid_Initiative_822",
+      "title": "",
+      "body": "I’d be careful using only TCGPlayer/eBay as the anchor during restock windows. Smaller shops and overseas stores can sometimes be way better, but they’re annoying to check manually.\n\nThat’s one of the reasons I built [msrp.fun](http://msrp.fun) fun app: fair-price alerts for One Piece/Fusion World/Gundam listings and preorders. ",
+      "created": 1784686966
+    },
+    {
+      "subreddit": "DBS_CardGame",
+      "author": "Fluid_Initiative_822",
+      "title": "",
+      "body": "Hey - I have a few options. Check the shop app. You’ll find deals from time to time. Check eBay and TCGplayer although prices are generally kinda high on those platforms. \n\nAdditionally, you can also find deals abroad if you’re willing to pay for shipping, check cardmarket and cardtrader (generally better if your buying multiple sets as the shipping isn’t worth it for one booster box). \n\nLastly I have an app I recently made that sends alerts and watches most of those markets for you. \n\nhttps://apps.apple.com/us/app/msrp-fun-tcg-deal-alerts/id6775571635",
+      "created": 1781139400
+    },
+    {
+      "subreddit": "PokemonTCG",
+      "author": "SirzechsLucifer",
+      "title": "",
+      "body": "GameStop is inflating the price? Yes. As is everyone. But only one of us is attacking others. Spoiler alert it’s not me. I’ve been trying to have a discussion. You haven’t engaged in a single good faith debate. \n\nI can’t change definitions. But I can look them up. Which is why my stance changed. I actually looked up how commerce defines scalping. \n\n\n\nhttps://www.tcgplayer.com/product/684450/pokemon-me04-chaos-rising-chaos-rising-elite-trainer-box?srsltid=AfmBOooMpZZGwT7bG0UhcScgFT4784cE5Nfm0S2sdzGCdkB2xgOMvCN1&Language=English&page=2\n\nListed median is 92. Which you should always use listed median in things like this. \n\nNow I will concede that 92 is about 8 lower the gs right now. But most people buying from GameStop pay 95 from the Pro membership (ymmv if you like or hate that) and don’t pay shipping. TCG player often has shipping cost of 5ish anyway. So the price is roughly the same. ",
+      "created": 1780716437
+    },
+    {
+      "subreddit": "PokemonTCG",
+      "author": "OnionBeach",
+      "title": "",
+      "body": "I built a price alert tool for Pokémon cards: set a target, get a Telegram ping when it hits\n\nIf you've ever missed a dip, or a pending spike, on a card because you weren't keeping up enough with TCGplayer price movements, this is for you.\n\nGrailPing (grailping.app) watches TCGplayer market prices for cards on your list and pings your Telegram the second the price hits your target. You set either a dollar amount (\"I'll buy at $175\") or a percentage drop, and that's it. No more tab-refreshing.\n\nA few things it does:\n\n* 90 days of price history on every card so you can tell if a \"deal\" is actually a deal\n* Multiple lists (singles, chase cards, gifts, etc.) with shareable read-only links\n* Live demo with no sign-in required if you want to try it\n\nDiscord, email, and SMS alerts are in the works. More TCGs and sports cards are coming too.\n\nTry the demo and/or create an account: [grailping.app](http://grailping.app)\n\nWould love any feedback, still early days!",
+      "created": 1780430183
+    }
+  ],
+  "reddit_pokemon_app_wishlist": [
+    {
+      "subreddit": "PokemonTCG",
+      "author": "Trooper15a",
+      "title": "",
+      "body": "**Hey everyone! I built a better collectr called :** [**ripnpull.ca**](https://ripnpull.ca)\n\nTrack your Pokemon TCG collection across every set, see completion progress, market values, and what it costs to finish a set. Also supports 14 other TCGs (Magic, Yu-Gi-Oh, Vanguard, Weiss Schwarz, etc).\n\nFeatures:\n\n* Set completion tracking with progress bars\n* Live market prices from TCGPlayer\n* Card scanner (snap a photo to identify cards)\n* Deck builder with tournament deck imports\n* Wishlist with price drop alerts\n* Direct Buy links to TCGPlayer\n\nIt's a web app so works on any device and Would love feedback from the community! For the Beta its currently Free but for the actual release on the app store etc i plan on selling this for a one time fee of $4.99.",
+      "created": 1789261841.0
+    },
+    {
+      "subreddit": "PokemonTCG",
+      "author": "TheWishingStar",
+      "title": "",
+      "body": "Can I recommend PokeCardex? Not affiliated with them or anything, but it’s easily my favorite app just for collection and wishlist tracking. It does kind of track value, but you can toggle whether you want to see prices at all, and you have to specifically go look for it if you want your total value. It’s only Pokemon, so it’s super easy to find cards by set or by the Pokemon. Really nice if you’re trying to master set anything. It’s natively French though, and the translations are a little funky in places, especially in a desktop browser. But it’s so easy to use that it doesn’t even matter much if there’s randomly some French in places (and they have improved that since I’ve been using it).",
+      "created": 1783520692
+    },
+    {
+      "subreddit": "ClaudeAI",
+      "author": "durable-racoon",
+      "title": "",
+      "body": "Sure, a simple Pokemon card collection app because every pokemon card tracker on the market sucks. I just needed something dead simple that let me check if I have a card or not, every friggin app I downloaded requires 5 clicks to input a new card. Claude typed 100% of the code for this: \n\n[simpledex-weld.vercel.app/](http://simpledex-weld.vercel.app/)\n\n  \nit has a wishlist feature, collection sharing, it merges multiple sources of data together to provide the datasource, it lets you search and filter, and it has a deckbuilder. Still WIP but its been immensely useful compared to existing popular collection apps that both suck and ask a $20/month fee or something.",
+      "created": 1769649858
+    },
+    {
+      "subreddit": "pkmntcgtrades",
+      "author": "Oude",
+      "title": "",
+      "body": "Here is my collection profile from prior to 2008, if there is anything you're interested in. Your wishlist wasnt working for me. I'm interested in the groudon, pokemon center lady, pokemon fan club, and maxie.\n\nhttps://app.getcollectr.com/showcase/profile/37579eb9-7dec-4e4b-9f01-70a3f9b3d522",
+      "created": 1767133194
+    },
+    {
+      "subreddit": "PTCGP",
+      "author": "LocKeyThirteen",
+      "title": "",
+      "body": "• Universal pack points. At the very least make a Series specific universal pack points. \n\n• Better UI. Please improve UI especially in dex. Pokemon Dex should be super convenient for players to use just like in pokemon medias but here, it needs us to scroll & tap more just to search for cards, build decks etc. \n\nCards with a rarity of star or higher and promo cards should be shown by default. \n\nWhen we tap away from dex and comes back to it, the dex should be set the same way we left it as, don’t reload it every time.\n\nAlso if there’s more than 1 pack in a set, there should be an indicator on the top on how many unique diamond cards specific type of pack got. So it’s easier to see which of the 2 or 3 packs in a set have more missing cards without us having to: (1) tap the search button, (2) scroll down, (3) tap not specified button in booster pack, (4) tap series button, (5) select A-series, (6) scroll down, (7) tap specific pack; let’s say Lugia pack, (8) tap X button, (9) tap OK button. 9 steps just to see how many unique diamond cards we are missing AND we need to repeat that whole process to compare Ho-Oh pack. It’s so we know which pack to be prioritized to open instantly.\n\nY",
+      "created": 1766052474
+    },
+    {
+      "subreddit": "PokemonTCG",
+      "author": "One_Administration58",
+      "title": "",
+      "body": "**I got sick of tracking my Pokémon cards with spreadsheets, so I built an app to do it for me**\n\nI used to pull a card, sleeve it, maybe check the price once… then forget about it. Months later, I’d have no clue what my collection was worth or which cards had gone up/down in value.\n\nSo I ended up building an app called **CollectDeck** that treats your collection like a portfolio. It scans cards, tracks their value daily, and keeps everything organized without spreadsheets or screenshots.\n\nThe basics (scanning, tracking, wishlists) are free, and there’s a Pro version if you want daily valuations and insights.\n\nIf anyone wants to try it:\n\n* [**iOS**](https://apps.apple.com/us/app/collectdeck-for-tcg-collectors/id6748560550)\n* [**Android**](https://play.google.com/store/apps/details?id=cardscanner.price.tcg.pokemon)",
+      "created": 1759655721
+    },
+    {
+      "subreddit": "PokemonTCG",
+      "author": "Top-Sea9778",
+      "title": "",
+      "body": "https://preview.redd.it/tdddaiu4e9tf1.jpeg?width=1938&format=pjpg&auto=webp&s=858da05b2c6f4579f8577669c54eeb268661090b\n\n**I was tired of tracking my Pokémon TCG collection with spreadsheets... so I built an app that values my cards daily**\n\nIf you collect Pokémon cards, you’ve probably been here:  \nYou pull a card, sleeve it, maybe check its price once, then it disappears into your binder. A year later, you have no idea what it’s worth, how your collection’s doing overall, or which cards are gaining/losing value.\n\nThat’s exactly where I was — juggling screenshots, Excel sheets, and random price lookups. It was a mess.\n\nSo, I built **CollectDeck** — an app that makes your collection feel more like a living portfolio, with values that update daily.\n\n# 🔑 Key Features\n\n📸 **Fast Card Scanning** – Just scan, and your card is instantly logged.  \n💰 **Daily Portfolio Valuation** – Your collection’s total worth updates every day, automatically.  \n📊 **Trends & Insights** – See which sets or cards are going up (or down) in value.  \n🎯 **Wishlist & Extras** – Track your chase cards and duplicates for trading/selling.  \n📔 **Clean, Collector-Focused Design** – No ads, no clutter, just your collect",
+      "created": 1759655132
+    },
+    {
+      "subreddit": "PokemonTCG",
+      "author": "Top-Sea9778",
+      "title": "",
+      "body": "https://preview.redd.it/1ereleuia9tf1.jpeg?width=1938&format=pjpg&auto=webp&s=1f4e0988a70c752f4fff31a904f85a19fc72467a\n\n**I was tired of tracking my Pokémon TCG collection with spreadsheets... so I built an app that values my cards daily**\n\nIf you collect Pokémon cards, you’ve probably been here:  \nYou pull a card, sleeve it, maybe check its price once, then it disappears into your binder. A year later, you have no idea what it’s worth, how your collection’s doing overall, or which cards are gaining/losing value.\n\nThat’s exactly where I was — juggling screenshots, Excel sheets, and random price lookups. It was a mess.\n\nSo, I built **CollectDeck** — an app that makes your collection feel more like a living portfolio, with values that update daily.\n\n# 🔑 Key Features\n\n📸 **Fast Card Scanning** – Just scan, and your card is instantly logged.  \n💰 **Daily Portfolio Valuation** – Your collection’s total worth updates every day, automatically.  \n📊 **Trends & Insights** – See which sets or cards are going up (or down) in value.  \n🎯 **Wishlist & Extras** – Track your chase cards and duplicates for trading/selling.  \n📔 **Clean, Collector-Focused Design** – No ads, no clutter, just your collect",
+      "created": 1759653961
+    }
+  ],
+  "reddit_cubecobra": [
+    {
+      "subreddit": "mtgcube",
+      "author": "ChampBlankman",
+      "title": "",
+      "body": "\n\nIn [Anemoia](https://cubecobra.com/cube/list/Anemoia) which is my Original Card Frame only, but Retro Reprints are allowed, Unpowered Cube focused around vibes and personal nostalgia, I run 5 that I classify as 3+ color, though only 2 of them strictly are.\n\n[[Nekusar, the Mindrazer]] - this was a speculative recent add and I'm still not sold on it entirely. Looks really cool in the retro frame, but there's not a ton of additional forced card draw available. Wheel of Fortune is on my \"if this gets cheaper or I find a stellar deal\" wishlist and I think that will probably help.\n\n[[Thunderscape Battlemage]] and [[Thornscape Battlemage]] - Easily the best two of the original Battlemage cycle, IMO. Thornscape has been doing its thing for a long time and is very serviceable. Thunderscape seems to get played a little less, but I'm quite fond of it so it stays in.\n\n[[Alesha, Who Smiles at Death]] - Another recent add. The only deck I have seen run this so far was only splashing a little Black and I don't think got to take full advantage of it but I think the ceiling is pretty good.\n\n[[Lightning Angel]] - I am personally guilty of having train wrecked so many drafts by getting pulled into ",
+      "created": 1770731011
+    },
+    {
+      "subreddit": "mtgcube",
+      "author": "madception",
+      "title": "",
+      "body": "Peasant with shadowlands and 2x thriving lands, [My cube](https://cubecobra.com/cube/list/restartcube) is basically a cube that play creature based games. Orzhov main theme is lifegain/reanimation, so they play durdley games. Sacrifice is present in red-white-black, and token deck is for green-white-black. \n\n[[Elas il-Kor, Sadistic Pilgrim]] - 2/2 deathtouch is alright, and with decent sacrifice signal. Also can be mixed with lifegain deck.\n\n[[Breathless Knight]] - 3 mana 2/2 lifelinker flying basically a beating, and can get powerful if not answered. Basically [[Sanguine Savior]]\n\n[[Markov Purifier]] - Slow card advantage while serving as roadblock. Lifegain threat is real in both white and black colors. \n\n[[Hero of the Dunes]] - Powerful, can be an early buildaround. Basically a go-wide support but can be synergized with haste creatures like [[Imodane Recruiter]]\n\nWishlist: \n\n[[Killian, Ink Duelist]] - Lifelink and menace, with heavy support of removals and auras. Not that oppressive, can replacing Breathless Knight.\n\n[[Indulging Patrician]] - Probably the stronger pull into lifegain archetype rather than Markov Purifier. I should try to get this one.\n\n[[Graceful Restoration]] - ",
+      "created": 1707993275.0
+    },
+    {
+      "subreddit": "magicTCG",
+      "author": "Karnith_Zo",
+      "title": "",
+      "body": "I am in the process of trying to foil out my battle box. The remaining cards I am looking for can be found [here](https://cubecobra.com/cube/list/bitta?f=Finish%3Anon-foil). I also have the priority cards listed on my DeckBox [wishlist](https://deckbox.org/sets/2967485) and things I have available for trade are on my [tradelist](https://deckbox.org/sets/2967484).\n\nI have done a few trades via this thread and also have a good trade reputation in other subs (mangaswap, gameswap).",
+      "created": 1639404707
+    }
+  ]
+}

@@ -282,17 +282,21 @@
           // ---- Preis nach Anzeige-Modus (value=Karten×Preis, price=Einzel, none=aus) ----
           let priceHtml = "";
           if (PRICE_DISPLAY_MODE === "value" || PRICE_DISPLAY_MODE === "price") {
+            // Wahrung je Quelle: TCGplayer=USD, Cardmarket=EUR (Bugfix:
+            // frueher wurden USD-Preise als EUR gerendert)
+            const cur = item.price_currency === "EUR" ? "EUR" : "USD";
+            const src = item.price_source === "cardmarket" ? "MKM" : "TCG";
+            const fmt = v => v.toLocaleString("de-DE", { style: "currency", currency: cur }) + ` <small class="ci-price-src">${src}</small>`;
             // Foil-Preis wenn da, sonst Normal-Preis (mit Hinweis) statt gar nichts
             let trend = isFoil ? (item.price_foil_trend != null ? item.price_foil_trend : item.price_trend) : item.price_trend;
             if (isFoil && item.price_foil_trend == null && trend != null) {
-              priceHtml = `<div class="${isFoil ? "ci-price foil" : "ci-price"}" title="Kein Foil-Preis verfügbar - Normal-Preis">${trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}<small> (normal)</small></div>`;
+              priceHtml = `<div class="${isFoil ? "ci-price foil" : "ci-price"}" title="Kein Foil-Preis verfügbar - Normal-Preis">${fmt(trend)}<small> (normal)</small></div>`;
             } else if (trend != null) {
               const cls = isFoil ? "ci-price foil" : "ci-price";
               if (PRICE_DISPLAY_MODE === "value" && item.count > 1) {
-                const value = trend * item.count;
-                priceHtml = `<div class="${cls}">${value.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}<small> (${item.count}×)</small></div>`;
+                priceHtml = `<div class="${cls}">${fmt(trend * item.count)}<small> (${item.count}×)</small></div>`;
               } else {
-                priceHtml = `<div class="${cls}">${trend.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</div>`;
+                priceHtml = `<div class="${cls}">${fmt(trend)}</div>`;
               }
             }
           }

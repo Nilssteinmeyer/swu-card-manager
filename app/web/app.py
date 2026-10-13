@@ -828,7 +828,11 @@ def _register_routes(app: Flask) -> None:
                        COALESCE(pr.foil_trend, tcg.market_foil) AS price_foil_trend,
                        COALESCE(pr.low, tcg.low_normal) AS price_low,
                        CASE WHEN pr.idProduct IS NOT NULL THEN pr.updated_at
-                            ELSE tcg.updated_at END AS price_updated
+                            ELSE tcg.updated_at END AS price_updated,
+                       CASE WHEN pr.trend IS NOT NULL THEN 'EUR'
+                            ELSE 'USD' END AS price_currency,
+                       CASE WHEN pr.trend IS NOT NULL THEN 'cardmarket'
+                            ELSE 'tcgplayer' END AS price_source
                 FROM collection col
                 JOIN cards ON col.card_id = cards.card_id
                 LEFT JOIN card_mkm_map m ON m.card_id = col.card_id
@@ -1920,7 +1924,16 @@ def _register_routes(app: Flask) -> None:
         conn = connect()
         try:
             items = repo.get_wishlist(conn, _hh())
-            return jsonify({"items": items, "count": len(items)})
+            summary = repo.get_wishlist_summary(conn, _hh())
+            return jsonify({"items": items, "count": len(items), "summary": summary})
+        finally:
+            conn.close()
+
+    @app.route("/api/wishlist/summary")
+    def api_wishlist_summary():
+        conn = connect()
+        try:
+            return jsonify(repo.get_wishlist_summary(conn, _hh()))
         finally:
             conn.close()
 
@@ -1942,9 +1955,122 @@ def _register_routes(app: Flask) -> None:
             cur = conn.execute("SELECT 1 FROM cards WHERE card_id = ?", (card_id,))
             if cur.fetchone() is None:
                 return jsonify({"error": f"Karte {card_id} nicht gefunden"}), 404
-            wl_id = repo.add_to_wishlist(conn, card_id, count, target_price, body.get("notes"), household_id=_hh())
+            # Merkliste v4: Variante (Foil), Sprache, Prioritaet (Cardmarket-Blaupause)
+            is_foil = bool(body.get("is_foil", False))
+            language = (body.get("language") or "de").strip()[:5]
+            if language not in ("de", "en", "any"):
+                language = "de"
+            try:
+                priority = int(body.get("priority", 2) or 2)
+            except (TypeError, ValueError):
+                priority = 2
+            if priority not in (1, 2, 3):
+                priority = 2
+            # Duplikat-Schutz: gleiche Karte + Variante -> Menge erhoehen
+            dup = conn.execute(
+                "SELECT wishlist_id, count FROM wishlist WHERE card_id = ? AND household_id = ? AND is_foil = ?",
+                (card_id, _hh(), 1 if is_foil else 0),
+            ).fetchone()
+            if dup:
+                conn.execute(
+                    "UPDATE wishlist SET count = count + ? WHERE wishlist_id = ?",
+                    (max(1, count), dup["wishlist_id"]),
+                )
+                conn.commit()
+                return jsonify({"wishlist_id": dup["wishlist_id"], "added": False, "merged": True, "count": dup["count"] + max(1, count)})
+            wl_id = repo.add_to_wishlist(
+                conn, card_id, count, target_price, body.get("notes"), household_id=_hh(),
+                is_foil=is_foil, language=language, priority=priority,
+            )
             conn.commit()
             return jsonify({"wishlist_id": wl_id, "added": True})
+        finally:
+            conn.close()
+
+    @app.route("/api/wishlist/update", methods=["POST"])
+    def api_wishlist_update():
+        """Einzelnen Merklisten-Eintrag bearbeiten (Menge, Zielpreis, Notiz, Prioritaet).
+
+        Nur Mitglieder mit Schreibrechten (can_edit-Guard wie Sammlung).
+        """
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten dürfen die Merkliste bearbeiten"}), 403
+        body = request.get_json(silent=True) or {}
+        wl_id = body.get("wishlist_id")
+        if not wl_id:
+            return jsonify({"error": "wishlist_id erforderlich"}), 400
+        target_price = body.get("target_price")
+        if isinstance(target_price, str):
+            target_price = target_price.strip() or None
+        if target_price is not None:
+            try:
+                target_price = float(target_price)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Zielpreis muss eine Zahl sein"}), 400
+        conn = connect()
+        try:
+            # Household-Isolation: Eintrag muss zum aktiven Haushalt gehoeren
+            row = conn.execute(
+                "SELECT household_id FROM wishlist WHERE wishlist_id = ?", (int(wl_id),)
+            ).fetchone()
+            if row is None or row["household_id"] != _hh():
+                return jsonify({"error": "Eintrag nicht gefunden"}), 404
+            ok = repo.update_wishlist_entry(
+                conn, int(wl_id),
+                count=body.get("count"),
+                target_price=target_price,
+                notes=body.get("notes"),
+                priority=body.get("priority"),
+                is_foil=body.get("is_foil"),
+                language=body.get("language"),
+            )
+            conn.commit()
+            return jsonify({"updated": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/wishlist/alerts")
+    def api_wishlist_alerts():
+        conn = connect()
+        try:
+            alerts = repo.get_wishlist_alerts(conn, _hh(), limit=int(request.args.get("limit", 50)))
+            unack = sum(1 for a in alerts if not a.get("acknowledged"))
+            return jsonify({"alerts": alerts, "unacknowledged": unack})
+        finally:
+            conn.close()
+
+    @app.route("/api/wishlist/alerts/ack", methods=["POST"])
+    def api_wishlist_alerts_ack():
+        body = request.get_json(silent=True) or {}
+        alert_id = body.get("alert_id")
+        if not alert_id:
+            return jsonify({"error": "alert_id erforderlich"}), 400
+        conn = connect()
+        try:
+            ok = repo.acknowledge_wishlist_alert(conn, int(alert_id))
+            return jsonify({"acknowledged": ok})
+        finally:
+            conn.close()
+
+    @app.route("/api/wishlist/deck-missing", methods=["POST"])
+    def api_wishlist_deck_missing():
+        """Deckliste -> fehlende Karten in BULK auf die Merkliste (Deckbox-Muster)."""
+        from app.auth import can_edit as _can_edit
+
+        if not _can_edit():
+            return jsonify({"error": "Nur Mitglieder mit Schreibrechten dürfen die Merkliste bearbeiten"}), 403
+        body = request.get_json(silent=True) or {}
+        card_ids = body.get("card_ids")
+        if not isinstance(card_ids, list) or not card_ids:
+            return jsonify({"error": "card_ids (Liste) erforderlich"}), 400
+        is_foil = bool(body.get("is_foil", False))
+        language = (body.get("language") or "de").strip()[:5] or "de"
+        conn = connect()
+        try:
+            added = repo.add_missing_cards_to_wishlist(conn, card_ids, household_id=_hh(), is_foil=is_foil, language=language)
+            return jsonify({"added": added, "skipped": len(card_ids) - added})
         finally:
             conn.close()
 

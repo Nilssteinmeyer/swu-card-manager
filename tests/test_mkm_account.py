@@ -128,5 +128,8 @@ def test_wishlist_includes_price(db):
     repo.add_to_wishlist(db, "SOR-005")
     db.commit()
     items = repo.get_wishlist(db)
-    assert items[0]["price_trend"] == 4.9
+    # v4: dual-source Felder statt price_trend (MKM bevorzugt -> price/currency/source)
+    assert items[0]["price"] == 4.9
+    assert items[0]["currency"] == "EUR"
+    assert items[0]["price_source"] == "cardmarket"
     assert items[0]["idProduct"] == 401005

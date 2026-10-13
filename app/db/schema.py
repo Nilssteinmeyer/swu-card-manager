@@ -24,7 +24,7 @@ from app.core.logging import get_logger
 
 log = get_logger("db")
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def get_db_path() -> Path:
@@ -399,6 +399,18 @@ DDL_STATEMENTS = [
         description     TEXT
     )
     """,
+    # --- Merkliste: Preis-Alarm-Verlauf (Keepa-Muster) -----------------------
+    """
+    CREATE TABLE IF NOT EXISTS wishlist_alerts (
+        alert_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        wishlist_id     INTEGER NOT NULL REFERENCES wishlist(wishlist_id) ON DELETE CASCADE,
+        kind            TEXT NOT NULL,          -- 'target_hit' | 'price_drop' | 'digest'
+        old_price       REAL,
+        new_price       REAL,
+        created_at      TEXT DEFAULT (datetime('now')),
+        acknowledged    INTEGER DEFAULT 0
+    )
+    """,
     # --- Scan corrections (learning from user corrections) -------------------
     """
     CREATE TABLE IF NOT EXISTS scan_corrections (
@@ -477,9 +489,32 @@ def _migrate(cur: sqlite3.Cursor) -> None:
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
                 log.info(f"Migration: added {table}.{col_name}", extra={"event": "db_migration"})
 
+    # ---- Merkliste v4: Varianten + Preisbeobachtung (Wishlist-Redesign) ----
+    # cardmarket-Blaupause: pro Want Variante (Foil), Sprache, Menge, Prioritaet,
+    # Zielpreis (target_price existiert bereits) + Preis beim Hinzufuegen fuer
+    # Delta-Anzeige ("seit gespeichert"). target_reached_at = Anti-Spam (nur
+    # der ERSTE Treffer alarmiert, Cardmarket-Muster).
+    cur.execute("PRAGMA table_info(wishlist)")
+    cols = {row[1] for row in cur.fetchall()}
+    for col_def in (
+        "is_foil INTEGER DEFAULT 0",
+        "language TEXT DEFAULT 'de'",
+        "priority INTEGER DEFAULT 2",          # 1=Must-have 2=Normal 3=Nice-to-have
+        "price_at_add REAL",
+        "added_at_price_src TEXT",            # 'tcg' | 'mkm'
+        "target_reached_at TEXT",
+    ):
+        col_name = col_def.split()[0]
+        if col_name not in cols:
+            cur.execute(f"ALTER TABLE wishlist ADD COLUMN {col_def}")
+            log.info(f"Migration: added wishlist.{col_name}", extra={"event": "db_migration"})
+
     # Indexes for tenant-scoped queries
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_collection_household ON collection (household_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wishlist_household ON wishlist (household_id)"
     )
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_scans_household ON scans (household_id)"
