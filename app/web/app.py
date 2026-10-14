@@ -3490,7 +3490,23 @@ def _serve_graceful(server) -> None:
     server.serve_forever()
 
 
+def _force_utf8_stdout() -> None:
+    """Dienst-Betrieb (NSSM) nutzt cp1252-Konsole - Unicode-Prints wuerden
+    die App beim Start crashen lassen (UnicodeEncodeError). Stdout/Stderr
+    auf UTF-8 umlenken, egal unter welchem Host."""
+    import sys as _sys
+
+    for _stream_name in ("stdout", "stderr"):
+        _stream = getattr(_sys, _stream_name, None)
+        if _stream is not None and hasattr(_stream, "reconfigure"):
+            try:
+                _stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:  # noqa: BLE001 - darf den Start nie blocken
+                pass
+
+
 def main() -> None:
+    _force_utf8_stdout()
     import argparse
 
     parser = argparse.ArgumentParser(description="SWU Card Manager Web UI")
@@ -3550,9 +3566,9 @@ def main() -> None:
     print(f"  Listening on {protocol}://{args.host}:{args.port}")
     if use_ssl:
         print(f"  HTTPS enabled — camera works on iOS/Safari")
-        print(f"  ⚠  On iPhone: accept the certificate warning to continue")
+        print("  HINWEIS: On iPhone - accept the certificate warning to continue")
     else:
-        print(f"  ⚠  HTTP mode — camera won't work on iOS (use --ssl or localhost)")
+        print("  HINWEIS: HTTP mode - camera won't work on iOS (use --ssl or localhost)")
     print(f"  Phone: {protocol}://192.168.178.74:{args.port}")
     print(f"  Local: {protocol}://localhost:{args.port}")
     print(f"{'=' * 60}\n")

@@ -84,6 +84,12 @@ def _port_open(port: int) -> bool:
         return False
 
 
+def _monitor_only() -> bool:
+    """SWU_SUPERVISOR_MODE=monitor: nur beobachten, keine Prozesse starten
+    (Modus fuer den Betrieb mit NSSM-Diensten, die selbst neu starten)."""
+    return (os.environ.get("SWU_SUPERVISOR_MODE") or "").strip().lower() == "monitor"
+
+
 def _start(inst: dict) -> None:
     env = os.environ.copy()
     env["SWU_ENV"] = inst["env"]
@@ -180,9 +186,14 @@ def main() -> None:
                 if inst["stop_flag"].exists():
                     continue  # kontrollierte Down-Phase (Deploy/Wartung)
                 if not _port_open(inst["port"]):
-                    log.warning("%s (Port %s) antwortet nicht -> Neustart",
-                                inst["name"], inst["port"])
-                    _start(inst)
+                    if _monitor_only():
+                        log.warning("%s (Port %s) DOWN - Monitor-Modus, kein "
+                                    "Neustart (Dienst/NSSM sollte das tun)",
+                                    inst["name"], inst["port"])
+                    else:
+                        log.warning("%s (Port %s) antwortet nicht -> Neustart",
+                                    inst["name"], inst["port"])
+                        _start(inst)
             except Exception as e:  # noqa: BLE001
                 log.error("Pruef-/Startfehler %s: %s", inst["name"], e)
         if time.time() - last_monitor >= MONITOR_INTERVAL:
