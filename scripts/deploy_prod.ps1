@@ -45,7 +45,7 @@ if ($Rollback) {
     Write-Host "  Vorheriger Stand: $last"
     if ($DryRun) { Write-Host "  (DryRun: kein Checkout)"; exit 0 }
     New-Item -ItemType File -Path $MaintFlag -Force | Out-Null
-    git checkout -f $last 2>&1 | Out-Null
+    cmd /c "git checkout -f $last 2>&1" | Out-Null
     Remove-Item $StopProd -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 16
     Remove-Item $MaintFlag -Force -ErrorAction SilentlyContinue
     Write-Ok "Rollback auf $last abgeschlossen."
@@ -94,7 +94,7 @@ Write-Ok "503 + Retry-After fuer Nicht-Admins."
 try {
     # --- 5: Code ausrollen -----------------------------------------------------
     Write-Step "Ausrollen: git checkout $Tag"
-    git checkout -f $Tag 2>&1 | Out-Null
+    cmd /c "git checkout -f $Tag 2>&1" | Out-Null
     git log -1 --oneline
 
     # requirements geaendert? -> pip install
@@ -124,7 +124,7 @@ try {
     }
     if (-not $ready) {
         Write-Err "Health nicht gruen - AUTO-ROLLBACK auf $previous"
-        git checkout -f $previous 2>&1 | Out-Null
+        cmd /c "git checkout -f $previous 2>&1" | Out-Null
         Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
             Where-Object { $_.CommandLine -like '*app.web*8443*' } |
             ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
