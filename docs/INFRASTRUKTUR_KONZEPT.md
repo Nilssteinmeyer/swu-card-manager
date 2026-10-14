@@ -16,13 +16,21 @@
 
 **Release-Flow:** lokal entwickeln → Test-Umgebung grün (Unit + E2E + Smoke) → `deploy_prod.ps1` → produktiv. Fehler im Produktivbetrieb → lokal reproduzieren → fixen → neu ausrollen. **Niemals direkt auf Prod entwickeln.**
 
-### Die zentrale Architektur-Entscheidung (aus der Recherche)
+### Die zentrale Architektur-Entscheidung (aus der Recherche — 2 Optionen, Empfehlung: A)
 
-**Zwei getrennte Instanzen auf DEMSELBEN Windows-PC** — nicht zwei Maschinen, nicht VPS:
+Die Deployment-Recherche (132 Quellen) sieht zwei tragfähige Wege. Beide sind quellenbelegt; die Entscheidung ist eine Kosten-/Privacy-Frage:
 
-- Der PC läuft ohnehin 24/7 als GPU-Host (CLIP-Scan-Engine, Kaltstart-Verhalten, Rate-Limit sind darauf optimiert). Ein günstiger Linux-VPS (ab ~4-5 €/Monat) wäre ein zweites System mit eigenem Patch-/Sicherheitsaufwand — für eine Familien-App zahlt der nicht ein (Recherche: Deployment, Themen „Hosting" + „prozess"; Home-Assistant-/Vaultwarden-Muster).
-- Die Daten (DB 12 MB + Bilder 2,6 GB + Modelle 600 MB) bleiben zu 100 % auf deiner Hardware → **privacy-first bleibt gewahrt** (deine Grundanforderung seit Projektbeginn).
-- Der bestehende Caddy-Modus (Port 80/443, Let's Encrypt, NSSM-Dienste, DuckDNS) ist genau das Production-Muster der Recherche — er wird zur PROD-Umgebung ausgebaut, statt neu zu bauen.
+**Option A — Alles auf deinem PC (EMPFOHLEN):**
+- Der PC läuft ohnehin 24/7 als GPU-Host (CLIP-Scan-Engine, Kaltstart-Verhalten, Rate-Limit sind darauf optimiert).
+- Alle Daten (DB 12 MB + Bilder 2,6 GB + Modelle 600 MB) bleiben zu 100 % auf deiner Hardware → **privacy-first bleibt gewahrt** (deine Grundanforderung seit Projektbeginn).
+- Der bestehende Caddy-Modus (Port 80/443, Let's Encrypt, NSSM, DuckDNS) wird zur PROD-Umgebung ausgebaut statt neu zu bauen.
+- Nachteile: Heim-IP exponiert (über Caddy kontrolliert), PC-Neustarts = kurze Prod-Downtime, Windows-Patching betrifft Prod.
+
+**Option B — VPS für PROD (~4-8 €/Monat):**
+- Kleiner Linux-VPS (Hetzner CX22 ~4-8 €/Monat / netcup VPS Lite ~5 €/Monat), PROD als Docker-Compose-Stack: Flask hinter Gunicorn (gevent-Worker, Flask-Doku-Empfehlung für Produktion), SQLite WAL + Litestream-Streaming-Backup, Caddy mit Auto-TLS auf der DuckDNS-Domain (DuckDNS-API zeigt auf die VPS-IP).
+- Vorteile: Heim-IP nicht exponiert, 24/7 unabhängig vom Wohn-PC, gelerntes Linux-Production-Muster (Immich/Paperless-Style); Deploy via GitHub Actions (pytest-Gate + SSH + `docker compose pull/up -d`).
+- Nachteile: Deine Daten (Sammlung, Fotos der Familie) liegen auf fremder Hardware — widerspricht Privacy-first; zweites System mit eigenem Patch-/Sicherheitsaufwand; Monatskosten.
+- **Empfehlung: Option A** — Privacy-first ist deine Basisanforderung, der PC läuft ohnehin, und der Caddy-Modus existiert bereits. Option B bleibt als dokumentierter Migrationspfad (gleiche App, gleiche Config-Maschinerie, nur anderes Hosting).
 
 ```
                     ┌── Heimnetz (TEST) ─────────────────┐   ┌── Internet (PROD) ───────────────┐
@@ -139,6 +147,8 @@ backup:
 - **Pro Lauf:** `VACUUM INTO` → `quick_check` + `foreign_key_check` auf der Snapshot-Datei → ZIP (DB + config + Modelle + bestätigte Scans) → GFS-Rotation auf **beiden Zielen** → Ergebnis-Log.
 - **Kein Backup = kein Deploy** (Gate im deploy_prod.ps1).
 - **Restore-Drill** wöchentlich (wie heute) + **halbju­hrlicher manueller Voll-Restore** in ein Temp-Verzeichnis mit App-Start gegen die restaurierte DB (Smoke: Login + Sammlung laden) — dokumentiert in OPERATIONS.md.
+- **Upgrade-Pfad restic (optional, P3+):** Die Backup-Recherche empfiehlt als zweite Stufe restic (nativ Windows, VSS via `--use-fs-snapshot`, Dedup, Verschlüsselung, GFS-Retention `--keep-daily/-weekly/-monthly`, `check --read-data-subset`-Verifikation) für DB-Snapshot + Bilder + Modelle + Scans als EIN System. Phase 3 liefert zuerst die ZIP-Pipeline (bewährt, einfach wiederherstellbar); restic ist der dokumentierte Ausbau, sobald die Datenmenge wächst oder ein NAS angeschlossen ist. Borg scheidet aus (keine nativen Windows-Binaries).
+- **Litestream (optional, später):** Streaming-Replikation der DB mit Sekunden-RPO als Windows-Service — nur die DB, Ergänzung kein Ersatz; bewusst nicht in P3 (RPO von 24 h reicht für die Familien-App, Restore-Einfachheit zuerst).
 - **Einstellbar ohne Code:** alles obige per YAML; Windows-Task `SWU-Backup-Daily` bleibt, bekommt `--env prod`; NEU `SWU-Backup-Test` mit `--env test` (eigene Rotation, eigenes Ziel).
 - **Externes Ziel (3-2-1):** USB-Platte/Netzlaufwerk als Ziel 2; wenn nicht angeschlossen → Warnung im Log + Admin-Postfach (kein stiller Ausfall). Optionaler Cloud-Sync bleibt bewusst weg (privacy-first) — nur das YAML-Feld existiert für später.
 
@@ -158,8 +168,10 @@ backup:
 | Backup-Job-Monitoring | healthchecks.io-Ping (oder Uptime-Kuma-Push) am Ende jedes Backup-Laufs — „Backup STILL" wird alarmiert, nicht nur „Backup tot" | healthchecks.io-Muster
 | Fehler-Alerts | 500er-Flask-Handler + Backup-Fehlschlag → Admin-Postfach (System-Nachricht) + E-Mail; Cooldown 15 min/Fehlerklasse | Stabilität-Recherche Befund 5
 | Log-Rotation | TimedRotatingFileHandler (midnight, 30 behalten) in der App + NSSM-AppRotateFiles 50 MB als zweite Linie | Logging-Best-Practice
-| Wartungsmodus | Maintenance-Flag (Datei `config/maintenance_on` oder YAML) → alle Routes 503 + statische Info-Seite; Monitoring-Pings dürfen durchschlagen; NIE 200 | Wartungsmodus-Muster |
+| Wartungsmodus | Maintenance-Flag als **Datei** `config/maintenance_on` (nicht DB, damit Migrationen laufen) → before_request-Hook: alle Routes 503 + `Retry-After: 600` + statische deutsche Info-Seite; `/api/health` + Admin-User ausgenommen; **Auto-Off nach Zeitfenster** als Fail-Safe gegen vergessene Flags (Muster: Laravel `artisan down`, django-maintenance-mode) | Stabilität-Recherche Befund 5 |
 | SQLite-Betrieb | WAL bleibt, `PRAGMA busy_timeout=5000` auf jeder Verbindung, `synchronous=NORMAL` — 2-10 Nutzer weit unter jeder Grenze (offizielle Doku: <100 k Hits/Tag „fine") | SQLite-WAL-Doku |
+| Graceful Shutdown | gevent `spawn=Pool(200)` als Concurrency-Cap + SIGTERM/SIGINT-Handler → `server.stop(timeout=30)` — damit NSSM-Stop/Deploy keine laufenden Requests zerreißen (pywsgi hat das NICHT eingebaut) | gevent-Doku/Stabilität Befund |
+| TLS-Hardening | HSTS `max-age=63072000` (includeSubDomains erst nach Prüfung), TLS-1.3-Profil, Caddy-Admin-API auf localhost:2019 begrenzen; bei Zertifikats-Problemen LE-Staging-Environment gegen Rate-Limits | OWASP/MDN/Caddy-Doku |
 
 **Was bewusst NICHT kommt** (Overkill für 1 App / 2-10 Nutzer, lt. Recherche): Prometheus/Grafana/Loki-Stack, Sentry self-hosted, Kubernetes, Ansible, Watchtower für die App selbst, GitFlow-Environment-Branches.
 
@@ -169,10 +181,10 @@ backup:
 
 | Phase | Inhalt | Aufwand | Test |
 |---|---|---|---|
-| **P1 — Fundament** | `SWU_ENV`-Config-Trennung (`app/core/config.py`, `config/test.yaml`, `data_test/`); Health-Endpoints `/api/health` + `/api/health/ready`; `scan_enabled`-Flag + 503-Pfad | ~½ Tag | Unit + Live-Check beider Modi |
+| **P1 — Fundament** | `SWU_ENV`-Config-Trennung (`app/core/config.py`, `config/test.yaml`, `data_test/`); Health-Endpoints `/api/health` + `/api/health/ready`; `scan_enabled`-Flag + 503-Pfad; gevent Pool(200) + SIGTERM-Graceful-Shutdown | ~½ Tag | Unit + Live-Check beider Modi |
 | **P2 — Prod-Dienst** | `SWU-App-Test` + `SWU-App-Prod` als NSSM-Dienste (Umbau von setup.ps1, resumable); beide gleichzeitig; Prod-DB aus Backup-Import (Startbestand) | ~½ Tag | Dienst-Crash-Test (kill → Auto-Restart), Health-Grün |
 | **P3 — Backup-Ausbau** | backup_daily.py: `--env`, VACUUM INTO + verify, 2 Ziele, YAML-Retention, Backup-Task Test+Prod, healthchecks-Ping, restore_backup.ps1 | ~1 Tag | Restore-Drill Prod + Test, Ziel-2-Ausfall-Simulation |
-| **P4 — Release-Flow** | deploy_prod.ps1 (Gates, Tag-Checkout, Maintenance, Health-Poll, Auto-Rollback, Report); Wartungsmodus (503-Seite); Version-Tags + `/api/system`-Anzeige | ~1 Tag | Dry-Run + echter Deploy v1.0.0 + absichtlicher Rollback-Test |
+| **P4 — Release-Flow** | deploy_prod.ps1 (Gates, Tag-Checkout, Maintenance, Health-Poll, Auto-Rollback, Report); Wartungsmodus (503-Seite, Flag-Datei + Auto-Off); Version-Tags + `/api/system`-Anzeige | ~1 Tag | Dry-Run + echter Deploy v1.0.0 + absichtlicher Rollback-Test |
 | **P5 — Monitoring** | Uptime-Kuma (Docker/EXE) mit 2 Monitoren; Alert-Mail; Backup-Ping-Alarm | ~½ Tag | Alert-Test (Server killen → Mail) |
 | **P6 — Doku & Go-Live** | OPERATIONS.md neu (2 Umgebungen, Deploy, Restore, Wartung); Go-Live-Checkliste; erstes echtes Prod-Release | ~½ Tag | End-to-End-Walkthrough |
 
@@ -180,10 +192,11 @@ backup:
 
 ### Offene Punkte für dich (vor P1)
 
-1. **Prod-Startdaten:** Soll die Prod-DB mit deinem aktuellen Sammlungsstand starten (Kopie aus dem heutigen Backup) oder leer?
-2. **Ziel 2 für Backups:** USB-Platte vorhanden? Netzlaufwerk? (Für 3-2-1; sonst konfiguriere ich es mit Platzhalter + Warnung.)
-3. **Uptime-Kuma als Docker oder EXE** — hast du Docker für Windows aktiviert, oder soll ich die EXE-Variante einrichten?
-4. **Domain:** bleibt `swu-cardscanner.duckdns.org` für Prod?
+1. **Hosting-Entscheidung:** Option A (alles auf deinem PC, meine Empfehlung) oder Option B (VPS ~4-8 €/Monat für PROD)?
+2. **Prod-Startdaten:** Soll die Prod-DB mit deinem aktuellen Sammlungsstand starten (Kopie aus dem heutigen Backup) oder leer?
+3. **Ziel 2 für Backups:** USB-Platte vorhanden? Netzlaufwerk? (Für 3-2-1; sonst konfiguriere ich es mit Platzhalter + Warnung.)
+4. **Uptime-Kuma als Docker oder EXE** — hast du Docker für Windows aktiviert, oder soll ich die EXE-Variante einrichten?
+5. **Domain:** bleibt `swu-cardscanner.duckdns.org` für Prod?
 
 ---
 
@@ -191,7 +204,8 @@ backup:
 
 - **Review 1 (Vollständigkeit gegen den Auftrag):** Alle 4 Anforderungen geprüft — Test+Prod getrennt ✓; lokal entwickeln/testen, dann Prod-Rollout ✓; Stabilität (Watchdog/Health/Monitoring/503-Wartung) ✓; automatisierte, einstellbare Backups (YAML-Rotation, 2 Ziele, Verify, Drill, Restore-Skript) ✓. Lücke gefunden & geschlossen: Scanner in Prod war ursprünglich nur „ausgeblendet" — jetzt sauber 503 + UI-Hinweis (Kap. 1.3).
 - **Review 2 (Widerspruchsfreiheit + Machbarkeit auf DIESEM System):** Ports (8765 Test / 8443+80+443 Caddy) kollisionsfrei ✓; NSSM-Dienste ohne Admin-Rechte-Erweiterung ✓; GPU-Bindung nur Test ✓; Config-Default = test schützt vor versehentlichem Prod-Zugriff ✓; Schema-Migrationen laufen je Umgebung getrennt (Additiv-Kette v1→v6 bewährt) ✓; Backup-Vor-Deploy-Gate deckt auch manuelle Migrationen ab ✓. Korrektur aus Review: Ursprünglich „Prod deployt master" — verschärft zu „Prod deployt NUR Tags" (nachvollziehbarkeit + Rollback-Pfeiler).
-- **Review 3 (Vergleich mit gängigen Lösungen, Quellen-Abgleich):** Hosting-Empfehlung deckt sich mit Home-Assistant/Vaultwarden-Selfhost-Mustern (eigener Host + Reverse-Proxy statt VPS für GPU-Apps) ✓; Backup-Stack = kanonische SQLite-Empfehlung (VACUUM INTO/Backup-API) + GFS + 3-2-1 + Restore-Drill wie bei Paperless/Immich ✓; Release-Flow = GitHub-Flow-light + Tag-Deploy + Health-Gate + Auto-Rollback = Üblichkeitsmaßstab kleiner Web-Apps ✓; Monitoring = Uptime-Kuma + healthchecks-Ping (De-facto-Standard für 1-2 Instanzen) ✓; bewusste Nicht-Ziele gegen alle 4 Recherche-Berichte abgeglichen (kein K8s/GitFlow/Loki/Sentry — Overkill begründet) ✓. Preisdifferenz VPS geprüft (~4-5 €/Monat) und bewusst verworfen.
+- **Review 3 (Vergleich mit gängigen Lösungen, Quellen-Abgleich):** Hosting-Empfehlung gegen alle 132 Deployment-Quellen geprüft — die Recherche empfiehlt mehrheitlich einen kleinen VPS für die Online-Instanz; abgewogen gegen Privacy-first + vorhandenen Caddy-Modus + 24/7-GPU-Host bleibt Option A (eigener PC) die Empfehlung, Option B (VPS + Docker + Gunicorn + Litestream, ~4-8 €/Monat) ist als gleichwertige Alternative mit vollem Migrationspfad dokumentiert ✓; Backup-Stack = kanonische SQLite-Empfehlung (VACUUM INTO/Backup-API) + GFS + 3-2-1 + Restore-Drill wie bei Paperless/Immich; restic als dokumentierter Upgrade-Pfad aufgenommen ✓; Release-Flow = GitHub-Flow-light + Tag-Deploy + Health-Gate + Auto-Rollback = Üblichkeitsmaßstab kleiner Web-Apps (GHA+SSH-Variante für Option B notiert) ✓; Monitoring = Uptime-Kuma + healthchecks-Ping (De-facto-Standard für 1-2 Instanzen) ✓; bewusste Nicht-Ziele gegen alle 4 Recherche-Berichte abgeglichen (kein K8s/GitFlow/Loki/Sentry/Ansible/Watchtower — Overkill begründet) ✓. Preisdifferenz VPS geprüft (Hetzner CX22 ~3,79-8,49 €, netcup VPS Lite ~4,92 € nach Preiserhöhung Sept. 2026, DO ab 4 $) und in Option B dokumentiert.
+- **Review 3b (Nach-Agenten-Delta):** Die vollständigen 4 Agenten-Ergebnisse (nach Konzept-Commit eingetroffen) wurden delta-geprüft und eingearbeitet: Hosting-Option B mit ehrlicher Vor-/Nachteil-Tabelle; gevent Pool(200) + SIGTERM-Graceful-Shutdown (Stabilität-Befund, fehlte); Maintenance-Flag als Datei + Auto-Off-Fail-Safe; HSTS 63072000 + LE-Staging-Detail; restic- + Litestream-Upgrade-Pfade (Backup-Befunde); Gunicorn-Hinweis für Option B (Flask-Doku: Dev-Server nie produktiv). Keine Widersprüche zum Kern-Design — alle Deltas waren Präzisierungen.
 
 ---
 
