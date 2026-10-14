@@ -17,7 +17,10 @@ from typing import Any
 
 import yaml
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# DATEN-Root: normal der Paket-Root; im Prod-Worktree (../swu_prod) per
+# Env SWU_HOME auf den Haupt-Tree umgelenkt, damit DB/Bilder/Config/SSL
+# dort bleiben, wo sie sind (deploy_prod.ps1 setzt SWU_HOME beim Start).
+_PROJECT_ROOT = Path(os.environ.get("SWU_HOME") or Path(__file__).resolve().parent.parent.parent).resolve()
 _CONFIG_PATH = _PROJECT_ROOT / "config" / "config.yaml"
 
 

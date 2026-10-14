@@ -45,7 +45,10 @@ if ($Rollback) {
     Write-Host "  Vorheriger Stand: $last"
     if ($DryRun) { Write-Host "  (DryRun: kein Checkout)"; exit 0 }
     New-Item -ItemType File -Path $MaintFlag -Force | Out-Null
+    $ProdTreeRB2 = Join-Path (Split-Path -Parent $ProjectDir) "swu_prod"
+    Push-Location $ProdTreeRB2
     cmd /c "git checkout -f $last 2>&1" | Out-Null
+    Pop-Location
     Remove-Item $StopProd -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 16
     Remove-Item $MaintFlag -Force -ErrorAction SilentlyContinue
     Write-Ok "Rollback auf $last abgeschlossen."
@@ -54,8 +57,8 @@ if ($Rollback) {
 
 # --- Gate 1: Tests ------------------------------------------------------------
 Write-Step "Gate 1: Test-Suite (Unit)"
-& $VenvPython -m pytest tests/ --ignore=tests/test_recognition_accuracy.py -q --tb=no | Tee-Object -Variable testOut | Out-Null
-if ($LASTEXITCODE -ne 0) { Write-Err "Unit-Tests rot - KEIN Deploy."; exit 1 }
+& $VenvPython -m pytest tests/ --ignore=tests/test_recognition_accuracy.py -q --tb=line 2>&1 | Tee-Object -Variable testOut | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Err "Unit-Tests rot - KEIN Deploy."; $testOut | Select-Object -Last 8 | Write-Host; exit 1 }
 Write-Ok "Unit-Tests gruen."
 
 Write-Step "Gate 1b: E2E-Suite"
@@ -92,16 +95,29 @@ New-Item -ItemType File -Path $MaintFlag -Force | Out-Null
 Write-Ok "503 + Retry-After fuer Nicht-Admins."
 
 try {
-    # --- 5: Code ausrollen -----------------------------------------------------
-    Write-Step "Ausrollen: git checkout $Tag"
-    cmd /c "git checkout -f $Tag 2>&1" | Out-Null
-    git log -1 --oneline
+    # --- 5: Code ausrollen (Prod-Worktree, Entwicklungs-Tree bleibt auf master) --
+    $ProdTree = Join-Path (Split-Path -Parent $ProjectDir) "swu_prod"
+    if (-not (Test-Path $ProdTree)) {
+        Write-Step "Prod-Worktree anlegen: $ProdTree"
+        git worktree add $ProdTree $Tag 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Err "git worktree add fehlgeschlagen."; exit 1 }
+    } else {
+        Write-Step "Prod-Worktree auf $Tag aktualisieren"
+        Push-Location $ProdTree
+        cmd /c "git fetch --tags origin 2>&1" | Out-Null
+        cmd /c "git checkout -f $Tag 2>&1" | Out-Null
+        Pop-Location
+    }
+    Push-Location $ProdTree
+    $deployedCommit = git log -1 --oneline
+    Pop-Location
+    Write-Ok "Prod-Tree: $deployedCommit"
 
-    # requirements geaendert? -> pip install
+    # requirements geaendert? -> pip install (Venv im Haupt-Tree, Prod nutzt es)
     $reqChanged = git diff --name-only $previous $Tag 2>$null | Select-String "requirements.txt"
     if ($reqChanged) {
         Write-Step "requirements.txt geaendert - pip install"
-        & $VenvPython -m pip install -r requirements.txt --quiet 2>&1 | Out-Null
+        & $VenvPython -m pip install -r (Join-Path $ProdTree "requirements.txt") --quiet 2>&1 | Out-Null
     }
 
     # --- 6: Prod-Neustart -----------------------------------------------------
@@ -123,7 +139,10 @@ try {
     }
     if (-not $ready) {
         Write-Err "Health nicht gruen - AUTO-ROLLBACK auf $previous"
+        $ProdTreeRB = Join-Path (Split-Path -Parent $ProjectDir) "swu_prod"
+        Push-Location $ProdTreeRB
         cmd /c "git checkout -f $previous 2>&1" | Out-Null
+        Pop-Location
         Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
             Where-Object { $_.CommandLine -like '*app.web*8443*' } |
             ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }

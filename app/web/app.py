@@ -26,7 +26,9 @@ import numpy as np
 from flask import Flask, Response, jsonify, redirect, render_template, request, send_file
 
 # Ensure project root is importable when running as a script
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# Daten-Root: SWU_HOME lenkt im Prod-Worktree auf den Haupt-Tree um
+# (DB/config/ssl/logs bleiben dort; siehe app/core/config.py P1/P4).
+_PROJECT_ROOT = Path(os.environ.get("SWU_HOME") or Path(__file__).resolve().parent.parent.parent).resolve()
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 

@@ -41,12 +41,19 @@ log = logging.getLogger("swu.supervisor")
 
 PYTHON = PROJECT / ".venv" / "Scripts" / "python.exe"
 
+# Prod laeuft aus dem eigenen Git-Worktree ../swu_prod (auf dem Release-Tag
+# gepinnt - deploy_prod.ps1 aktualisiert ihn). Fehlt der Worktree (erste
+# Einrichtung), faellt der Supervisor auf den Haupt-Tree zurueck.
+PROD_TREE = PROJECT.parent / "swu_prod"
+_prod_home = PROD_TREE if (PROD_TREE / "app" / "web").exists() else PROJECT
+
 INSTANCES = [
     {
         "name": "SWU-App-Test",
         "env": "test",
         "host": "0.0.0.0",
         "port": 8765,
+        "cwd": str(PROJECT),
         "stop_flag": PROJECT / "config" / ".stop_test",
     },
     {
@@ -54,6 +61,7 @@ INSTANCES = [
         "env": "prod",
         "host": "127.0.0.1",
         "port": 8443,
+        "cwd": str(_prod_home),
         "stop_flag": PROJECT / "config" / ".stop_prod",
     },
 ]
@@ -70,12 +78,15 @@ def _port_open(port: int) -> bool:
 def _start(inst: dict) -> None:
     env = os.environ.copy()
     env["SWU_ENV"] = inst["env"]
+    # Prod-Worktree: Daten-Root bleibt der HAUPT-Tree (DB/config/ssl/logs)
+    if inst.get("cwd") and inst["env"] == "prod" and Path(inst["cwd"]) != PROJECT:
+        env["SWU_HOME"] = str(PROJECT)
     env.setdefault("SWU_SKIP_WARMUP", "1")  # Warmup macht die App selbst
     cmd = [str(PYTHON), "-m", "app.web", "--host", inst["host"], "--port", str(inst["port"])]
     try:
         subprocess.Popen(
             cmd,
-            cwd=str(PROJECT),
+            cwd=inst.get("cwd", str(PROJECT)),
             env=env,
             stdout=open(LOGS / f"supervisor_{inst['env']}.log", "ab"),
             stderr=subprocess.STDOUT,
