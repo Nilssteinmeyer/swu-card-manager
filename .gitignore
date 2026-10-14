@@ -39,3 +39,6 @@ config/setup_state.json
 tcg_wishlist_research/
 data_test/
 project_state/backup_staging_*/
+config/maintenance_on
+config/.last_deploy
+config/.stop_*
