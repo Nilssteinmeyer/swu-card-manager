@@ -37,3 +37,4 @@ venv/
 tools/
 config/setup_state.json
 tcg_wishlist_research/
+data_test/
