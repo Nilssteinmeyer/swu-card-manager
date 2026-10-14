@@ -15,12 +15,14 @@ Upgrade-Pfad: scripts/setup_services.ps1 (NSSM-Dienste, einmalig als Admin).
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import socket
 import subprocess
 import sys
 import time
+import urllib3
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parent.parent
@@ -46,6 +48,13 @@ PYTHON = PROJECT / ".venv" / "Scripts" / "python.exe"
 # Einrichtung), faellt der Supervisor auf den Haupt-Tree zurueck.
 PROD_TREE = PROJECT.parent / "swu_prod"
 _prod_home = PROD_TREE if (PROD_TREE / "app" / "web").exists() else PROJECT
+
+# P5 Health-Monitoring: /api/health je Instanz; Ausfall -> Alert
+# (E-Mail wenn SMTP konfiguriert - sonst Log). Cooldown 15 min je Instanz.
+MONITOR_INTERVAL = 60
+ALERT_COOLDOWN = 15 * 60
+_last_alert: dict[str, float] = {}
+_consecutive_fail: dict[str, int] = {}
 
 INSTANCES = [
     {
@@ -98,9 +107,73 @@ def _start(inst: dict) -> None:
         log.error("%s Start fehlgeschlagen: %s", inst["name"], e)
 
 
+def _health_ok(inst: dict) -> tuple[bool, str]:
+    """Liveness-Check gegen /api/health (ohne Zertifikats-Pruefung)."""
+    import requests
+
+    try:
+        r = requests.get(f"https://localhost:{inst['port']}/api/health",
+                         verify=False, timeout=8)
+        data = r.json() if r.status_code == 200 else {}
+        return r.status_code == 200, json.dumps(data, ensure_ascii=False)[:80]
+    except Exception as e:  # noqa: BLE001 - Monitor darf nie sterben
+        return False, str(e)[:80]
+
+
+def _send_alert(inst_name: str, detail: str) -> None:
+    """E-Mail wenn SMTP konfiguriert (app.auth.mail), sonst nur Log."""
+    now = time.time()
+    if now - _last_alert.get(inst_name, 0) < ALERT_COOLDOWN:
+        return
+    _last_alert[inst_name] = now
+    log.error("ALERT %s: %s", inst_name, detail)
+    try:
+        sys.path.insert(0, str(PROJECT))
+        os.environ.setdefault("SWU_ENV", "prod")
+        from app.auth import mail as _mail
+
+        if _mail.is_configured():
+            import yaml
+
+            prod = PROJECT / "config" / "production.yaml"
+            cfg = yaml.safe_load(prod.read_text(encoding="utf-8")) or {}
+            to = (cfg.get("mail") or {}).get("user", "")
+            if to:
+                body = (
+                    "Instanz " + inst_name + " nicht erreichbar. Detail: " + detail
+                    + " (Automatische Meldung des Supervisors, max. 1 Mail / 15 min)"
+                )
+                _mail.send_email(to, "SWU-Server ALERT: " + inst_name, body)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Alert-Versand fehlgeschlagen: %s", e)
+
+
+def _monitor_cycle() -> None:
+    """P5: Health je Instanz; 2 aufeinanderfolgende Fails -> Alert."""
+    for inst in INSTANCES:
+        name = inst["name"]
+        try:
+            if inst["stop_flag"].exists():
+                _consecutive_fail.pop(name, None)
+                continue
+            ok, detail = _health_ok(inst)
+            if ok:
+                if _consecutive_fail.pop(name, None):
+                    log.info("%s wieder gesund (%s)", name, detail)
+                continue
+            _consecutive_fail[name] = _consecutive_fail.get(name, 0) + 1
+            if _consecutive_fail[name] >= 2:
+                _send_alert(name, detail)
+        except Exception as e:  # noqa: BLE001
+            log.error("Monitor-Fehler %s: %s", name, e)
+
+
 def main() -> None:
-    log.info("Supervisor laeuft (Pruefintervall 15 s, Instanzen: %s)",
+    urllib3.disable_warnings()
+    log.info("Supervisor laeuft (Restart-Pruefung 15 s, Health-Monitor 60 s; "
+             "Instanzen: %s)",
              ", ".join(f"{i['name']}:{i['port']}" for i in INSTANCES))
+    last_monitor = 0.0
     while True:
         for inst in INSTANCES:
             try:
@@ -112,6 +185,9 @@ def main() -> None:
                     _start(inst)
             except Exception as e:  # noqa: BLE001
                 log.error("Pruef-/Startfehler %s: %s", inst["name"], e)
+        if time.time() - last_monitor >= MONITOR_INTERVAL:
+            last_monitor = time.time()
+            _monitor_cycle()
         time.sleep(15)
 
 
