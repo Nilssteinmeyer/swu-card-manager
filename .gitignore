@@ -38,3 +38,4 @@ tools/
 config/setup_state.json
 tcg_wishlist_research/
 data_test/
+project_state/backup_staging_*/
