@@ -113,14 +113,13 @@ try {
 
     # --- 7: Health-Gate ---------------------------------------------------------
     Write-Step "Health-Gate: /api/health/ready (max 120 s)"
+    # PS 5.1 hat kein -SkipCertificateCheck -> Healthcheck via Python-Helfer
+    # (scripts/healthcheck.py nutzt requests mit verify=False)
     $ready = $false
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Seconds 2
-        try {
-            $r = Invoke-WebRequest -Uri "https://localhost:8443/api/health/ready" `
-                 -UseBasicParsing -SkipCertificateCheck -TimeoutSec 5 -ErrorAction Stop
-            if ($r.StatusCode -eq 200) { $ready = $true; break }
-        } catch { }
+        & $VenvPython (Join-Path $ProjectDir "scripts\healthcheck.py") "https://localhost:8443/api/health/ready" 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { $ready = $true; break }
     }
     if (-not $ready) {
         Write-Err "Health nicht gruen - AUTO-ROLLBACK auf $previous"
@@ -132,8 +131,7 @@ try {
         Write-Host "  Rollback fertig. Logs pruefen: logs\supervisor_prod.log"
         exit 1
     }
-    $envInfo = (Invoke-WebRequest -Uri "https://localhost:8443/api/health/ready" `
-        -UseBasicParsing -SkipCertificateCheck -TimeoutSec 5).Content
+    $envInfo = & $VenvPython (Join-Path $ProjectDir "scripts\healthcheck.py") "https://localhost:8443/api/health/ready" 2>$null
     Write-Ok "Prod bereit: $envInfo"
 
     # --- 8: Wartung AUS + Report -------------------------------------------------
