@@ -335,6 +335,7 @@ def _collection_to_dict(row: dict[str, Any]) -> dict[str, Any]:
         "rarity": row.get("rarity", ""),
         "type": row.get("type", ""),
         "front_art_path": row.get("front_art_path", ""),
+        "variant_type": row.get("variant_type", ""),
         "is_foil": bool(row.get("is_foil", 0)),
         "price_trend": row.get("price_trend"),
         "price_foil_trend": row.get("price_foil_trend"),
@@ -885,6 +886,7 @@ def _register_routes(app: Flask) -> None:
                        cards.card_number, cards.rarity, cards.type,
                        cards.aspects, cards.traits, cards.cost, cards.power,
                        cards.hp, cards.front_art_path,
+                       cards.variant_type,
                        COALESCE(pr.trend, tcg.market_normal) AS price_trend,
                        COALESCE(pr.foil_trend, tcg.market_foil) AS price_foil_trend,
                        COALESCE(pr.low, tcg.low_normal) AS price_low,
@@ -1361,7 +1363,33 @@ def _register_routes(app: Flask) -> None:
             front_path = card.get("front_art_path", "")
             if front_path and Path(front_path).exists():
                 return send_file(front_path, mimetype="image/png")
+            # Foil-Fallback VOR dem EN-Redirect: Standard-Foil-Karten (xxxF)
+            # teilen das Art mit der Basis-Karte (gleiche Nummer ohne F).
+            # swu-db hotlink-blockt (403), Basis-Bild ist zuverlaessig.
+            if card_id.endswith("F"):
+                basis_id = card_id[:-1]
+                basis = repo.get_card(conn, basis_id)
+                if basis:
+                    if lang == "de":
+                        b_de = (basis.get("front_art_url_de") or "").strip()
+                        if b_de:
+                            from flask import redirect
+
+                            return redirect(b_de)
+                    b_path = basis.get("front_art_path", "")
+                    if b_path and Path(b_path).exists():
+                        return send_file(b_path, mimetype="image/png")
+                    b_url = (basis.get("front_art_url") or "").strip()
+                    if b_url and "swu-db.com" not in b_url:
+                        from flask import redirect
+
+                        return redirect(b_url)
             url = card.get("front_art_url", "")
+            if url and "swu-db.com" not in url:
+                from flask import redirect
+
+                return redirect(url)
+            # swu-db-URL ist letzter Strohhalm (hotlink-blockt evtl. 403)
             if url:
                 from flask import redirect
 

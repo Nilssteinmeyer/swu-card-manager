@@ -33,7 +33,16 @@ def test_rename_household_shows_everywhere(page):
     # Dashboard vor Umbenennung: Titel = alter Name (z.B. '...s Sammlung')
     page.goto(f"{BASE}/")
     page.wait_for_selector("#dashboard-title")
-    old_title = page.inner_text("#dashboard-title")
+    # loadDashboard() setzt den Namen ASYNC -> auf ersten Nicht-Platzhalter
+    # pollen (statisches Markup sagt 'Dashboard', bis die API antwortet)
+    import time as _t0
+    deadline = _t0.time() + 10
+    old_title = ""
+    while _t0.time() < deadline:
+        old_title = page.inner_text("#dashboard-title")
+        if old_title and old_title != "Dashboard":
+            break
+        page.wait_for_timeout(300)
     assert "Sammlung" in old_title
 
     # Im Teilen-Dialog umbenennen

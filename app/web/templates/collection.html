@@ -278,6 +278,14 @@
         grid.innerHTML = data.items.map(item => {
           // ---- Badges: Foil + Rarity (C/U/R/S/L) ----
           const isFoil = !!item.is_foil;
+          // Varianten-Kurzlabel: Basis ohne Label, sonst Typ-Kennzeichnung
+          const vt = item.variant_type || "";
+          const variantTag = vt === "Hyperspace" ? "🚀 Hyperspace"
+            : vt === "Hyperspace Foil" ? "🚀 Hyperfoil"
+            : vt === "Foil" ? "✨ Foil"
+            : vt === "Showcase" ? "🎨 Showcase"
+            : vt === "Weekly Play Foil" ? "🗓️ Weekly"
+            : "";
           const rarityKey = (item.rarity || "").toLowerCase();
           const rarityLetter = { common: "C", uncommon: "U", rare: "R", special: "S", legendary: "L" }[rarityKey] || "";
           const badgesHtml = `
@@ -309,13 +317,13 @@
           return `
           <div class="collection-item clickable" onclick="showCardDetail('${escapeHtml(item.card_id)}')">
             <div class="ci-image-wrap">
-              ${item.front_art_path
+              ${item.front_art_path || item.card_id
                 ? `<img class="ci-image" src="${cardImageUrl(item.card_id)}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\\\placeholder-image\\\\>🃏</div>'">`
                 : '<div class="placeholder-image">🃏</div>'}
               ${badgesHtml}
             </div>
             <div class="ci-name">${escapeHtml(item.name)}</div>
-            <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}${item.location_name ? ` · <span class="ci-loc" title="${escapeHtml(item.location_name)}">📁 ${escapeHtml(item.location_name.length > 14 ? item.location_name.slice(0, 12) + "…" : item.location_name)}</span>` : ""}${(item.languages && item.languages.length > 1) ? ` · <span class="ci-loc" title="Sprachen: ${escapeHtml(item.languages.join(", "))}">🌐 ${item.languages.map(l => l.toUpperCase()).join("/")}</span>` : ""}</div>
+            <div class="ci-meta">${escapeHtml(item.set_id)} #${escapeHtml(item.card_number)}${variantTag ? ` · <span class="ci-loc" title="Variante: ${escapeHtml(item.variant_type)}">${variantTag}</span>` : ""}${item.location_name ? ` · <span class="ci-loc" title="${escapeHtml(item.location_name)}">📁 ${escapeHtml(item.location_name.length > 14 ? item.location_name.slice(0, 12) + "…" : item.location_name)}</span>` : ""}${(item.languages && item.languages.length > 1) ? ` · <span class="ci-loc" title="Sprachen: ${escapeHtml(item.languages.join(", "))}">🌐 ${item.languages.map(l => l.toUpperCase()).join("/")}</span>` : ""}</div>
             ${priceHtml}
             <div class="ci-count">${isFoil ? "✨ " : ""}×${item.count}</div>
           </div>`;
