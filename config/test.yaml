@@ -1,0 +1,36 @@
+# ============================================================================
+# SWU Card Manager — TEST-UMGEBUNG (SWU_ENV=test, Default)
+# ----------------------------------------------------------------------------
+# Wird von app/core/config.py als Overlay ueber config.yaml gemischt.
+# Test-Instanz: eigene DB/Bilder/Scans unter data_test/ - Testdaten
+# verschmutzen NIE die Produktiv-DB. Scanner/GPU aktiv (RTX A2000).
+# ============================================================================
+
+paths:
+  database: "data_test/cards_test.db"
+  images_dir: "data_test/images"
+  dataset_dir: "data_test/dataset"
+  models_dir: "data_test/models"
+  backup_dir: "project_state/backups_test"
+  recovery_dir: "project_state/recovery_test"
+  logs_dir: "logs"
+
+server:
+  # Test laeuft direkt im Heimnetz (iPhone im WLAN)
+  deployment_mode: "local"
+  app_host: "0.0.0.0"
+  app_port: 8765
+  public_url: "https://192.168.178.74:8765"
+  # Scanner nur in der Test-Umgebung (GPU-Host)
+  scan_enabled: true
+
+backup:
+  # Eigenes Test-Backup-Profil (Rotation/Ziele in production.yaml-Struktur)
+  schedule_time: "03:30"
+  target_dir: "C:/SWU-ServerBackups/test"
+  target_dir_fallback: "project_state/backups_test/daily"
+  keep_daily: 7
+  keep_weekly: 4
+  keep_monthly: 6
+  restore_drill_weekday: 0
+  email_on_failure: false

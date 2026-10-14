@@ -2,6 +2,12 @@
 Centralised configuration loader.
 Reads config/config.yaml from the project root and resolves all paths
 to absolute paths. Provides a singleton AppConfig for the whole application.
+
+Umgebungen (Go-Live Infra-Konzept P1):
+  SWU_ENV=test  -> config/test.yaml  + data_test/  (Default; lokale Test-App)
+  SWU_ENV=prod  -> production.yaml-Pfad-Override + data/  (Produktiv-App)
+Die Env-Datei wird zu den Basis-Werten aus config.yaml gemischt:
+paths.database wird je Umgebung auf die getrennte DB gelenkt.
 """
 from __future__ import annotations
 
@@ -20,6 +26,16 @@ def project_root() -> Path:
     return _PROJECT_ROOT
 
 
+def current_env() -> str:
+    """Aktuelle Umgebung: 'test' (Default) oder 'prod'.
+
+    Default test = Schutz: ein versehentlicher Start ohne Env-Variable
+    trifft NIE die Produktiv-DB (Infra-Konzept §1.1).
+    """
+    env = (os.environ.get("SWU_ENV") or "test").strip().lower()
+    return env if env in ("test", "prod") else "test"
+
+
 def _resolve_paths(cfg: dict[str, Any]) -> dict[str, Any]:
     """Recursively resolve any 'paths' dict entries to absolute paths."""
     if "paths" in cfg and isinstance(cfg["paths"], dict):
@@ -31,6 +47,38 @@ def _resolve_paths(cfg: dict[str, Any]) -> dict[str, Any]:
             resolved[key] = str(p)
         cfg["paths"] = resolved
     return cfg
+
+
+def _env_overlay(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Mischt die Umgebungs-Datei ueber die Basis-Config (P1).
+
+    SWU_ENV=test  -> config/test.yaml  (lenkt Pfade nach data_test/)
+    SWU_ENV=prod  -> config/production_env.yaml falls vorhanden; sonst
+                     bleiben die Basis-Pfade (data/cards.db) - die
+                     bestehende Produktiv-Instanz laeuft genau so.
+    Nur tiefes Merge der dicts; 'paths' wird komplett ersetzt, damit
+    die Env-Datei die volle Kontrolle hat.
+    """
+    env = current_env()
+    if env == "prod":
+        env_path = _PROJECT_ROOT / "config" / "production_env.yaml"
+    else:
+        env_path = _PROJECT_ROOT / "config" / "test.yaml"
+    if not env_path.exists():
+        return cfg
+
+    with open(env_path, "r", encoding="utf-8") as f:
+        overlay = yaml.safe_load(f) or {}
+
+    def _deep_merge(base: dict, over: dict) -> dict:
+        for k, v in over.items():
+            if isinstance(v, dict) and isinstance(base.get(k), dict) and k != "paths":
+                _deep_merge(base[k], v)
+            else:
+                base[k] = v
+        return base
+
+    return _deep_merge(cfg, overlay)
 
 
 class AppConfig:
@@ -79,6 +127,7 @@ class AppConfig:
         p = Path(path) if path else _CONFIG_PATH
         with open(p, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f)
+        raw = _env_overlay(raw or {})
         raw = _resolve_paths(raw)
         cls._instance = cls(raw)
         cls._instance.ensure_dirs()

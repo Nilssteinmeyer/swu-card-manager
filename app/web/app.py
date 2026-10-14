@@ -143,6 +143,8 @@ def create_app(config: AppConfig | None = None) -> Flask:
         "/login", "/register", "/reset", "/verify-email", "/no-household",
         "/api/auth/login", "/api/auth/register", "/api/auth/reset",
         "/api/auth/reset/confirm", "/api/auth/me", "/static",
+        # Health: oeffentlich fuer Uptime-Kuma + Deploy-Gate (Infra P1)
+        "/api/health",
     }
 
     @app.before_request
@@ -284,6 +286,24 @@ def _scan_rate_limited() -> bool:
         return True
     _scan_window.append(now)
     return False
+
+
+def _scan_enabled(cfg) -> bool:
+    """Scanner aktiv? Prod-Instanz (SWU_ENV=prod) antwortet 503 (Infra P1).
+
+    Quelle: Overlay server.scan_enabled (config/test.yaml = true,
+    production_env.yaml = false). Fehlt das Flag: aktiv (Backward-kompatibel
+    zur bestehenden Einzel-Instanz).
+    """
+    return bool(cfg.get("server.scan_enabled", True))
+
+
+def _current_env() -> str:
+    """Umgebung fuer /api/health und /api/system (P1)."""
+    from app.core.config import current_env as _ce
+
+    return _ce()
+
 
 
 def detect_platform(ua: str) -> str:
@@ -484,6 +504,11 @@ def _register_routes(app: Flask) -> None:
     # -- Scan --------------------------------------------------------------
     @app.route("/api/scan", methods=["POST"])
     def api_scan():
+        if not _scan_enabled(app.config["_SWU_CFG"]):
+            return jsonify({
+                "error": "Scannen ist nur in der Test-Umgebung verfügbar.",
+                "env": _current_env(),
+            }), 503
         if _scan_rate_limited():
             return jsonify({"error": "Zu viele Scans. Bitte kurz warten."}), 429
         body = request.get_json(silent=True) or {}
@@ -1403,6 +1428,36 @@ def _register_routes(app: Flask) -> None:
         finally:
             conn.close()
 
+    # -- Health (Infra P1: Liveness/Readiness, Monitoring + Deploy-Gate) ----
+    @app.route("/api/health")
+    def api_health():
+        """Liveness: Prozess lebt. Atomar, KEINE DB-Abhaengigkeit
+        (sonst meldet der Monitor Fehlalarme bei DB-Wartung; Recherche:
+        flask-healthz/Red-Hat-Probe-Taxonomie). Ohne Auth - Monitor-Ping."""
+        return jsonify({"status": "ok", "env": _current_env()})
+
+    @app.route("/api/health/ready")
+    def api_health_ready():
+        """Readiness: DB antwortet + Schema-Version erkannt.
+        Deploy-Gate in deploy_prod.ps1 (Poll bis 200) und Uptime-Kuma."""
+        try:
+            conn = connect()
+            try:
+                row = conn.execute("SELECT 1").fetchone()
+                if row is None:
+                    raise RuntimeError("SELECT 1 ohne Ergebnis")
+                ver = conn.execute("PRAGMA user_version").fetchone()[0]
+            finally:
+                conn.close()
+            return jsonify({
+                "status": "ready",
+                "env": _current_env(),
+                "db": "ok",
+                "schema_version": ver,
+            })
+        except Exception as e:  # noqa: BLE001 - Health muss jeden Fehler melden
+            return jsonify({"status": "error", "env": _current_env(), "detail": str(e)[:200]}), 503
+
     # -- System ------------------------------------------------------------
     @app.route("/api/system")
     def api_system():
@@ -1418,6 +1473,8 @@ def _register_routes(app: Flask) -> None:
             return jsonify({
                 "app_name": cfg.get("app.name", "SWU Card Manager"),
                 "app_version": cfg.get("app.version", "1.0.0"),
+                "env": _current_env(),
+                "scan_enabled": _scan_enabled(cfg),
                 "python_version": sys.version.split()[0],
                 "db_path": str(db_path),
                 "db_size_bytes": db_size,
@@ -3376,6 +3433,33 @@ def _register_routes(app: Flask) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _serve_graceful(server) -> None:
+    """Serve mit Graceful Shutdown (Infra P1, Stabilitaets-Recherche).
+
+    pywsgi hat KEIN eingebautes SIGTERM-Handling - NSSM-Stop/Deploy wuerden
+    laufende Requests hart abwürgen. Hier: SIGTERM/SIGINT -> server.stop()
+    mit Timeout; der Pool (gepoolte Greenlets) wird kontrolliert beendet.
+    """
+    import signal
+
+    from gevent import pool as _gpool
+
+    def _shutdown(signum, _frame):
+        print(f"\n  Signal {signum} empfangen - Graceful Shutdown (max 30 s)...", flush=True)
+        try:
+            server.stop(timeout=30)
+        except Exception as e:  # noqa: BLE001 - Shutdown darf nicht haengen
+            print(f"  stop()-Fehler (fahre trotzdem herunter): {e}", flush=True)
+            raise SystemExit(0)
+
+    try:
+        signal.signal(signal.SIGTERM, _shutdown)
+        signal.signal(signal.SIGINT, _shutdown)
+    except (ValueError, OSError):
+        pass  # kein Haupt-Thread (z.B. verschachtelt) - dann ohne Handler
+    server.serve_forever()
+
+
 def main() -> None:
     import argparse
 
@@ -3452,15 +3536,15 @@ def main() -> None:
 
         _ctx = _ssl.SSLContext(_ssl.PROTOCOL_TLS_SERVER)
         _ctx.load_cert_chain(str(cert_path), str(key_path))
-        server = WSGIServer((args.host, args.port), app, ssl_context=_ctx)
-        print(f"  Serving via gevent/pywsgi (HTTPS, production WSGI)")
-        server.serve_forever()
+        server = WSGIServer((args.host, args.port), app, ssl_context=_ctx, spawn=200)
+        print(f"  Serving via gevent/pywsgi (HTTPS, production WSGI, Pool 200)")
+        _serve_graceful(server)
     else:
         from gevent.pywsgi import WSGIServer
 
         print(f"  Serving via gevent/pywsgi (HTTP, production WSGI)")
-        server = WSGIServer((args.host, args.port), app)
-        server.serve_forever()
+        server = WSGIServer((args.host, args.port), app, spawn=200)
+        _serve_graceful(server)
     print("Server beendet.")
 
 
