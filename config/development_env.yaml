@@ -1,0 +1,34 @@
+# ============================================================================
+# SWU Card Manager — ENTWICKLUNGS-UMGEBUNG (SWU_ENV=dev, Port 8766)
+# ----------------------------------------------------------------------------
+# Leere Entwicklungsumgebung: eigene Dev-DB (data_dev/), KEINE echten Daten.
+# Hier werden neue Features entwickelt und getestet, bevor sie per
+# deploy_prod.ps1 auf die Prod-Instanz (8443/Caddy/URL) ausgerollt werden.
+# ============================================================================
+
+paths:
+  database: "data_dev/cards_dev.db"
+  images_dir: "data_dev/images"
+  dataset_dir: "data_dev/dataset"
+  models_dir: "data_dev/models"
+  backup_dir: "project_state/backups_dev"
+  recovery_dir: "project_state/recovery_dev"
+  logs_dir: "logs"
+
+server:
+  deployment_mode: "local"
+  app_host: "0.0.0.0"
+  app_port: 8766
+  public_url: "https://192.168.178.74:8766"
+  # Scanner im Dev aktiv (GPU-Host) - aber gegen die Dev-DB
+  scan_enabled: true
+
+backup:
+  schedule_time: "04:00"
+  target_dir: "C:/SWU-ServerBackups/dev"
+  target_dir_fallback: "project_state/backups_dev/daily"
+  keep_daily: 3
+  keep_weekly: 2
+  keep_monthly: 2
+  restore_drill_weekday: 0
+  email_on_failure: false

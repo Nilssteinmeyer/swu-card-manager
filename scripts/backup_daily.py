@@ -206,8 +206,10 @@ def run_backup(classification_override: str | None = None) -> Path | None:
     from app.core.config import current_env
 
     env = current_env()
-    data_dir = PROJECT_ROOT / ("data_test" if env == "test" else "data")
-    db_live = data_dir / ("cards_test.db" if env == "test" else "cards.db")
+    # DB-Pfad aus dem Env-Overlay (config.py kuemmert sich um data_test/dev/data)
+    from app.core.config import AppConfig
+
+    db_live = AppConfig.load().path("database")
     staging = PROJECT_ROOT / "project_state" / f"backup_staging_{env}"
     snapshot = _vacuum_snapshot(db_live, staging, stamp) if db_live.exists() else None
 
@@ -369,7 +371,7 @@ def main() -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="SWU Backup (Infra P3)")
-    parser.add_argument("--env", choices=["test", "prod"], default="test",
+    parser.add_argument("--env", choices=["test", "prod", "dev"], default="test",
                         help="Umgebung (Default: test; prod = Produktiv-DB)")
     parser.add_argument("--now", action="store_true", help="Sofort-Backup ohne Restore-Drill")
     parser.add_argument("--pre-deploy", action="store_true",

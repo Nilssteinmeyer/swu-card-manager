@@ -58,8 +58,8 @@ _consecutive_fail: dict[str, int] = {}
 
 INSTANCES = [
     {
-        "name": "SWU-App-Test",
-        "env": "test",
+        "name": "SWU-Main-8765",
+        "env": "test",   # = MEINE Sammlung (Daten + Scanner)
         "host": "0.0.0.0",
         "port": 8765,
         "cwd": str(PROJECT),
@@ -72,6 +72,14 @@ INSTANCES = [
         "port": 8443,
         "cwd": str(_prod_home),
         "stop_flag": PROJECT / "config" / ".stop_prod",
+    },
+    {
+        "name": "SWU-App-Dev",
+        "env": "dev",
+        "host": "127.0.0.1",
+        "port": 8766,
+        "cwd": str(PROJECT),
+        "stop_flag": PROJECT / "config" / ".stop_dev",
     },
 ]
 

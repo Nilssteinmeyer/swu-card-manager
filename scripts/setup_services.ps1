@@ -45,7 +45,7 @@ function Invoke-Nssm {
 }
 
 function Remove-AllServices {
-    foreach ($name in @("SWU-App-Test", "SWU-App-Prod", "SWU-Caddy")) {
+    foreach ($name in @("SWU-Main-8765", "SWU-App-Prod", "SWU-App-Dev", "SWU-Caddy")) {
         [void](Invoke-Nssm @("stop", $name))
         [void](Invoke-Nssm @("remove", $name, "confirm"))
     }
@@ -99,8 +99,9 @@ function Install-SwuService {
 
 # --- Installieren ------------------------------------------------------------ #
 $ProdTree = Join-Path (Split-Path -Parent $ProjectDir) "swu_prod"
-Install-SwuService -Name "SWU-App-Test" -Env "test" -BindHost "0.0.0.0" -Port 8765
+Install-SwuService -Name "SWU-Main-8765" -Env "test" -BindHost "0.0.0.0" -Port 8765
 Install-SwuService -Name "SWU-App-Prod" -Env "prod" -BindHost "127.0.0.1" -Port 8443 -WorkDir $ProdTree -SwuHome $ProjectDir
+Install-SwuService -Name "SWU-App-Dev" -Env "dev" -BindHost "127.0.0.1" -Port 8766
 
 # Caddy-Dienst: Let's Encrypt auf swu-cardscanner.duckdns.org -> 127.0.0.1:8443
 Write-Host ""
@@ -152,7 +153,8 @@ Write-Host "== Health-Verifikation (bis 90 s) ==" -ForegroundColor Cyan
 $ok = $true
 foreach ($check in @(
     @{ port = 8765; url = "https://localhost:8765/api/health"; expect = "test" },
-    @{ port = 8443; url = "https://localhost:8443/api/health"; expect = "prod" }
+    @{ port = 8443; url = "https://localhost:8443/api/health"; expect = "prod" },
+    @{ port = 8766; url = "https://localhost:8766/api/health"; expect = "dev" }
 )) {
     $ready = $false
     for ($i = 0; $i -lt 45; $i++) {

@@ -56,12 +56,13 @@ def test_env_ungueltig_faellt_auf_test(monkeypatch):
 
 
 def test_test_env_lenkt_pfade_nach_data_test(monkeypatch, tmp_path):
-    """SWU_ENV=test -> Overlay config/test.yaml -> data_test/cards_test.db."""
+    """SWU_ENV=test -> MEINE Sammlung: data/cards.db + Scanner aktiv (8765)."""
     monkeypatch.delenv("SWU_ENV", raising=False)
     cfg = cfg_mod.AppConfig.load()
     db = cfg.path("database")
-    assert "data_test" in str(db)
-    assert "cards_test.db" in db.name
+    assert str(db).endswith("data\cards.db") or str(db).endswith("data/cards.db")
+    assert cfg.get("server.scan_enabled") is True
+    assert cfg.get("server.app_port") == 8765
 
 
 def test_prod_env_lenkt_pfade_nach_data(monkeypatch):
@@ -87,11 +88,26 @@ def test_test_env_scan_enabled(monkeypatch):
 
 
 def test_backup_ziele_je_env(monkeypatch):
-    """Prod hat Ziel 2 (D: USB), Test nicht; Rotation konfigurierbar."""
+    """Prod hat Ziel 2 (D: USB); Main-App eigenes Profil; Rotation konfigurierbar."""
     monkeypatch.setenv("SWU_ENV", "prod")
     cfg = cfg_mod.AppConfig.load()
     assert cfg.get("backup.target_dir_external") == "D:/SWU-Backups"
     assert cfg.get("backup.keep_daily") == 7
+    cfg_mod.AppConfig.reset()
+    monkeypatch.setenv("SWU_ENV", "test")
+    cfg2 = cfg_mod.AppConfig.load()
+    assert cfg2.get("backup.target_dir") == "C:/SWU-ServerBackups/main"
+
+
+def test_dev_env_eigene_db_und_port(monkeypatch):
+    """SWU_ENV=dev -> leere Dev-DB (data_dev/) auf Port 8766."""
+    monkeypatch.setenv("SWU_ENV", "dev")
+    assert cfg_mod.current_env() == "dev"
+    cfg = cfg_mod.AppConfig.load()
+    db = cfg.path("database")
+    assert "data_dev" in str(db)
+    assert cfg.get("server.app_port") == 8766
+    assert cfg.get("server.scan_enabled") is True
 
 
 def test_health_endpoints_ohne_auth(client):
@@ -110,7 +126,7 @@ def test_health_endpoints_ohne_auth(client):
 
 
 def test_scan_enabled_aktion_in_test(client):
-    """In der Test-Umgebung ist /api/scan aktiviert (kein 503-Wirtschaftlichkeits-Gate)."""
+    """In der Haupt-App (test-env) ist /api/scan aktiviert (kein 503-Gate)."""
     r = client.post("/api/scan", json={})
     assert r.status_code != 503  # 400 (kein Bild) o.k. - Hauptsache nicht 503
 

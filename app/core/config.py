@@ -30,13 +30,17 @@ def project_root() -> Path:
 
 
 def current_env() -> str:
-    """Aktuelle Umgebung: 'test' (Default) oder 'prod'.
+    """Aktuelle Umgebung: 'test' (Default, MEINE Sammlung), 'prod' oder 'dev'.
 
-    Default test = Schutz: ein versehentlicher Start ohne Env-Variable
-    trifft NIE die Produktiv-DB (Infra-Konzept §1.1).
+    Rollen (Go-Live-Anpassung auf Nutzervunsch):
+      test = persoenliche Haupt-App auf 8765 (eigene Daten + GPU-Scanner)
+      prod  = oeffentliche Instanz auf 8443 hinter Caddy (kein Scan)
+      dev   = leere Entwicklungs-Instanz auf 8766 (eigene Dev-DB)
+    Default test: ein Start ohne Env-Variable trifft die eigene Sammlung,
+    nie die oeffentliche Prod-DB.
     """
     env = (os.environ.get("SWU_ENV") or "test").strip().lower()
-    return env if env in ("test", "prod") else "test"
+    return env if env in ("test", "prod", "dev") else "test"
 
 
 def _resolve_paths(cfg: dict[str, Any]) -> dict[str, Any]:
@@ -63,10 +67,12 @@ def _env_overlay(cfg: dict[str, Any]) -> dict[str, Any]:
     die Env-Datei die volle Kontrolle hat.
     """
     env = current_env()
-    if env == "prod":
-        env_path = _PROJECT_ROOT / "config" / "production_env.yaml"
-    else:
-        env_path = _PROJECT_ROOT / "config" / "test.yaml"
+    env_files = {
+        "prod": "production_env.yaml",
+        "dev": "development_env.yaml",
+        "test": "test.yaml",
+    }
+    env_path = _PROJECT_ROOT / "config" / env_files[env]
     if not env_path.exists():
         return cfg
 

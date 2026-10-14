@@ -39,7 +39,7 @@ def _set_env(env: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="SWU Restore (Infra P3)")
-    parser.add_argument("--env", choices=["test", "prod"], required=True)
+    parser.add_argument("--env", choices=["test", "prod", "dev"], required=True)
     parser.add_argument("--from", dest="source", required=True, help="Pfad zum Backup-ZIP")
     parser.add_argument("--yes", action="store_true", help="Keine Rueckfrage (Skript/Deploy)")
     parser.add_argument("--with-models", action="store_true", help="Modelle mit restaurieren")
@@ -53,9 +53,11 @@ def main() -> int:
         print(f"FEHLER: Backup nicht gefunden: {src}")
         return 1
 
-    data_dir = PROJECT_ROOT / ("data_test" if args.env == "test" else "data")
-    db_target = data_dir / ("cards_test.db" if args.env == "test" else "cards.db")
-    stop_flag = PROJECT_ROOT / "config" / (".stop_test" if args.env == "test" else ".stop_prod")
+    _set_env(args.env)
+    from app.core.config import AppConfig
+
+    db_target = AppConfig.load().path("database")
+    stop_flag = PROJECT_ROOT / "config" / f".stop_{args.env}"
 
     # 1) ZIP inspizieren
     with zipfile.ZipFile(src) as zf:

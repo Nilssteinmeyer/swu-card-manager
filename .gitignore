@@ -43,3 +43,4 @@ config/maintenance_on
 config/.last_deploy
 config/.stop_*
 config/duckdns_token
+data_dev/
