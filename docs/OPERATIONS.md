@@ -1,80 +1,124 @@
-# OPERATIONS — SWU Card Manager (Server-Betrieb auf diesem PC)
+# OPERATIONS — SWU Card Manager (Zwei-Umgebungs-Betrieb)
 
-Dieses Dokument beschreibt den Betrieb des SWU Card Managers als Server:
-Start, Stop, Neustart, Backups, E-Mail, Domains, Störungen.
+Dieses Dokument beschreibt den Betrieb ab Go-Live v1.0.0: **TEST** (Heimnetz, GPU-Scanner) und **PROD** (Internet hinter Caddy) laufen gleichzeitig auf diesem PC. Der alte Einzel-Server-Betrieb (server.ps1) ist damit abgelöst.
 
 ---
 
-## 1. Start / Stop / Neustart
+## 1. Architektur (Infra-Konzept, umgesetzt in P1–P5)
 
-| Aktion | Befehl / Weg |
-|---|---|
-| Server starten | `server.ps1` (Doppelklick) oder `powershell -File server.ps1` |
-| Server neu starten | `powershell -File server.ps1 -Restart` |
-| Server stoppen | `powershell -File server.ps1 -Stop` oder Task-Manager → python.exe beenden |
-| Status prüfen | `https://localhost:8765/api/admin/status` (eingeloggt als Admin) oder Task-Manager (python.exe) |
+| | TEST | PROD |
+|---|---|---|
+| URL | `https://192.168.178.74:8765` (iPhone im WLAN) | `https://swu-cardscanner.duckdns.org` (via Caddy 80/443; Caddy-Dienst siehe §7) |
+| Bind | `0.0.0.0:8765` | `127.0.0.1:8443` (nur hinter Caddy) |
+| DB | `data_test/cards_test.db` (eigene User/Scans) | `data/cards.db` (Produktivdaten) |
+| Scanner | ✔ GPU (CLIP) | ✘ `/api/scan` → 503 „Scannen ist nur in der Test-Umgebung verfügbar" |
+| Code | `master` (Entwicklung) | **nur Version-Tags**, eigener Git-Worktree `../swu_prod` |
+| Config-Overlay | `config/test.yaml` | `config/production_env.yaml` |
+| Env-Flag | `SWU_ENV=test` (Default) | `SWU_ENV=prod` + `SWU_HOME` (Daten-Root = Haupt-Tree) |
 
-**Nach dem Start dauert der Engine-Warmup ~10–30 s** (CLIP-Modell + FAISS laden); erst danach sind Scans warm (0,6–1 s).
+**Supervisor** (`scripts/supervisor.py`, Autostart via Startup-Ordner `SWU-Supervisor.cmd`):
+- Watchdog: Prüft beide Ports alle 15 s, startet abgestürzte Instanzen automatisch neu (<15 s).
+- Health-Monitor (P5): pollt `/api/health` je Instanz alle 60 s; 2 Fails nacheinander → ALERT (Log + E-Mail sobald SMTP konfiguriert; Cooldown 15 min je Instanz). Stop-Flag-Phasen (Deploy/Wartung) zählen nicht.
+- Stop-Flags: `config/.stop_test` / `config/.stop_prod` = kontrollierte Down-Phase (Deploy, Restore, Wartung) — Supervisor startet dann NICHT neu.
 
-## 2. KI-Modelle (Versionierung + Training)
+**Neue User** bekommen bei Registrierung automatisch eigene Sammlung/Haushalt + Standard-Ablageort (on-demand) — nichts weiter nötig.
 
-- Alle Versionen liegen in `data/models/versions/` (clip_finetuned_v1.pt, …).
-- **Neu trainieren:** System-Seite → „🧠 KI-Modelle" → „Neu trainieren". Läuft 15–60 Min auf der GPU, **Server bleibt erreichbar** (Background-Thread). Das neue Modell wird nur **Kandidat** — es ersetzt nichts automatisch.
-- **Aktivieren (Promote):** in der Modell-Liste „Aktivieren" klicken. Vorheriges Modell → „retired". **Rollback:** das alte Modell wieder „Aktivieren".
-- Metriken (Top-1/Top-5/Δ) werden automatisch auf demselben Test-Split gemessen; ein schlechteres Modell bleibt Kandidat, bis ein Mensch es aktiviert.
-- **Empfehlung:** erst trainieren, wenn du 30+ bestätigte Fotos hast; Fotos werden nur bei bestätigtem Scan gespeichert (`data/scans/confirmed/`).
+## 2. Release-Flow (lokal entwickeln → lokal testen → produktiv)
 
-## 2a. Scans: Warm-up und Rate-Limit
-- Erster Scan nach Serverstart: ~10–30 s (Engine lädt CLIP+FAISS). Danach: 0,6–1 s.
-- Rate-Limit: **30 Scans/Minute** (Schutz vor GPU-Erschöpfung); bei Überschreitung: „Zu viele Scans"-Meldung + 429.
-- Die Kamera-Freigabe für Safari/iOS braucht HTTPS. Zertifikatswarnung bei selbstsigniertem Zertifikat: „Details anzeigen → Einstellungen → Besucher dieser Website" bestätigen.
-- Haptisches Feedback und Scan-Einstellungen: Einstellungen → Scanner.
+```powershell
+# 1. Auf master entwickeln (Feature-Branches wie gehabt); Tests grün
+# 2. Version taggen:
+git tag -a v1.2.0 -m "Kurzbeschreibung"
+git push origin master --tags
 
-## 3. Backups (automatisch)
+# 3. Ausrollen (erst trocken üben):
+powershell -File scripts\deploy_prod.ps1 -Tag v1.2.0 -DryRun
+powershell -File scripts\deploy_prod.ps1 -Tag v1.2.0
+```
 
-- **Täglich 03:00** läuft der Windows-Task `SWU-Backup-Daily` → `scripts/backup_daily.py`.
-- Inhalt: komplette Datenbank, `config/`, alle Modell-Versionen, bestätigte Trainingsfotos, Dataset-Metadaten.
-- Ablage: `C:/SWU-ServerBackups` (konfigurierbar in `config/production.yaml` → `backup:`).
-- Rotation: Daily (14) → Weekly (8) → Monthly (12).
-- **Restore-Drill:** bei jedem Lauf wird das neueste Backup testweise entpackt und geprüft (SQLite integrity_check + Zeilenzahl). Fehler → Log + Mail an Admin (sobald SMTP konfiguriert).
-- Manuell prüfen: System-Seite → Backups → „Diagnose ausführen"; sofort Backup: `python scripts/backup_daily.py --now`
+Die Pipeline führt automatisch aus: Unit-Gate → E2E-Gate → Tag-Gate (nur Tags!) → **Pre-Deploy-Backup** (`--env prod --pre-deploy`, inkl. D:-Kopie) → Wartungsmodus AN (503 + Retry-After, Admin bleibt frei) → Prod-Worktree `../swu_prod` auf den Tag → Neustart → **Health-Gate** `/api/health/ready` (max 120 s; sonst **AUTO-ROLLBACK** auf den vorherigen Stand) → Wartungsmodus AUS. Letzter Tag landet in `config/.last_deploy`.
 
-## 4. E-Mail-Versand (SMTP)
+Manueller Rollback (nur Code — Daten werden NIE angerührt): `powershell -File scripts\deploy_prod.ps1 -Rollback`
+DB-Notfall = Restore (§3), niemals git.
 
-- Config: `config/production.yaml` → `mail:` (host/port/user) **+** Env-Variable `SWU_SMTP_PASSWORD` (Passwort liegt NIE in einer Datei).
-- Ohne SMTP-Config: Reset-/Verifikations-Tokens landen nur im Log (lokaler Modus).
-- Testmail senden: als Admin `POST /api/admin/mail/test` mit `{"to": "deine@mail.de"}` → Antwort zeigt `mode: smtp` (echter Versand) oder `mode: local` (nur Log).
-- App-Start liest production.yaml und konfiguriert SMTP automatisch (Log-Zeile `smtp_configured`).
+## 3. Backups (automatisch, einstellbar)
 
-## 5. Domain (DuckDNS)
+Einstellungen je Umgebung: `config/production_env.yaml` bzw. `config/test.yaml` → `backup:` (Zeit, Ziele, keep_daily/weekly/monthly, Drill-Tag, `healthchecks_ping_url` optional).
 
-- `swu-cardscanner.duckdns.org` zeigt auf die öffentliche IP des Routers.
-- IP-Update: `python scripts/duckdns_update.py` — Token aus `config/duckdns_token` (gitignored) oder Env `SWU_DUCKDNS_TOKEN`.
-- Geplant: Scheduled Task alle 5 Minuten (wird mit dem Token zusammen in Phase 6 eingerichtet).
-- Router-Portfreigabe: **nur 80 + 443** auf diesen PC (Caddy); 8765 bleibt zu.
+- **Prod:** täglich 03:00 — Windows-Task `SWU-Backup-Daily` → `scripts/backup_daily.py --env prod` → `C:/SWU-ServerBackups/prod` **+ 3-2-1-Kopie auf `D:/SWU-Backups`** (USB-Stick). Rotation: 7 täglich / 4 wöchentlich / 6 monatlich.
+- **Test:** täglich 03:30 — Task `SWU-Backup-Test` → `--env test` → `C:/SWU-ServerBackups/test`.
+- **Inhalt je ZIP:** BackupManager-DB-Backup + **VACUUM-INTO-Snapshot** (online-konsistent, DSGVO-bereinigt, verifiziert mit `quick_check` + `foreign_key_check`) + komplette config + alle Modell-Versionen + bestätigte Trainingsfotos + Dataset-Metadaten + State.
+- **Restore-Drill:** jeden Sonntag entpackt der Lauf das neueste Backup testweise und prüft Integrität + Zeilenzahl. Manuell: `python scripts/backup_daily.py --env prod` (mit Drill) bzw. `--now` (ohne).
+- **Ziel-2-Warnung:** USB-Stick nicht angesteckt → Warnung im Log (`ZIEL-2-WARNUNG`), das Backup liegt dann nur 1-fach — Stick anstecken und Backup wiederholen.
+- Sofort-Backup: `python scripts/backup_daily.py --env prod --now`
 
-## 6. Caddy (Reverse-Proxy — Go-Live Phase 6)
+### Restore (der Ernstfall)
 
-- `config/Caddyfile`: swu-cardscanner.duckdns.org → `127.0.0.1:8443`, automatische Let's-Encrypt-Zertifikate, HSTS, 15-MB-BODY-Limit, Zugriffs-Log.
-- Betrieb als Windows-Dienst via NSSM; Einrichtung in Phase 6.
-- App dann mit `app_host: "127.0.0.1"` starten (production.yaml), damit nur Caddy an der Front steht.
+```powershell
+python scripts\restore_backup.py --env prod --from "C:/SWU-ServerBackups/prod/swu_backup_YYYYMMDD_HHMMSS.zip"
+```
+Prüft ZIP-Manifest (env-Konsistenz), verifiziert den Snapshot, setzt das Supervisor-Stop-Flag (kontrollierte Down-Phase), löscht `-wal`/`-shm`, ersetzt die DB, entfernt das Flag. Optional `--with-models` / `--with-config`. Probe-Restore aufs Quartal empfohlen.
 
-## 7. Störungen (Schnelldiagnose)
+## 4. KI-Modelle (nur TEST-Umgebung)
+
+- Versionen in `data_test/models/versions/`; Training über System-Seite (GPU der Test-Instanz, 15–60 min).
+- Neues Modell = Kandidat; „Aktivieren" = Promote; Rollback = altes Modell wieder aktivieren.
+- Prod hat keinen Scanner und lädt keine GPU-Engine (Kaltstart + RAM gespart).
+
+## 5. Scans / Rate-Limit / Kamera
+
+- Test-App: erster Scan nach Start ~10–30 s Warmup (CLIP+FAISS), dann 0,6–1 s; Rate-Limit 30 Scans/min (429 bei Überschreitung).
+- iOS-Kamera braucht HTTPS: Test-App selbstsigniert (Warnung einmalig bestätigen), Prod später Let's Encrypt über Caddy.
+- Scan-Einstellungen + Haptik: Einstellungen → Scanner (Test-App).
+
+## 6. E-Mail (SMTP) & Domain
+
+- SMTP: `config/production.yaml → mail:` (host/port/user) **+ Env `SWU_SMTP_PASSWORD`** (Passwort nie in Dateien). Ohne SMTP: Tokens nur im Log; Monitoring-Alert-Mails brauchen SMTP (§7.3).
+- Testmail: als Admin `POST /api/admin/mail/test` → `mode: smtp|local`.
+- DuckDNS: `python scripts/duckdns_update.py` (Token `config/duckdns_token` oder Env `SWU_DUCKDNS_TOKEN`).
+- Router: **nur 80 + 443** freigeben auf diesen PC — 8765/8443 bleiben zu.
+
+## 7. Go-Live-Checkliste (offene Schritte, einmalig)
+
+1. **Caddy-Dienst als Windows-Dienst** — braucht EINMAL Admin (UAC): `powershell -File scripts\setup_services.ps1` (NSSM-Dienste `SWU-App-Test`, `SWU-App-Prod`, `SWU-Caddy` mit Auto-Restart + Log-Rotation). Bis dahin ist **Prod nicht aus dem Internet erreichbar** (nur LAN).
+2. **Router-Portfreigabe** 80+443 → dieser PC.
+3. **SMTP** konfigurieren (Gmail-App-Passwort) → Alert-Mails + Passwort-Reset online.
+4. **DuckDNS-Task** alle 5 min anlegen (öffentliche IP aktuell halten).
+5. Erreichbarkeit vom Handy über LTE testen: `https://swu-cardscanner.duckdns.org`.
+6. Backup-Tasks prüfen: Aufgabenplanung → `SWU-Backup-Daily` (03:00, `--env prod`) + `SWU-Backup-Test` (03:30).
+
+## 8. Störungen (Schnelldiagnose)
 
 | Symptom | Erst prüfen |
 |---|---|
-| iPhone erreicht App nicht | python.exe läuft? `https://localhost:8765` am PC erreichbar? Gleiches WLAN? |
-| Erster Scan sehr langsam | Normal (Warmup). Nach 30 s immer noch langsam → `server.ps1 -Restart` |
-| „Zu viele Scans" | Rate-Limit; maximal 30 Scans/Minute |
-| Login geht nicht | Nach SECRET_KEY-Rotation sind alte Sessions weg → neu einloggen; Reset-Link im lokalen Modus im Log |
-| E-Mails kommen nicht an | `POST /api/admin/mail/test` (mode?), `SWU_SMTP_PASSWORD` gesetzt?, Spam-Ordner |
-| Backup-Task lief nicht | Aufgabenplanung → `SWU-Backup-Daily` → letzte Laufzeit; `logs/backup.log` |
+| Beide Apps down | Supervisor läuft? `logs/supervisor.log`; Autostart: Startup-Ordner → `SWU-Supervisor.cmd` |
+| Eine App down | Supervisor startet automatisch neu (<15 s); sonst `logs\supervisor_test.log` / `supervisor_prod.log` |
+| Alert „nicht erreichbar" | Supervisor-Log; 2× rot trotz Restart → App-Log (`logs/swu_manager.log`) prüfen |
+| Deploy schlägt fehl | deploy-Ausgabe: rotes Gate nennt den Grund; nach Health-Fail wurde automatisch zurückgerollt |
+| Prod zeigt Wartungsseite | `config/maintenance_on` noch da? Löschen oder Deploy erneut laufen lassen |
+| Scans in Prod 503 | **Gewollt** — Scannen nur in der Test-App (GPU) |
+| Backup lief nicht | Aufgabenplanung → `SWU-Backup-Daily`/`SWU-Backup-Test` → letzte Laufzeit; `logs/swu_manager.log` |
+| „Zu viele Scans" | Rate-Limit 30/min (Test-App) |
+| Login geht nicht | Sessions nach SECRET_KEY-Rotation weg → neu einloggen; „Daten weg?" → falscher SWU_ENV |
 
-## 8. Sicherheit — was ist wo
+## 9. Sicherheit — was ist wo
 
-- SECRET_KEY: `config/secret_key` (gitignored, rotiert am 09.10. — Pentest K-1).
-- SMTP-Passwort: Env `SWU_SMTP_PASSWORD` (nie in Dateien).
-- DuckDNS-Token: `config/duckdns_token` (gitignored).
-- MKM-Credentials: DPAPI-verschlüsselt (Windows-Benutzerkontext).
-- SSL: selbstsigniert (Übergang), ab Phase 6 Let's Encrypt via Caddy.
-- Pentest-Report: `docs/PENTEST_REPORT.md` (K-1/H-1/H-2 gefixt; M-1 = localhost-Binding → Phase 6).
+- SECRET_KEY: `config/secret_key` (Haupt-Tree, gitignored) — der Prod-Worktree nutzt denselben (SWU_HOME), sonst wären Sessions + AES-GCM-Nachrichten unlesbar.
+- SMTP-Passwort: Env `SWU_SMTP_PASSWORD`; DuckDNS-Token: `config/duckdns_token` (gitignored); MKM-Credentials: DPAPI.
+- Prod lauscht nur auf `127.0.0.1:8443` — externer Zugang ausschließlich über Caddy (TLS 1.3, Let's Encrypt, HSTS).
+- Betriebs-Flags (`maintenance_on`, `.stop_*`, `.last_deploy`) sind gitignored.
+- Pentest-Report: `docs/PENTEST_REPORT.md`.
+
+## 10. Wichtige Pfade/Dateien
+
+| Pfad | Zweck |
+|---|---|
+| `scripts/supervisor.py` | Watchdog + Health-Monitor für beide Instanzen |
+| `scripts/setup_services.ps1` | NSSM-Dienste (einmalig als Admin; Upgrade-Pfad) |
+| `scripts/deploy_prod.ps1` | Release-Pipeline mit Auto-Rollback (`-DryRun`, `-Rollback`) |
+| `scripts/backup_daily.py` / `restore_backup.py` | Backup / Restore je `--env` |
+| `scripts/healthcheck.py` | Health-Poll für Deploy (PS 5.1 kennt kein `-SkipCertificateCheck`) |
+| `config/test.yaml` / `config/production_env.yaml` | Umgebungs-Overlays (Pfade, Backup, scan_enabled) |
+| `config/.stop_test` / `.stop_prod` / `maintenance_on` | Supervisor-Stop / Wartungsmodus (Datei-Flags) |
+| `../swu_prod` | Prod-Code (Git-Worktree, auf Release-Tag gepinnt) |
+| `config/.last_deploy` | zuletzt deployter Tag |
