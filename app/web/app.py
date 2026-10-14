@@ -1429,6 +1429,34 @@ def _register_routes(app: Flask) -> None:
             conn.close()
 
     # -- Health (Infra P1: Liveness/Readiness, Monitoring + Deploy-Gate) ----
+    # -- Maintenance-Mode (Infra P4: 503-Wartungsmodus) ----------------------
+    # Flag als DATEI (nicht DB - damit Migrationen waehrend Wartung laufen
+    # koennen); Auto-Off-Fail-Safe; /api/health ausgenommen (Monitor-Ping
+    # darf durchschlagen); Admin sieht die App weiterhin (Recherche-Muster:
+    # Laravel artisan down / django-maintenance-mode).
+    _MAINT_FLAG = _PROJECT_ROOT / "config" / "maintenance_on"
+
+    @app.before_request
+    def _maintenance_guard():
+        from flask import g as _g
+
+        if not _MAINT_FLAG.exists():
+            return None
+        path = request.path
+        if path.startswith("/api/health") or path.startswith("/static"):
+            return None
+        user = _g.get("user") or {}
+        if user.get("is_platform_admin"):
+            return None
+        if path.startswith("/api/"):
+            resp = jsonify({"error": "Wartungsarbeiten - bitte gleich nochmal versuchen."})
+            resp.status_code = 503
+            resp.headers["Retry-After"] = "600"
+            return resp
+        from flask import render_template
+
+        return render_template("maintenance.html"), 503
+
     @app.route("/api/health")
     def api_health():
         """Liveness: Prozess lebt. Atomar, KEINE DB-Abhaengigkeit

@@ -132,3 +132,67 @@ def test_api_system_zeigt_env(client):
     j = r.get_json()
     assert j["env"] == "test"
     assert j["scan_enabled"] is True
+
+
+# ---- Infra P4: Wartungsmodus (503, Health-Ausnahme, Admin-Freiheit) ----
+
+def test_maintenance_503_fuer_nutzer(client):
+    from pathlib import Path
+    from app.core.config import AppConfig
+
+    root = AppConfig.load().root
+    flag = root / "config" / "maintenance_on"
+    flag.write_text("deploy", encoding="utf-8")
+    # Nicht-Admin registrieren + einloggen (Admin darf in Wartung weiterarbeiten)
+    client.post("/api/auth/register", json={
+        "username": "familiemitglied", "email": "f@x.de", "password": "pw123456"})
+    client.post("/api/auth/login", json={"login": "familiemitglied", "password": "pw123456"})
+    try:
+        r = client.get("/api/collection")
+        assert r.status_code == 503
+        assert "Wartungsarbeiten" in r.get_json()["error"]
+        assert r.headers.get("Retry-After") == "600"
+    finally:
+        flag.unlink(missing_ok=True)
+
+
+def test_maintenance_health_durchlaessig(client):
+    from app.core.config import AppConfig
+
+    root = AppConfig.load().root
+    flag = root / "config" / "maintenance_on"
+    flag.write_text("deploy", encoding="utf-8")
+    try:
+        r = client.get("/api/health")
+        assert r.status_code == 200  # Monitor-Ping darf nicht blockiert werden
+        r2 = client.get("/api/health/ready")
+        assert r2.status_code == 200
+    finally:
+        flag.unlink(missing_ok=True)
+
+
+def test_maintenance_seite_fuer_browser(tmp_path, monkeypatch):
+    """HTML-Anfragen bekommen die Wartungsseite mit 503 (nie 200)."""
+    monkeypatch.setattr("app.db.schema.get_db_path", lambda: tmp_path / "m.db")
+    from app.db.schema import connect, init_database
+
+    conn = connect(tmp_path / "m.db")
+    init_database(conn)
+    conn.close()
+    from app.core.config import AppConfig
+
+    AppConfig.reset()
+    from app.web.app import create_app
+
+    app = create_app()
+    app.config["TESTING"] = True
+    app.config["SESSION_COOKIE_SECURE"] = False
+    c = app.test_client()
+    flag = AppConfig.load().root / "config" / "maintenance_on"
+    flag.write_text("deploy", encoding="utf-8")
+    try:
+        r = c.get("/collection")  # nicht eingeloggt -> Seite, kein API-JSON
+        assert r.status_code == 503
+        assert b"Wartungsarbeiten" in r.data
+    finally:
+        flag.unlink(missing_ok=True)
