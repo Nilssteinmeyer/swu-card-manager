@@ -19,13 +19,12 @@
 #  Rollbacks beruehren NIE Daten (nur Code); DB-Notfall = restore_backup.py.
 # ============================================================================
 #requires -version 5.1
-$ErrorActionPreference = "Stop"
-
 param(
     [string]$Tag = "",
     [switch]$DryRun,
     [switch]$Rollback
 )
+$ErrorActionPreference = "Stop"
 
 $ProjectDir = Split-Path -Parent $PSScriptRoot
 $VenvPython = Join-Path $ProjectDir ".venv\Scripts\python.exe"
