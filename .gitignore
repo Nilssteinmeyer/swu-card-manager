@@ -42,3 +42,4 @@ project_state/backup_staging_*/
 config/maintenance_on
 config/.last_deploy
 config/.stop_*
+config/duckdns_token
