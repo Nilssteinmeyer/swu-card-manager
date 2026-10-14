@@ -63,7 +63,7 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
     # -- Sessions & auth ------------------------------------------------------
     import os as _os
-    secret_file = Path(__file__).resolve().parent.parent.parent / "config" / "secret_key"
+    secret_file = _PROJECT_ROOT / "config" / "secret_key"  # SWU_HOME-faehig (P4b): im Prod-Worktree bleibt der Schlussel im Haupt-Tree
     if _os.environ.get("SWU_SECRET_KEY"):
         app.config["SECRET_KEY"] = _os.environ["SWU_SECRET_KEY"]
     elif secret_file.exists():
@@ -3537,10 +3537,10 @@ def main() -> None:
         _threading.Thread(target=_bg_tcg_sync, daemon=True).start()
         print("  TCG-Preis-Sync im Hintergrund gestartet.", flush=True)
 
-    # Determine SSL cert paths
-    project_root = Path(__file__).resolve().parent.parent.parent
-    cert_path = project_root / "ssl" / "cert.pem"
-    key_path = project_root / "ssl" / "key.pem"
+    # Determine SSL cert paths (SWU_HOME-respektierend: im Prod-Worktree
+    # liegen die Zertifikate im Haupt-Tree - P4b)
+    cert_path = _PROJECT_ROOT / "ssl" / "cert.pem"
+    key_path = _PROJECT_ROOT / "ssl" / "key.pem"
 
     use_ssl = not args.no_ssl and cert_path.exists() and key_path.exists()
 
